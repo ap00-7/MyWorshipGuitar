@@ -2,6 +2,18 @@ export const chromatic = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 
 const flatNames: Record<string, string> = { 'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb' }
 
 export type Notation = 'sharps' | 'flats' | 'auto'
+export const chordPattern = /^[A-G](?:#|b)?(?:m|maj7|M7|m7|7|sus[24]?|add9|dim|aug)?(?:\/[A-G](?:#|b)?)?$/
+export function parseChordProgression(input: string) {
+  return input.replace(/[|,]/g, ' ').split(/\s+|\s*-\s*/).map((value) => value.trim()).filter((value) => chordPattern.test(value))
+}
+export function extractChordLines(lines: string[]) {
+  return lines.filter((line) => parseChordProgression(line).length > 0 && parseChordProgression(line).length >= line.trim().split(/\s+/).length * .5).map((line) => parseChordProgression(line).join(' '))
+}
+export function formatChordLine(line: string, style: 'grid' | 'arrow' | 'roman' = 'grid') {
+  const chords = parseChordProgression(line)
+  if (style === 'arrow') return chords.join('  →  ')
+  return chords.join('   ')
+}
 export function normalizeKey(key: string) {
   const value = key.replace('b', '#')
   return chromatic.includes(value) ? value : 'C'

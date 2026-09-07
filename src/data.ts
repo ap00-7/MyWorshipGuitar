@@ -1,7 +1,8 @@
-export type Section = { id: string; name: string; lines: string[]; note?: string }
-export type Song = { id: string; title: string; artist: string; key: string; currentKey: string; capo: number; bpm: number; favorite: boolean; tags: string[]; notes: string; sections: Section[]; lastPlayed?: string }
+export type ChordImage = { name: string; dataUrl: string }
+export type Section = { id: string; name: string; lines: string[]; chordLines?: string[]; guitar2Lines?: string[]; note?: string }
+export type Song = { id: string; title: string; artist: string; key: string; currentKey: string; capo: number; bpm: number; favorite: boolean; tags: string[]; notes: string; sections: Section[]; chordImage?: ChordImage; lastPlayed?: string }
 export type Setlist = { id: string; name: string; date: string; songIds: string[]; description: string }
-export type Settings = { theme: 'light' | 'dark'; notation: 'sharps' | 'flats' | 'auto'; fontSize: number; simplify: boolean; autoScrollSpeed: number }
+export type Settings = { theme: 'light' | 'dark'; notation: 'sharps' | 'flats' | 'auto'; fontSize: number; simplify: boolean; autoScrollSpeed: number; chordDisplay?: 'grid' | 'arrow' | 'roman'; chordSize?: 'small' | 'medium' | 'large' | 'xl' }
 export const demoSongs: Song[] = [
   { id: 'grace-forever', title: 'Grace Forever', artist: 'Demo Worship', key: 'C', currentKey: 'C', capo: 0, bpm: 74, favorite: true, tags: ['Sunday', 'Acoustic'], notes: 'Start fingerpicking. Build through the bridge.', sections: [
     { id: 'gf-1', name: 'Verse 1', lines: ['C        G', 'Mercy meets me in the morning light', 'Am       F', 'Hope is singing through the quiet night'] },
@@ -13,4 +14,4 @@ export const demoSongs: Song[] = [
     { id: 'oh-2', name: 'Chorus', lines: ['C        G', 'Open heavens, breathe on us', 'D        Em', 'Lead us onward, lead us home'] }
   ] }
 ]
-export const defaultSettings: Settings = { theme: 'light', notation: 'auto', fontSize: 1, simplify: false, autoScrollSpeed: 1 }
+export const defaultSettings: Settings = { theme: 'light', notation: 'auto', fontSize: 1, simplify: false, autoScrollSpeed: 1, chordDisplay: 'grid', chordSize: 'large' }
