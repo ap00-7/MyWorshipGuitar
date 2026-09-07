@@ -1,0 +1,12 @@
+{
+  "name": "Worship Guitar",
+  "short_name": "Worship Guitar",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f1ea",
+  "theme_color": "#f4f1ea",
+  "description": "Your personal worship songbook and live guitar companion.",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
