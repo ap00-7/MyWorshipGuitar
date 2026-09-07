@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { BookOpen, ChevronLeft, ChevronRight, CirclePlus, Disc3, Download, FolderHeart, Guitar, Home, Library, ListMusic, Menu, Moon, Music2, Pause, Play, Plus, Search, Settings as SettingsIcon, Share2, Sparkles, Sun, Trash2, Upload, X, Zap } from 'lucide-react'
+import { BookOpen, CalendarDays, ChevronLeft, ChevronRight, CirclePlus, Disc3, Download, FolderHeart, Guitar, Home, Library, ListMusic, Menu, Moon, Music2, Pause, Play, Plus, Search, Settings as SettingsIcon, Share2, Sparkles, Sun, Trash2, Upload, X, Zap } from 'lucide-react'
 import { capoShapeKey, progressionToChords, simplifyChord, transposeLine, type Notation } from './music'
 import { defaultSettings, demoSongs, type Section, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
 import { DashboardV2, LivePageV2, SetlistsPageV2, SongPageV2, SongsPageV2 } from './v2'
 import { LivePageV3, SongPageV3 } from './v3'
+import { LivePageV4, SongPageV4, SundayPageV4 } from './v4'
 
-const navItems = [{ to: '/', label: 'Dashboard', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/setlists', label: 'Setlists', icon: ListMusic }, { to: '/chords', label: 'Chord library', icon: Guitar }, { to: '/practice', label: 'Practice', icon: Disc3 }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
+const navItems = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/chords', label: 'Chord library', icon: Guitar }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
 const id = () => Math.random().toString(36).slice(2, 9)
 
 function useLocalState<T>(key: string, initial: T) {
@@ -39,12 +40,13 @@ export default function App() {
     <main className="main"><Routes>
       <Route path="/" element={<DashboardV2 songs={songs} setlists={setlists} onCreateSong={createSong} onCreateSetlist={createSetlist} />} />
       <Route path="/songs" element={<SongsPageV2 songs={songs} onCreate={createSong} onUpdate={updateSong} onDelete={(song) => setSongs(songs.filter((item) => item.id !== song.id))} />} />
-      <Route path="/songs/:songId" element={<SongPageV3 songs={songs} settings={settings} onUpdate={updateSong} onSettings={setSettings} />} />
+      <Route path="/songs/:songId" element={<SongPageV4 songs={songs} settings={settings} onUpdate={updateSong} />} />
+      <Route path="/sunday" element={<SundayPageV4 songs={songs} setlists={setlists} onCreate={createSetlist} onUpdate={(setlist) => setSetlists(setlists.map((item) => item.id === setlist.id ? setlist : item))} onDuplicate={(previous) => setSetlists([{ ...previous, id: id(), name: `${previous.name} · Copy`, date: 'New Sunday' }, ...setlists])} />} />
       <Route path="/setlists" element={<SetlistsPageV2 songs={songs} setlists={setlists} onCreate={createSetlist} onUpdate={(setlist) => setSetlists(setlists.map((item) => item.id === setlist.id ? setlist : item))} onDelete={(setlist) => setSetlists(setlists.filter((item) => item.id !== setlist.id))} />} />
       <Route path="/chords" element={<ChordLibrary />} />
       <Route path="/practice" element={<Practice settings={settings} />} />
       <Route path="/settings" element={<SettingsPage settings={settings} setSettings={setSettings} songs={songs} setSongs={setSongs} setlists={setlists} setSetlists={setSetlists} onShare={share} />} />
-      <Route path="/live/:songId" element={<LivePageV3 songs={songs} settings={settings} onSettings={setSettings} />} />
+      <Route path="/live/:songId" element={<LivePageV4 songs={songs} setlists={setlists} settings={settings} onSettings={setSettings} />} />
       <Route path="*" element={<DashboardV2 songs={songs} setlists={setlists} onCreateSong={createSong} onCreateSetlist={createSetlist} />} />
     </Routes></main>
   </div>
