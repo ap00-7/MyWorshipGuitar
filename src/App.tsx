@@ -55,8 +55,16 @@ function Sidebar({ onShare }: { onShare: () => void }) { return <aside className
 
 function Header({ eyebrow, title, action }: { eyebrow?: string; title: string; action?: React.ReactNode }) { return <header className="page-header"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div>{action}</header> }
 function Stat({ label, value, icon: Icon }: { label: string; value: string | number; icon: typeof Home }) { return <div className="stat"><span className="stat-icon"><Icon size={17} /></span><div><strong>{value}</strong><small>{label}</small></div></div> }
+function useCurrentTime() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
+  return now
+}
 
-function Dashboard({ songs, setlists }: { songs: Song[]; setlists: Setlist[] }) { const navigate = useNavigate(); const recent = songs.filter((song) => song.lastPlayed).concat(songs).slice(0, 3); return <div className="page dashboard"><Header eyebrow="Monday, September 7" title="Good morning, Alex." action={<button className="icon-button" title="Menu"><Menu size={20} /></button>} />
+function Dashboard({ songs, setlists }: { songs: Song[]; setlists: Setlist[] }) { const now = useCurrentTime(); const recent = songs.filter((song) => song.lastPlayed).concat(songs).slice(0, 3); const hour = now.getHours(); const greeting = hour < 12 ? 'Good morning.' : hour < 18 ? 'Good afternoon.' : 'Good evening.'; const date = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); return <div className="page dashboard"><Header eyebrow={date} title={greeting} action={<button className="icon-button" title="Menu"><Menu size={20} /></button>} />
   <section className="welcome-band"><div><span className="eyebrow light">Your Sunday setlist is ready</span><h2>Make space for the song.</h2><p>Everything you need to lead with confidence, right where you left it.</p></div><Link className="primary-button light-button" to={`/live/${setlists[0]?.songIds[0] || songs[0]?.id}`}><Zap size={17} />Open live mode</Link></section>
   <div className="stats-grid"><Stat label="Songs in library" value={songs.length} icon={BookOpen} /><Stat label="Favorites" value={songs.filter((song) => song.favorite).length} icon={FolderHeart} /><Stat label="Setlists" value={setlists.length} icon={ListMusic} /><Stat label="Songs played" value={songs.filter((song) => song.lastPlayed).length} icon={Sparkles} /></div>
   <div className="content-grid"><section><div className="section-heading"><div><span className="eyebrow">Keep playing</span><h2>Recently opened</h2></div><Link to="/songs">View all <ChevronRight size={15} /></Link></div><div className="song-list">{recent.map((song, index) => <SongRow key={`${song.id}-${index}`} song={song} />)}</div></section><section className="setlist-spotlight"><div className="section-heading"><div><span className="eyebrow">Up next</span><h2>{setlists[0]?.name || 'No setlists yet'}</h2></div><ListMusic size={20} /></div>{setlists[0] && <><p>{setlists[0].description || 'Your next set, ready to go.'}</p><div className="setlist-mini">{setlists[0].songIds.slice(0, 3).map((songId, index) => { const song = songs.find((item) => item.id === songId); return <div key={songId}><span>0{index + 1}</span>{song?.title || 'Untitled song'}</div> })}</div><Link className="text-button" to={`/live/${setlists[0].songIds[0]}`}>Start this set <ChevronRight size={15} /></Link></>}</section></div>
