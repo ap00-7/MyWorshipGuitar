@@ -1,13 +1,13 @@
 # Worship Guitar
 
-Worship Guitar is a personal songbook and live guitar companion for worship musicians. It stores songs and setlists locally in the browser, so the basic workflow remains available without an account or backend.
+Worship Guitar is a personal chord-sheet companion for worship musicians. It stores songs and setlists locally in the browser, so the basic workflow remains available without an account or backend.
 
 ## Features
 
 - Personal song library with search, favorites, tags, notes, and local persistence
 - Structured chord lines with transpose controls, sharp/flat notation, chord simplification, and capo shape calculations
-- Setlists with song ordering and one-tap Live Mode
-- Distraction-free Live Mode with large lyrics, section navigation, keyboard shortcuts, and next-song context
+- Setlists with song ordering and normal full-song chord sheets
+- Continuous chord-first song views with no lyric scrolling or section pagination
 - Chord reference library and Roman numeral progression generator
 - JSON export/import for backups
 - Light/dark themes and responsive tablet/mobile layout
@@ -42,7 +42,7 @@ The build output is written to `dist` and is ready for static hosting.
 1. Push this repository to GitHub.
 2. In Vercel, choose **Add New Project** and import the repository.
 3. Vercel detects Vite automatically. The build command is `npm run build` and the output directory is `dist`.
-4. Deploy. `vercel.json` rewrites client-side routes back to `index.html`, so refreshing `/songs`, `/setlists`, `/practice`, `/settings`, or `/live/...` works correctly.
+4. Deploy. `vercel.json` rewrites client-side routes back to `index.html`, so refreshing `/songs`, `/sunday`, `/chords`, or `/settings` works correctly.
 
 The current fallback mode uses browser LocalStorage and is useful for a single-device demo. For a public owner-controlled installation, configure Supabase before enabling shared writes: apply `supabase/schema.sql`, create the owner in Supabase Auth, configure the database owner setting, and add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel. The Supabase anon key is browser-safe; never expose a service-role key. The SQL policies allow public reads and owner-only writes at the database layer.
 
@@ -52,6 +52,6 @@ Songs, favorites, setlists, notes, and settings are personal data stored in the 
 
 ## V4 chord-first workflow
 
-Use **Sunday** to prepare the week's service. The complete chord progression is rendered as one continuous sheet with visual section labels. `/live/:songId` uses the same chord-only sheet and moves between songs, not between sections. Existing lyric text remains in the local data model for compatibility but is intentionally not rendered in the primary performance view.
+Use **Sunday** to prepare the week's service. The complete chord progression is rendered as one continuous sheet with visual section labels. Opening a song is the complete playing interface; there is no separate performance mode. Existing lyric text remains in the local data model for compatibility but is intentionally not rendered in the primary chord view.
 
 The local fallback does not provide real authentication or authorization. Do not use it as a secure multi-user owner system until the Supabase policies and data adapter are configured.
