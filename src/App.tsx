@@ -4,6 +4,7 @@ import { BookOpen, ChevronLeft, ChevronRight, CirclePlus, Disc3, Download, Folde
 import { capoShapeKey, progressionToChords, simplifyChord, transposeLine, type Notation } from './music'
 import { defaultSettings, demoSongs, type Section, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
+import { DashboardV2, LivePageV2, SetlistsPageV2, SongPageV2, SongsPageV2 } from './v2'
 
 const navItems = [{ to: '/', label: 'Dashboard', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/setlists', label: 'Setlists', icon: ListMusic }, { to: '/chords', label: 'Chord library', icon: Guitar }, { to: '/practice', label: 'Practice', icon: Disc3 }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
 const id = () => Math.random().toString(36).slice(2, 9)
@@ -29,20 +30,21 @@ export default function App() {
     const song: Song = { id: id(), title, artist: 'Personal song', key: 'C', currentKey: 'C', capo: 0, bpm: 72, favorite: false, tags: [], notes: '', sections: [{ id: id(), name: 'Verse', lines: ['C        G', 'Add your lyrics here'] }] }
     setSongs((current) => [song, ...current]); navigate(`/songs/${song.id}`)
   }
+  const createSetlist = () => { const name = window.prompt('Setlist name'); if (name?.trim()) setSetlists((current) => [{ id: id(), name: name.trim(), date: 'New setlist', description: '', songIds: [] }, ...current]) }
   const updateSong = (updated: Song) => setSongs((current) => current.map((song) => song.id === updated.id ? updated : song))
   const share = async () => { const url = window.location.href; try { if (navigator.share) await navigator.share({ title: 'Worship Guitar', url }); else { await navigator.clipboard.writeText(url); window.alert('App link copied!') } } catch { /* cancelled share */ } }
   return <div className={live ? 'app live-shell' : 'app'}>
     {!live && <Sidebar onShare={share} />}
     <main className="main"><Routes>
-      <Route path="/" element={<Dashboard songs={songs} setlists={setlists} />} />
-      <Route path="/songs" element={<SongsPage songs={songs} onCreate={createSong} onUpdate={updateSong} onDelete={(song) => setSongs(songs.filter((item) => item.id !== song.id))} />} />
-      <Route path="/songs/:songId" element={<SongPage songs={songs} settings={settings} onUpdate={updateSong} />} />
-      <Route path="/setlists" element={<SetlistsPage songs={songs} setlists={setlists} onCreate={() => { const name = window.prompt('Setlist name'); if (name) setSetlists([{ id: id(), name, date: 'New setlist', description: '', songIds: [] }, ...setlists]) }} onUpdate={(setlist) => setSetlists(setlists.map((item) => item.id === setlist.id ? setlist : item))} onDelete={(setlist) => setSetlists(setlists.filter((item) => item.id !== setlist.id))} />} />
+      <Route path="/" element={<DashboardV2 songs={songs} setlists={setlists} onCreateSong={createSong} onCreateSetlist={createSetlist} />} />
+      <Route path="/songs" element={<SongsPageV2 songs={songs} onCreate={createSong} onUpdate={updateSong} onDelete={(song) => setSongs(songs.filter((item) => item.id !== song.id))} />} />
+      <Route path="/songs/:songId" element={<SongPageV2 songs={songs} settings={settings} onUpdate={updateSong} onSettings={setSettings} />} />
+      <Route path="/setlists" element={<SetlistsPageV2 songs={songs} setlists={setlists} onCreate={createSetlist} onUpdate={(setlist) => setSetlists(setlists.map((item) => item.id === setlist.id ? setlist : item))} onDelete={(setlist) => setSetlists(setlists.filter((item) => item.id !== setlist.id))} />} />
       <Route path="/chords" element={<ChordLibrary />} />
       <Route path="/practice" element={<Practice settings={settings} />} />
       <Route path="/settings" element={<SettingsPage settings={settings} setSettings={setSettings} songs={songs} setSongs={setSongs} setlists={setlists} setSetlists={setSetlists} onShare={share} />} />
-      <Route path="/live/:songId" element={<LivePage songs={songs} settings={settings} onUpdate={updateSong} />} />
-      <Route path="*" element={<Dashboard songs={songs} setlists={setlists} />} />
+      <Route path="/live/:songId" element={<LivePageV2 songs={songs} settings={settings} onSettings={setSettings} />} />
+      <Route path="*" element={<DashboardV2 songs={songs} setlists={setlists} onCreateSong={createSong} onCreateSetlist={createSetlist} />} />
     </Routes></main>
   </div>
 }
