@@ -13,6 +13,7 @@
   --accent-dark: #953d2b;
   --sage: #74806b;
   --shadow: 0 18px 32px rgba(33, 28, 22, 0.08);
+  --nav-shadow: 0 -8px 24px rgba(33, 28, 22, 0.08);
 }
 
 :root[data-theme='dark'] {
@@ -24,6 +25,7 @@
   --accent: #df7659;
   --accent-dark: #f1a580;
   --sage: #a4b39a;
+  --nav-shadow: 0 -8px 24px rgba(0, 0, 0, 0.28);
   background: #171915;
   color: var(--ink);
 }
@@ -140,6 +142,12 @@ nav {
   gap: 20px;
 }
 
+.v5-page-header,
+.v5-song-header,
+.sunday-header {
+  margin-bottom: 24px;
+}
+
 .v5-home {
   flex-direction: column;
   gap: 24px;
@@ -156,7 +164,8 @@ nav {
   margin: 8px 0 0;
   font: 600 clamp(34px, 5vw, 58px) 'Playfair Display', serif;
   letter-spacing: -0.05em;
-  line-height: 0.95;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
 .v5-home-header em {
@@ -348,7 +357,7 @@ nav {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-bottom: 20px;
+  margin: 0 0 20px;
 }
 
 .filter-button.selected, .segmented button.selected {
@@ -1016,8 +1025,9 @@ nav {
     border-right: 0;
     border-top: 1px solid var(--line);
     border-bottom: 0;
-    background: rgba(251, 250, 247, 0.96);
+    background: var(--paper);
     backdrop-filter: blur(10px);
+    box-shadow: var(--nav-shadow);
     padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
   }
 
