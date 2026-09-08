@@ -1,16 +1,22 @@
 -- Worship Guitar shared data and owner-only write policy.
 -- Run this in a fresh Supabase project's SQL Editor.
 
-create type public.app_role as enum ('owner', 'user');
+do $$
+begin
+  create type public.app_role as enum ('owner', 'user');
+exception
+  when duplicate_object then null;
+end
+$$;
 
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   role public.app_role not null default 'user',
   created_at timestamptz not null default now()
 );
 
-create table public.songs (
+create table if not exists public.songs (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   artist text not null default '',
@@ -26,7 +32,7 @@ create table public.songs (
   updated_at timestamptz not null default now()
 );
 
-create table public.song_sections (
+create table if not exists public.song_sections (
   id uuid primary key default gen_random_uuid(),
   song_id uuid not null references public.songs(id) on delete cascade,
   name text not null,
@@ -36,7 +42,7 @@ create table public.song_sections (
   unique (song_id, position)
 );
 
-create table public.sundays (
+create table if not exists public.sundays (
   id uuid primary key default gen_random_uuid(),
   name text not null default 'Sunday Worship',
   service_date date not null default current_date,
@@ -45,7 +51,7 @@ create table public.sundays (
   updated_at timestamptz not null default now()
 );
 
-create table public.sunday_songs (
+create table if not exists public.sunday_songs (
   sunday_id uuid not null references public.sundays(id) on delete cascade,
   song_id uuid not null references public.songs(id) on delete cascade,
   position integer not null default 0,
@@ -53,7 +59,7 @@ create table public.sunday_songs (
   unique (sunday_id, position)
 );
 
-create table public.chord_library (
+create table if not exists public.chord_library (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   root text not null,
@@ -81,6 +87,7 @@ begin
 end;
 $$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
@@ -92,6 +99,12 @@ alter table public.sundays enable row level security;
 alter table public.sunday_songs enable row level security;
 alter table public.chord_library enable row level security;
 
+drop policy if exists "users can read own profile" on public.profiles;
+drop policy if exists "public can read songs" on public.songs;
+drop policy if exists "public can read song sections" on public.song_sections;
+drop policy if exists "public can read sundays" on public.sundays;
+drop policy if exists "public can read sunday songs" on public.sunday_songs;
+drop policy if exists "public can read chord library" on public.chord_library;
 create policy "users can read own profile" on public.profiles for select using (id = auth.uid());
 create policy "public can read songs" on public.songs for select using (true);
 create policy "public can read song sections" on public.song_sections for select using (true);
@@ -99,6 +112,21 @@ create policy "public can read sundays" on public.sundays for select using (true
 create policy "public can read sunday songs" on public.sunday_songs for select using (true);
 create policy "public can read chord library" on public.chord_library for select using (true);
 
+drop policy if exists "owner can insert songs" on public.songs;
+drop policy if exists "owner can update songs" on public.songs;
+drop policy if exists "owner can delete songs" on public.songs;
+drop policy if exists "owner can insert song sections" on public.song_sections;
+drop policy if exists "owner can update song sections" on public.song_sections;
+drop policy if exists "owner can delete song sections" on public.song_sections;
+drop policy if exists "owner can insert sundays" on public.sundays;
+drop policy if exists "owner can update sundays" on public.sundays;
+drop policy if exists "owner can delete sundays" on public.sundays;
+drop policy if exists "owner can insert sunday songs" on public.sunday_songs;
+drop policy if exists "owner can update sunday songs" on public.sunday_songs;
+drop policy if exists "owner can delete sunday songs" on public.sunday_songs;
+drop policy if exists "owner can insert chord library" on public.chord_library;
+drop policy if exists "owner can update chord library" on public.chord_library;
+drop policy if exists "owner can delete chord library" on public.chord_library;
 create policy "owner can insert songs" on public.songs for insert with check (public.is_worship_owner());
 create policy "owner can update songs" on public.songs for update using (public.is_worship_owner()) with check (public.is_worship_owner());
 create policy "owner can delete songs" on public.songs for delete using (public.is_worship_owner());
@@ -119,6 +147,10 @@ insert into storage.buckets (id, name, public)
 values ('chord-images', 'chord-images', true)
 on conflict (id) do nothing;
 
+drop policy if exists "public can view chord images" on storage.objects;
+drop policy if exists "owner can upload chord images" on storage.objects;
+drop policy if exists "owner can update chord images" on storage.objects;
+drop policy if exists "owner can delete chord images" on storage.objects;
 create policy "public can view chord images" on storage.objects for select using (bucket_id = 'chord-images');
 create policy "owner can upload chord images" on storage.objects for insert with check (bucket_id = 'chord-images' and public.is_worship_owner());
 create policy "owner can update chord images" on storage.objects for update using (bucket_id = 'chord-images' and public.is_worship_owner());
