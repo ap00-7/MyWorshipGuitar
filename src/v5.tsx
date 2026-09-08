@@ -1,10 +1,21 @@
-﻿import { useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { capoShapeKey, chromatic, parseChordProgression, simplifyChord, transposeChord, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
 
 const id = () => Math.random().toString(36).slice(2, 9)
+
+type ChordDefinition = {
+  name: string
+  root: string
+  type: string
+  notes: string[]
+  strings: number[]
+  fingers: string[]
+  difficulty: string
+  baseFret: number
+}
 const rootOptions = ['All', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 const typeOptions = ['All', 'Major', 'Minor', '7', 'Maj7', 'm7', 'Sus2', 'Sus4', 'Add9', 'Dim', 'Aug', '6', '9', '11', '13', '5', 'Slash']
 
@@ -426,9 +437,9 @@ export function ChordLibrary() {
   const [query, setQuery] = useState('')
   const [rootFilter, setRootFilter] = useState('All')
   const [typeFilter, setTypeFilter] = useState('All')
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selectedChord, setSelectedChord] = useState<ChordDefinition | null>(null)
 
-  const chordDatabase = useMemo(() => [
+  const chordDatabase = useMemo<ChordDefinition[]>(() => [
     { name: 'A', root: 'A', type: 'Major', notes: ['A', 'C#', 'E'], strings: [-1, 0, 2, 2, 2, 0], fingers: ['x', '0', '2', '2', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Am', root: 'A', type: 'Minor', notes: ['A', 'C', 'E'], strings: [-1, 0, 1, 2, 2, 0], fingers: ['x', '0', '1', '2', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'A7', root: 'A', type: '7', notes: ['A', 'C#', 'E', 'G'], strings: [-1, 0, 2, 0, 2, 0], fingers: ['x', '0', '2', '0', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
@@ -467,16 +478,37 @@ export function ChordLibrary() {
     { name: 'Gadd9', root: 'G', type: 'Add9', notes: ['G', 'B', 'D', 'A'], strings: [3, 2, 0, 0, 3, 3], fingers: ['3', '2', '0', '0', '3', '3'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'C/E', root: 'C', type: 'Slash', notes: ['C', 'E', 'G', 'B'], strings: [0, 1, 0, 2, 3, 0], fingers: ['0', '1', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'G/B', root: 'G', type: 'Slash', notes: ['G', 'B', 'D'], strings: [0, 2, 0, 0, 0, 3], fingers: ['0', '2', '0', '0', '0', '3'], difficulty: 'Beginner', baseFret: 1 },
-  ], [ ])
+  ], [])
 
   const visible = chordDatabase.filter((chord) => {
-    const matchesQuery = !query || chord.name.toLowerCase().includes(query.toLowerCase()) || chord.root.toLowerCase().includes(query.toLowerCase()) || chord.type.toLowerCase().includes(query.toLowerCase())
-    const matchesRoot = rootFilter === 'All' || chord.root === rootFilter || (rootFilter === 'Eb' && chord.root === 'Eb') || (rootFilter === 'Ab' && chord.root === 'Ab') || (rootFilter === 'Bb' && chord.root === 'Bb')
+    const queryText = `${chord.name} ${chord.root} ${chord.type}`.toLowerCase()
+    const matchesQuery = !query || queryText.includes(query.toLowerCase())
+    const matchesRoot = rootFilter === 'All' || chord.root === rootFilter
     const matchesType = typeFilter === 'All' || chord.type === typeFilter
     return matchesQuery && matchesRoot && matchesType
   })
 
-  const selectedChord = chordDatabase.find((chord) => chord.name === selected) ?? visible[0] ?? null
+  useEffect(() => {
+    if (!selectedChord) {
+      document.body.style.overflow = ''
+      return
+    }
+
+    document.body.style.overflow = 'hidden'
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedChord(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedChord])
+
+  const closeModal = () => setSelectedChord(null)
 
   return (
     <div className="page chord-library-page">
@@ -502,7 +534,7 @@ export function ChordLibrary() {
 
       <div className="chord-family-grid">
         {visible.map((chord) => (
-          <button key={chord.name} className="library-chord" onClick={() => setSelected(chord.name)}>
+          <button key={chord.name} type="button" className="library-chord" onClick={() => setSelectedChord(chord)}>
             <strong>{chord.name}</strong>
             <small>{chord.type}</small>
             <GuitarChordDiagram chord={chord} compact />
@@ -511,13 +543,17 @@ export function ChordLibrary() {
       </div>
 
       {selectedChord && (
-        <ChordDetail chord={selectedChord} onClose={() => setSelected(null)} />
+        <div className="chord-detail-backdrop" role="presentation" onClick={(event) => {
+          if (event.target === event.currentTarget) closeModal()
+        }}>
+          <ChordDetail chord={selectedChord} onClose={closeModal} />
+        </div>
       )}
     </div>
   )
 }
 
-function GuitarChordDiagram({ chord, compact = false }: { chord: { name: string; notes: string[]; strings: number[]; fingers: string[]; difficulty: string; baseFret: number }; compact?: boolean }) {
+function GuitarChordDiagram({ chord, compact = false }: { chord: ChordDefinition; compact?: boolean }) {
   const rows = chord.strings.map((value, index) => ({
     label: ['Low E', 'A', 'D', 'G', 'B', 'High E'][index],
     value,
@@ -554,21 +590,19 @@ function GuitarChordDiagram({ chord, compact = false }: { chord: { name: string;
   )
 }
 
-function ChordDetail({ chord, onClose }: { chord: { name: string; notes: string[]; strings: number[]; fingers: string[]; difficulty: string; baseFret: number }; onClose: () => void }) {
+function ChordDetail({ chord, onClose }: { chord: ChordDefinition; onClose: () => void }) {
   return (
-    <div className="chord-detail-backdrop" role="dialog" aria-modal="true">
-      <section className="chord-detail">
-        <button className="icon-button close-button" onClick={onClose} aria-label="Close chord details"><X size={18} /></button>
-        <div className="eyebrow">Chord detail</div>
-        <h2>{chord.name}</h2>
-        <GuitarChordDiagram chord={chord} />
-        <div className="detail-meta">
-          <p><strong>Notes:</strong> {chord.notes.join(' ')}</p>
-          <p><strong>Fingering:</strong> {chord.strings.map((value, index) => (value === -1 ? 'X' : value === 0 ? 'O' : String(value))).join(' ')}</p>
-          <p><strong>Difficulty:</strong> {chord.difficulty}</p>
-        </div>
-      </section>
-    </div>
+    <section className="chord-detail" role="dialog" aria-modal="true" aria-label={`${chord.name} detail`}>
+      <button type="button" className="close-button" onClick={onClose} aria-label="Close chord details"><X size={18} /></button>
+      <div className="eyebrow">Chord detail</div>
+      <h2>{chord.name}</h2>
+      <GuitarChordDiagram chord={chord} />
+      <div className="detail-meta">
+        <p><strong>Notes:</strong> {chord.notes.join(' ')}</p>
+        <p><strong>Fingering:</strong> {chord.strings.map((value) => (value === -1 ? 'X' : value === 0 ? 'O' : String(value))).join(' ')}</p>
+        <p><strong>Difficulty:</strong> {chord.difficulty}</p>
+      </div>
+    </section>
   )
 }
 

@@ -30,7 +30,12 @@
 
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; min-height: 100%; }
-body { min-height: 100vh; background: var(--paper); color: var(--ink); }
+body {
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  overflow-x: hidden;
+}
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
@@ -767,26 +772,38 @@ nav {
 .chord-detail-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(10, 12, 10, 0.42);
+  background: rgba(10, 12, 10, 0.52);
   display: grid;
   place-items: center;
-  z-index: 50;
-  padding: 20px;
+  z-index: 60;
+  padding: 16px;
+  overflow-y: auto;
 }
 
 .chord-detail {
   width: min(440px, 100%);
+  max-height: min(88vh, 720px);
+  overflow-y: auto;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 22px;
+  padding: 22px 20px 18px;
   position: relative;
+  box-shadow: var(--shadow);
 }
 
 .close-button {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
 }
 
 .chord-detail h2 {
@@ -981,6 +998,51 @@ nav {
 }
 
 @media (max-width: 640px) {
+  .app {
+    display: block;
+  }
+
+  .sidebar {
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    top: auto;
+    padding: 10px 12px max(12px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    border-bottom: 0;
+    background: rgba(251, 250, 247, 0.96);
+    backdrop-filter: blur(8px);
+  }
+
+  .brand {
+    display: none;
+  }
+
+  .nav-label {
+    display: none;
+  }
+
+  nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .nav-item {
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+    min-height: 52px;
+    padding: 8px 4px;
+    font-size: 10px;
+    line-height: 1.2;
+    border-radius: 10px;
+  }
+
+  .sidebar-footer {
+    display: none;
+  }
+
   .page {
     padding-left: 16px;
     padding-right: 16px;
@@ -1017,6 +1079,58 @@ nav {
   }
 
   .chord-search-row select {
+    width: 100%;
+  }
+
+  .chord-family-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .library-chord {
+    min-height: 170px;
+  }
+
+  .chord-detail {
+    width: min(100%, 420px);
+    max-height: 84vh;
+    padding: 22px 14px 18px;
+  }
+}
+
+@media (max-width: 420px) {
+  .page {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .home-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .chord-family-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .song-key-bar {
+    gap: 6px;
+  }
+
+  .song-key-bar button,
+  .song-key-bar select {
+    min-height: 38px;
+    padding: 8px 10px;
+  }
+
+  .v5-search-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .filter-button,
+  .upload-button {
     width: 100%;
   }
 }
