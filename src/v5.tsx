@@ -23,10 +23,19 @@ const keyIndex = (key: string) => Math.max(0, chromatic.indexOf(key.replace('b',
 const shiftKey = (key: string, amount: number) => chromatic[(keyIndex(key) + amount + 24) % 12]
 
 const sectionChordLines = (section: Section) => {
-  if (section.chordText) {
+  if (typeof section.chordText === 'string' && section.chordText.trim()) {
     return section.chordText.split(/\n/).filter(Boolean)
   }
-  return section.chordLines ?? []
+
+  if (Array.isArray(section.chordLines) && section.chordLines.length) {
+    return section.chordLines.filter(Boolean)
+  }
+
+  if (Array.isArray(section.lines) && section.lines.length) {
+    return section.lines.filter(Boolean)
+  }
+
+  return []
 }
 
 const displayChord = (chord: string, interval: number, notation: Notation, simplifyValue: boolean) => {
@@ -620,7 +629,7 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
         <div className="setting">
           <div>
             <h3>Theme</h3>
-            <p>Saved on this device.</p>
+            <p>Choose the color theme for the app.</p>
           </div>
           <div className="segmented">
             <button className={settings.theme === 'light' ? 'selected' : ''} onClick={() => onSettings({ ...settings, theme: 'light' })}><Sun size={15} />Light</button>

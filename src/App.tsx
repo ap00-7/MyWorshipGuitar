@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from 'react'
 import { BookOpen, CalendarDays, Guitar, Home, Settings as SettingsIcon } from 'lucide-react'
 import { Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
-import { defaultSettings, demoSongs, type Setlist, type Settings, type Song } from './data'
+import { defaultSettings, demoSongs, normalizeSong, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
 import { ChordLibrary, HomePage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
 
@@ -18,12 +18,18 @@ const seedSetlists: Setlist[] = [
 
 function useLocalState<T>(key: string, initial: T) {
   const [repository] = useState(() => new LocalRepository<T>(key, initial))
-  const [value, setValue] = useState<T>(() => { 
-    const stored = repository.load()
-    if (key === 'wg-settings' && !localStorage.getItem(key)) {
-      return { ...(stored as object), theme: window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } as T
+  const [value, setValue] = useState<T>(() => {
+    const stored = repository.load() as T
+    let normalizedStored = stored
+
+    if (key === 'wg-songs' && Array.isArray(stored)) {
+      normalizedStored = stored.map(normalizeSong) as T
     }
-    return stored
+
+    if (key === 'wg-settings' && !localStorage.getItem(key)) {
+      return { ...(normalizedStored as object), theme: window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } as T
+    }
+    return normalizedStored
   })
 
   useEffect(() => repository.save(value), [repository, value])
@@ -41,11 +47,12 @@ export default function App() {
   }, [settings.theme])
 
   const saveSong = (song: Song) => {
+    const normalized = normalizeSong(song)
     setSongs((current) => {
-      const exists = current.some((item) => item.id === song.id)
+      const exists = current.some((item) => item.id === normalized.id)
       return exists
-        ? current.map((item) => (item.id === song.id ? song : item))
-        : [song, ...current]
+        ? current.map((item) => (item.id === normalized.id ? normalized : item))
+        : [normalized, ...current]
     })
   }
 
@@ -130,12 +137,6 @@ function Sidebar({ items }: { items: { to: string; label: string; icon: typeof H
         ))}
       </nav>
 
-      <div className="sidebar-footer">
-        <div className="profile-dot">WG</div>
-        <div>
-          <strong>Saved on this device</strong>
-        </div>
-      </div>
     </aside>
   )
 }
