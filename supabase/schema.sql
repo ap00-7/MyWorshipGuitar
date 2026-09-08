@@ -71,6 +71,11 @@ create table if not exists public.chord_library (
   base_fret integer not null default 1
 );
 
+grant usage on schema public to anon, authenticated;
+grant select on public.profiles, public.songs, public.song_sections, public.sundays, public.sunday_songs, public.chord_library to anon, authenticated;
+grant insert, update, delete on public.songs, public.song_sections, public.sundays, public.sunday_songs, public.chord_library to authenticated;
+grant update on public.profiles to authenticated;
+
 create or replace function public.is_worship_owner()
 returns boolean language sql stable security definer set search_path = public
 as $$
@@ -146,6 +151,9 @@ create policy "owner can delete chord library" on public.chord_library for delet
 insert into storage.buckets (id, name, public)
 values ('chord-images', 'chord-images', true)
 on conflict (id) do nothing;
+
+grant select on storage.objects to anon, authenticated;
+grant insert, update, delete on storage.objects to authenticated;
 
 drop policy if exists "public can view chord images" on storage.objects;
 drop policy if exists "owner can upload chord images" on storage.objects;

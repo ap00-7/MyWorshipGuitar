@@ -35,7 +35,7 @@ function requireSupabase() {
 export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   const client = requireSupabase()
   const [songsResult, sundaysResult] = await Promise.all([
-    client.from('songs').select('id,title,artist,original_key,current_key,capo,bpm,favorite,tags,notes,chord_image_path,sections(id,name,chord_text,note)').order('updated_at', { ascending: false }),
+    client.from('songs').select('id,title,artist,original_key,current_key,capo,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,note,position)').order('updated_at', { ascending: false }),
     client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position)').order('service_date', { ascending: false }),
   ])
 
