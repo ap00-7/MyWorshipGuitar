@@ -1,23 +1,24 @@
 # Worship Guitar
 
-Worship Guitar is a personal chord-sheet companion for worship musicians. It stores songs and setlists locally in the browser, so the basic workflow remains available without an account or backend.
+Worship Guitar is an owner-managed chord-sheet companion for worship musicians. Public visitors can read the shared songs and Sunday schedule, while the authenticated owner manages shared content.
 
 ## Features
 
-- Personal song library with search, favorites, tags, notes, and local persistence
+- Shared song library with search, favorites, tags, notes, and owner-only management
 - Structured chord lines with transpose controls, sharp/flat notation, chord simplification, and capo shape calculations
 - Setlists with song ordering and normal full-song chord sheets
 - Continuous chord-first song views with no lyric scrolling or section pagination
 - Chord reference library and Roman numeral progression generator
 - JSON export/import for backups
 - Light/dark themes and responsive tablet/mobile layout
+- Public read-only access with Supabase Auth, profile roles, RLS, and protected chord-image storage
 - Installable PWA with a small offline app-shell cache
 - Continuous chord sheets with no lyric-first performance flow
 - Sunday workspace with date editing, add/remove, drag reorder, and duplicate-previous workflow
 
 ## Technology stack
 
-React 19, TypeScript, Vite, React Router, Lucide React, CSS, and browser LocalStorage. There is no backend or account requirement in this version. Data access is kept in the app's local persistence boundary so a remote repository can be introduced later.
+React 19, TypeScript, Vite, React Router, Lucide React, CSS, Supabase Auth, Supabase Postgres, and Supabase Storage. Without Supabase environment variables, the app runs its local demo fallback in read-only mode for UI development only.
 
 ## Local development
 
@@ -37,18 +38,35 @@ npm run preview
 
 The build output is written to `dist` and is ready for static hosting.
 
+## Configure Supabase
+
+1. Create a new Supabase project.
+2. Run `supabase/schema.sql` in the Supabase SQL Editor.
+3. Create the owner account under Authentication > Users using email/password.
+4. Copy the new user's UUID and run this SQL as the project owner in the SQL Editor:
+
+```sql
+update public.profiles set role = 'owner' where id = 'OWNER_AUTH_USER_UUID';
+```
+
+5. Put the Supabase project URL and anon key in `.env.local` using `.env.example` as the template. Never use a service-role key in Vite or Vercel.
+6. Open `/owner`, sign in, and add the shared songs and Sunday schedule.
+
+The schema allows anonymous SELECT access only. INSERT, UPDATE, and DELETE policies require the authenticated user's profile role to be `owner`. The browser UI mirrors those permissions, but the database policies are the security boundary.
+
 ## Deploy to Vercel
 
 1. Push this repository to GitHub.
 2. In Vercel, choose **Add New Project** and import the repository.
 3. Vercel detects Vite automatically. The build command is `npm run build` and the output directory is `dist`.
-4. Deploy. `vercel.json` rewrites client-side routes back to `index.html`, so refreshing `/songs`, `/sunday`, `/chords`, or `/settings` works correctly.
+4. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` under the Vercel project's Environment Variables for Preview and Production.
+5. Deploy. `vercel.json` rewrites client-side routes back to `index.html`, so refreshing `/songs`, `/sunday`, `/chords`, `/settings`, or `/owner` works correctly.
 
-The current fallback mode uses browser LocalStorage and is useful for a single-device demo. For a public owner-controlled installation, configure Supabase before enabling shared writes: apply `supabase/schema.sql`, create the owner in Supabase Auth, configure the database owner setting, and add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel. The Supabase anon key is browser-safe; never expose a service-role key. The SQL policies allow public reads and owner-only writes at the database layer.
+The fallback mode uses browser LocalStorage only when Supabase variables are absent and intentionally exposes no management controls. For the real shared installation, configure Supabase before deployment; shared content then loads from Supabase instead of localStorage.
 
 ## Local data and privacy
 
-Songs, favorites, setlists, notes, and settings are personal data stored in the current browser. They are not uploaded or exposed publicly. Use Settings > Export JSON for a portable backup. The current service worker caches the app shell only; song data remains in LocalStorage.
+Theme and display preferences remain local to each browser. Shared songs and Sunday schedules are stored in Supabase and are publicly readable according to the SQL policies. The current service worker caches the app shell only.
 
 ## V4 chord-first workflow
 

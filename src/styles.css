@@ -117,6 +117,66 @@ nav {
   padding-top: 18px;
 }
 
+.sidebar-account {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.sidebar-account .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-error {
+  margin: 16px auto 0;
+  width: min(1120px, calc(100% - 32px));
+  padding: 12px 14px;
+  border: 1px solid rgba(189, 79, 53, 0.35);
+  border-radius: 10px;
+  background: rgba(189, 79, 53, 0.08);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.auth-page {
+  max-width: 520px;
+}
+
+.auth-page h1 {
+  margin: 8px 0 24px;
+  font: 600 clamp(34px, 5vw, 58px) 'Playfair Display', serif;
+  line-height: 1.05;
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.auth-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font: 500 10px 'DM Mono', monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-form input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 12px 14px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
 .profile-dot {
   width: 30px;
   height: 30px;
@@ -1065,6 +1125,20 @@ nav {
 
   .sidebar-footer {
     display: none;
+  }
+
+  .sidebar-account {
+    display: flex;
+    justify-content: center;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 0;
+  }
+
+  .sidebar-account .text-button {
+    min-height: 32px;
+    padding: 4px 8px;
+    font-size: 10px;
   }
 
   .page {

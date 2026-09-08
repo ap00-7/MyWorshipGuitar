@@ -48,7 +48,7 @@ const renderChordLine = (line: string, interval: number, notation: Notation, sim
   return tokens.length ? tokens.map((token, index) => <span key={`${token}-${index}`} className="chord-token">{displayChord(token, interval, notation, simplifyValue)}</span>) : <span className="chord-token muted">{line}</span>
 }
 
-export function HomePage({ songs, setlists, onCreateSong }: { songs: Song[]; setlists: Setlist[]; onCreateSong: () => void }) {
+export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreateSong: () => void; isOwner: boolean }) {
   const sunday = setlists[0]
 
   return (
@@ -76,11 +76,11 @@ export function HomePage({ songs, setlists, onCreateSong }: { songs: Song[]; set
       </section>
 
       <div className="home-actions">
-        <button onClick={onCreateSong}>
+        {isOwner && <button onClick={onCreateSong}>
           <Plus size={18} />
           <b>Add song</b>
           <small>Build a chord sheet</small>
-        </button>
+        </button>}
         <Link to="/songs">
           <Search size={18} />
           <b>Song library</b>
@@ -128,7 +128,7 @@ function SongRow({ song }: { song: Song }) {
   )
 }
 
-export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete }: { songs: Song[]; onCreate: () => void; onUpdate: (song: Song) => void; onDuplicate: (song: Song) => void; onDelete: (song: Song) => void }) {
+export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, isOwner }: { songs: Song[]; onCreate: () => void; onUpdate: (song: Song) => void; onDuplicate: (song: Song) => void; onDelete: (song: Song) => void; isOwner: boolean }) {
   const [query, setQuery] = useState('')
   const [favoriteOnly, setFavoriteOnly] = useState(false)
 
@@ -144,7 +144,7 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete }
           <div className="eyebrow">Your chord sheets</div>
           <h1>Songs</h1>
         </div>
-        <button className="primary-button" onClick={onCreate}><Plus size={16} />Add song</button>
+        {isOwner && <button className="primary-button" onClick={onCreate}><Plus size={16} />Add song</button>}
       </header>
 
       <div className="v5-search-row">
@@ -171,14 +171,14 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete }
               </div>
             </Link>
 
-            <div className="v5-card-actions">
+            {isOwner && <div className="v5-card-actions">
               <button aria-label="Favorite" className={song.favorite ? 'star active' : 'star'} onClick={() => onUpdate({ ...song, favorite: !song.favorite })}>★</button>
               <Link className="text-button" to={`/songs/${song.id}/edit`}>Edit</Link>
               <button aria-label="Duplicate song" className="icon-button subtle" onClick={() => onDuplicate(song)}><Copy size={15} /></button>
               <button aria-label="Delete song" className="icon-button subtle" onClick={() => {
                 if (window.confirm(`Delete “${song.title}”?`)) onDelete(song)
               }}><Trash2 size={15} /></button>
-            </div>
+            </div>}
           </article>
         ))}
 
@@ -193,22 +193,21 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete }
   )
 }
 
-export function SongPage({ songs, settings, onUpdate }: { songs: Song[]; settings: Settings; onUpdate: (song: Song) => void }) {
+export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings: Settings; isOwner: boolean }) {
   const { songId } = useParams()
   const navigate = useNavigate()
   const song = songs.find((item) => item.id === songId)
   const [guitar, setGuitar] = useState<1 | 2>(1)
+  const [viewKey, setViewKey] = useState(song?.currentKey ?? song?.key ?? 'C')
 
   if (!song) {
     return <Empty title="Song not found" />
   }
 
-  const interval = (keyIndex(song.currentKey) - keyIndex(song.key) + 12) % 12
-  const shapeKey = capoShapeKey(song.currentKey, guitar === 1 ? song.capo : 5, settings.notation)
+  const interval = (keyIndex(viewKey) - keyIndex(song.key) + 12) % 12
+  const shapeKey = capoShapeKey(viewKey, guitar === 1 ? song.capo : 5, settings.notation)
 
-  const updateKey = (amount: number) => {
-    onUpdate({ ...song, currentKey: shiftKey(song.currentKey, amount), lastPlayed: new Date().toISOString() })
-  }
+  const updateKey = (amount: number) => setViewKey((current) => shiftKey(current, amount))
 
   return (
     <div className="page continuous-page">
@@ -219,24 +218,24 @@ export function SongPage({ songs, settings, onUpdate }: { songs: Song[]; setting
           <div className="eyebrow">Chord sheet · {song.artist}</div>
           <h1>{song.title}</h1>
           <div className="song-tags">
-            <span>Key {song.currentKey}</span>
+            <span>Key {viewKey}</span>
             <span>Capo {guitar === 1 ? song.capo : 5}</span>
             <span>Shapes {shapeKey}</span>
           </div>
         </div>
         <div className="song-header-actions">
-          <Link className="secondary-button" to={`/songs/${song.id}/edit`}>Edit</Link>
+          {isOwner && <Link className="secondary-button" to={`/songs/${song.id}/edit`}>Edit</Link>}
           <button className="primary-button" onClick={() => document.documentElement.requestFullscreen?.()}>Fullscreen</button>
         </div>
       </header>
 
       <div className="song-key-bar">
-        <strong>{song.currentKey}</strong>
+        <strong>{viewKey}</strong>
         <small>Original {song.key}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
-        <button onClick={() => onUpdate({ ...song, currentKey: song.key })}>Original</button>
+        <button onClick={() => setViewKey(song.key)}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
-        <select value={song.currentKey} onChange={(event) => onUpdate({ ...song, currentKey: event.target.value })} aria-label="Select key">
+        <select value={viewKey} onChange={(event) => setViewKey(event.target.value)} aria-label="Select key">
           {chromatic.map((key) => <option key={key}>{key}</option>)}
         </select>
         <div className="guitar-switch">
@@ -274,7 +273,7 @@ function Empty({ title }: { title: string }) {
   )
 }
 
-export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave: (song: Song) => void; onDelete: (song: Song) => void }) {
+export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave: (song: Song) => void | Promise<void>; onDelete: (song: Song) => void | Promise<void> }) {
   const { songId } = useParams()
   const navigate = useNavigate()
   const existing = songs.find((song) => song.id === songId)
@@ -295,7 +294,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     setSections((current) => current.filter((section) => section.id !== sectionId))
   }
 
-  const save = () => {
+  const save = async () => {
     if (!title.trim()) {
       window.alert('Song title is required.')
       return
@@ -325,7 +324,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
       lastPlayed: existing?.lastPlayed,
     }
 
-    onSave(song)
+    await onSave(song)
     navigate(`/songs/${song.id}`)
   }
 
@@ -666,7 +665,7 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
   )
 }
 
-export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate }: { songs: Song[]; setlists: Setlist[]; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void }) {
+export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void; isOwner: boolean }) {
   const sunday = setlists[0]
   const previous = setlists[1]
   const [query, setQuery] = useState('')
@@ -680,7 +679,7 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate 
             <h1>Sunday</h1>
           </div>
           <div className="sunday-header-actions">
-            <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>
+            {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
           </div>
         </header>
       </div>
@@ -705,11 +704,11 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate 
         <div>
           <div className="eyebrow">This week's worship service</div>
           <h1>Sunday</h1>
-          <input className="sunday-date-input" value={sunday.date} onChange={(event) => onUpdate({ ...sunday, date: event.target.value })} aria-label="Sunday date" />
+          {isOwner ? <input className="sunday-date-input" value={sunday.date} onChange={(event) => onUpdate({ ...sunday, date: event.target.value })} aria-label="Sunday date" /> : <p>{sunday.date}</p>}
         </div>
         <div className="sunday-header-actions">
-          <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>
-          {previous && <button className="secondary-button" onClick={() => onDuplicate(previous)}>Duplicate previous</button>}
+          {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
+          {isOwner && previous && <button className="secondary-button" onClick={() => onDuplicate(previous)}>Duplicate previous</button>}
         </div>
       </header>
 
@@ -733,18 +732,18 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate 
                     <strong>{song.title}</strong>
                     <small>{song.artist}</small>
                   </Link>
-                  <div className="sunday-controls">
+                  {isOwner && <div className="sunday-controls">
                     <button className="icon-button" onClick={() => moveSong(song.id, -1)} aria-label="Move earlier"><ChevronLeft size={15} /></button>
                     <button className="icon-button" onClick={() => moveSong(song.id, 1)} aria-label="Move later"><ChevronRight size={15} /></button>
                     <button className="icon-button" onClick={() => onUpdate({ ...sunday, songIds: sunday.songIds.filter((item) => item !== song.id) })} aria-label="Remove from Sunday"><Trash2 size={15} /></button>
-                  </div>
+                  </div>}
                 </div>
               )
             })}
           </div>
         </main>
 
-        <aside className="add-sunday-panel">
+        {isOwner && <aside className="add-sunday-panel">
           <div className="section-heading">
             <div>
               <span className="eyebrow">Add to Sunday</span>
@@ -765,7 +764,7 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate 
               </button>
             )) : <p className="muted-text">No songs match.</p>}
           </div>
-        </aside>
+        </aside>}
       </div>
     </div>
   )
