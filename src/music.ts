@@ -6,6 +6,35 @@ export type Notation = 'sharps' | 'flats' | 'auto'
 export const GUITAR2_CAPO = 5
 export const GUITAR2_SHIFT = -5
 
+// Common guitar-friendly capo positions that produce good chord shapes
+const PRACTICAL_CAPOS = [0, 2, 3, 5, 7]
+
+// Determine optimal capo for Guitar 2 based on the original key
+export function suggestGuitar2Capo(originalKey: string): number {
+  const keyIndex = noteIndex(originalKey)
+  
+  // Try different capo positions and choose one that produces practical shapes
+  for (const capo of PRACTICAL_CAPOS) {
+    const shiftedIndex = (keyIndex - capo + 12) % 12
+    const shapeKey = sharpNames[shiftedIndex]
+    
+    // Prefer capo positions that result in common open chord shapes (C, G, D, A, E)
+    const commonOpenKeys = ['C', 'G', 'D', 'A', 'E']
+    if (commonOpenKeys.includes(shapeKey)) {
+      return capo
+    }
+  }
+  
+  // Default to capo 5 if no perfect match found
+  return 5
+}
+
+// Calculate the appropriate transposition for Guitar 2 based on optimal capo
+export function suggestGuitar2Shift(originalKey: string): number {
+  const optimalCapo = suggestGuitar2Capo(originalKey)
+  return -optimalCapo
+}
+
 const noteIndexByName: Record<string, number> = {
   C: 0, 'B#': 0,
   'C#': 1, Db: 1,
@@ -97,8 +126,9 @@ export function transposeProgressionText(text: string, interval: number, notatio
   }).join('\n')
 }
 
-export function suggestGuitar2Progression(guitar1Text: string, notation: Notation = 'auto') {
-  return transposeProgressionText(guitar1Text, GUITAR2_SHIFT, notation)
+export function suggestGuitar2Progression(guitar1Text: string, notation: Notation = 'auto', originalKey: string = 'C') {
+  const shift = suggestGuitar2Shift(originalKey)
+  return transposeProgressionText(guitar1Text, shift, notation)
 }
 
 export function simplifyChord(chord: string) {
@@ -145,4 +175,17 @@ export function upcomingSundayIso(from = new Date()) {
   const daysUntilSunday = weekday === 0 ? 0 : 7 - weekday
   date.setDate(date.getDate() + daysUntilSunday)
   return formatLocalIsoDate(date)
+}
+
+export function formatSundayDate(isoDate: string): string {
+  if (!isIsoDate(isoDate)) return isoDate
+  const date = new Date(`${isoDate}T00:00:00`)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+export function formatSundayTitle(isoDate: string): string {
+  if (!isIsoDate(isoDate)) return 'Sunday'
+  const date = new Date(`${isoDate}T00:00:00`)
+  const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', weekday: 'short' }
+  return date.toLocaleDateString('en-US', options)
 }
