@@ -38,6 +38,11 @@ body {
   color: var(--ink);
   overflow-x: hidden;
 }
+
+.v5-song-card h2,
+.song-meta strong {
+  overflow-wrap: anywhere;
+}
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
@@ -595,6 +600,21 @@ nav {
 .guitar-switch button.active {
   background: var(--ink);
   color: var(--paper);
+}
+
+.editor-guitar-switch {
+  width: fit-content;
+}
+
+.guitar-empty {
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  padding: 28px 20px;
+  background: var(--panel);
+}
+
+.song-image {
+  margin-top: 18px;
 }
 
 .continuous-sheet {

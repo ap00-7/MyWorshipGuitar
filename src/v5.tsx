@@ -172,11 +172,12 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, 
             </Link>
 
             {isOwner && <div className="v5-card-actions">
-              <button aria-label="Favorite" className={song.favorite ? 'star active' : 'star'} onClick={() => onUpdate({ ...song, favorite: !song.favorite })}>★</button>
+              <button aria-label="Favorite" className={song.favorite ? 'star active' : 'star'} onClick={() => void Promise.resolve(onUpdate({ ...song, favorite: !song.favorite })).catch((error) => window.alert(error instanceof Error ? error.message : 'Unable to update song.'))}>★</button>
               <Link className="text-button" to={`/songs/${song.id}/edit`}>Edit</Link>
-              <button aria-label="Duplicate song" className="icon-button subtle" onClick={() => onDuplicate(song)}><Copy size={15} /></button>
+              <button aria-label="Duplicate song" className="icon-button subtle" onClick={() => void Promise.resolve(onDuplicate(song)).catch((error) => window.alert(error instanceof Error ? error.message : 'Unable to duplicate song.'))}><Copy size={15} /></button>
               <button aria-label="Delete song" className="icon-button subtle" onClick={() => {
-                if (window.confirm(`Delete “${song.title}”?`)) onDelete(song)
+                if (!window.confirm(`Delete “${song.title}”?`)) return
+                void Promise.resolve(onDelete(song)).catch((error) => window.alert(error instanceof Error ? error.message : 'Unable to delete song.'))
               }}><Trash2 size={15} /></button>
             </div>}
           </article>
@@ -198,15 +199,20 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
   const navigate = useNavigate()
   const song = songs.find((item) => item.id === songId)
   const [guitar, setGuitar] = useState<1 | 2>(1)
-  const [viewKey, setViewKey] = useState(song?.currentKey ?? song?.key ?? 'C')
+  const [viewKey, setViewKey] = useState(song?.key ?? 'C')
+
+  useEffect(() => {
+    if (song?.key) setViewKey(song.key)
+  }, [song?.id, song?.key])
 
   if (!song) {
     return <Empty title="Song not found" />
   }
 
+  const selectedCapo = guitar === 1 ? song.capo : song.guitar2Capo
   const interval = (keyIndex(viewKey) - keyIndex(song.key) + 12) % 12
-  const shapeKey = capoShapeKey(viewKey, guitar === 1 ? song.capo : 5, settings.notation)
-
+  const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
+  const hasGuitar2 = song.sections.some((section) => Boolean(section.guitar2ChordText?.trim()))
   const updateKey = (amount: number) => setViewKey((current) => shiftKey(current, amount))
 
   return (
@@ -219,7 +225,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
           <h1>{song.title}</h1>
           <div className="song-tags">
             <span>Key {viewKey}</span>
-            <span>Capo {guitar === 1 ? song.capo : 5}</span>
+            <span>Capo {selectedCapo}</span>
             <span>Shapes {shapeKey}</span>
           </div>
         </div>
@@ -244,22 +250,38 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
         </div>
       </div>
 
-      <div className="continuous-sheet">
-        {song.sections.map((section) => (
-          <section className="continuous-section" key={section.id}>
-            <div className="continuous-label">{section.name.toUpperCase()}</div>
-            {sectionChordLines(section).map((line, lineIndex) => (
-              <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
-                {parseChordProgression(line).map((chord, chordIndex) => (
-                  <span className="chord-text" key={`${chord}-${chordIndex}`}>
-                    {displayChord(chord, interval, settings.notation, settings.simplify)}
-                  </span>
+      {guitar === 2 && !hasGuitar2 ? (
+        <div className="empty guitar-empty">
+          <h2>No Guitar 2 chords yet</h2>
+          <p>This song only has a Guitar 1 progression. The owner can add Guitar 2 chords in Edit song.</p>
+        </div>
+      ) : (
+        <div className="continuous-sheet">
+          {song.sections.map((section) => {
+            const lines = guitar === 2 ? sectionChordLines({ ...section, chordText: section.guitar2ChordText || '' }) : sectionChordLines(section)
+            return (
+              <section className="continuous-section" key={section.id || section.name}>
+                <div className="continuous-label">{section.name.toUpperCase()}</div>
+                {lines.map((line, lineIndex) => (
+                  <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
+                    {parseChordProgression(line).map((chord, chordIndex) => (
+                      <span className="chord-text" key={`${chord}-${chordIndex}`}>
+                        {displayChord(chord, interval, settings.notation, settings.simplify)}
+                      </span>
+                    ))}
+                  </div>
                 ))}
-              </div>
-            ))}
-          </section>
-        ))}
-      </div>
+              </section>
+            )
+          })}
+        </div>
+      )}
+
+      {song.chordImage?.dataUrl && (
+        <div className="image-preview song-image">
+          <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
+        </div>
+      )}
     </div>
   )
 }
@@ -277,18 +299,34 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   const { songId } = useParams()
   const navigate = useNavigate()
   const existing = songs.find((song) => song.id === songId)
+  const blankSection = (): Section => ({ id: editorKey(), name: 'Verse 1', chordText: 'C G Am F\nC G C', guitar2ChordText: '' })
 
   const [title, setTitle] = useState(existing?.title || '')
   const [artist, setArtist] = useState(existing?.artist || '')
   const [key, setKey] = useState(existing?.key || 'C')
   const [capo, setCapo] = useState(existing?.capo || 0)
+  const [guitar2Capo, setGuitar2Capo] = useState(existing?.guitar2Capo || 0)
   const [notes, setNotes] = useState(existing?.notes || '')
   const [image, setImage] = useState(existing?.chordImage)
-  const [sections, setSections] = useState<Section[]>(existing?.sections?.length ? existing.sections : [{ id: editorKey(), name: 'Verse 1', chordText: 'C G Am F\nC G C' }])
+  const [guitar, setGuitar] = useState<1 | 2>(1)
+  const [sections, setSections] = useState<Section[]>(existing?.sections?.length ? existing.sections : [blankSection()])
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!existing) return
+    setTitle(existing.title)
+    setArtist(existing.artist)
+    setKey(existing.key)
+    setCapo(existing.capo)
+    setGuitar2Capo(existing.guitar2Capo)
+    setNotes(existing.notes)
+    setImage(existing.chordImage)
+    setSections(existing.sections.length ? existing.sections : [blankSection()])
+  }, [existing?.id])
 
   const addSection = () => {
-    setSections((current) => [...current, { id: editorKey(), name: `Section ${current.length + 1}`, chordText: 'C G Am F' }])
+    setSections((current) => [...current, { id: editorKey(), name: `Section ${current.length + 1}`, chordText: '', guitar2ChordText: '' }])
   }
 
   const removeSection = (sectionId: string) => {
@@ -303,11 +341,12 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     }
 
     const normalizedSections = sections
-      .filter((section) => section.name.trim() || section.chordText.trim())
+      .filter((section) => section.name.trim() || section.chordText.trim() || section.guitar2ChordText?.trim())
       .map((section) => ({
         ...section,
         name: section.name.trim() || 'Section',
         chordText: section.chordText.trim(),
+        guitar2ChordText: section.guitar2ChordText?.trim() ?? '',
       }))
 
     const song: Song = {
@@ -315,8 +354,9 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
       title: title.trim(),
       artist: artist.trim() || 'Unknown artist',
       key,
-      currentKey: existing?.currentKey || key,
+      currentKey: key,
       capo,
+      guitar2Capo,
       bpm: existing?.bpm || 72,
       favorite: existing?.favorite || false,
       tags: existing?.tags || [],
@@ -341,7 +381,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     }
   }
 
-  const updateSection = (sectionId: string, field: 'name' | 'chordText', value: string) => {
+  const updateSection = (sectionId: string, field: 'name' | 'chordText' | 'guitar2ChordText', value: string) => {
     setSections((current) => current.map((section) => (section.id === sectionId ? { ...section, [field]: value } : section)))
   }
 
@@ -356,6 +396,21 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     reader.readAsDataURL(file)
   }
 
+  const removeSong = async () => {
+    if (!existing || isDeleting) return
+    if (!window.confirm(`Delete “${existing.title}”?`)) return
+    setIsDeleting(true)
+    try {
+      await onDelete(existing)
+      navigate('/songs')
+    } catch (error) {
+      console.error('Song delete failed', error)
+      window.alert(error instanceof Error ? error.message : 'Unable to delete song.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <div className="page editor-page">
       <button className="back-button" onClick={() => navigate('/songs')}><ChevronLeft size={16} />Songs</button>
@@ -365,7 +420,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
           <div className="eyebrow">Song editor</div>
           <h1>{existing ? 'Edit song' : 'Add song'}</h1>
         </div>
-        <button className="primary-button" onClick={save} disabled={isSaving}><Save size={16} />{isSaving ? 'Saving...' : 'Save song'}</button>
+        <button className="primary-button" onClick={() => void save()} disabled={isSaving}><Save size={16} />{isSaving ? 'Saving...' : 'Save song'}</button>
       </header>
 
       <div className="editor-form">
@@ -388,11 +443,16 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
             </select>
           </label>
           <label>
-            Capo
-            <select value={capo} onChange={(event) => setCapo(Number(event.target.value))}>
+            {guitar === 1 ? 'Guitar 1 capo' : 'Guitar 2 capo'}
+            <select value={guitar === 1 ? capo : guitar2Capo} onChange={(event) => (guitar === 1 ? setCapo(Number(event.target.value)) : setGuitar2Capo(Number(event.target.value)))}>
               {Array.from({ length: 13 }, (_, value) => <option key={value} value={value}>{value}</option>)}
             </select>
           </label>
+        </div>
+
+        <div className="guitar-switch editor-guitar-switch">
+          <button type="button" className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>
+          <button type="button" className={guitar === 2 ? 'active' : ''} onClick={() => setGuitar(2)}>Guitar 2</button>
         </div>
 
         <label>
@@ -412,11 +472,11 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
 
               <textarea
                 className="textarea-editor chord-textarea"
-                value={section.chordText}
-                onChange={(event) => updateSection(section.id, 'chordText', event.target.value)}
-                placeholder={`C G Am F\nC G C`}
+                value={guitar === 1 ? section.chordText : (section.guitar2ChordText || '')}
+                onChange={(event) => updateSection(section.id, guitar === 1 ? 'chordText' : 'guitar2ChordText', event.target.value)}
+                placeholder={guitar === 1 ? `C G Am F\nC G C` : `Am F C G\nAm G C`}
               />
-              <small>Section {index + 1}</small>
+              <small>Section {index + 1} · {guitar === 1 ? 'Guitar 1 chords' : 'Guitar 2 chords'}</small>
             </div>
           ))}
         </div>
@@ -435,12 +495,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
             <button className="danger-button" onClick={() => setImage(undefined)}><Trash2 size={15} />Delete image</button>
           )}
           {existing && (
-            <button className="danger-button" onClick={() => {
-              if (window.confirm(`Delete “${existing.title}”?`)) {
-                onDelete(existing)
-                navigate('/songs')
-              }
-            }}><Trash2 size={15} />Delete song</button>
+            <button className="danger-button" disabled={isDeleting} onClick={() => void removeSong()}><Trash2 size={15} />{isDeleting ? 'Deleting...' : 'Delete song'}</button>
           )}
         </div>
 

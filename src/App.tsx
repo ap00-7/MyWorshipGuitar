@@ -9,23 +9,24 @@ import { ChordLibrary, HomePage, SettingsPageV5, SongEditor, SongLibrary, SongPa
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
 
-function useLocalState<T>(key: string, initial: T) {
+function useLocalState<T>(key: string, initial: T, persist = true) {
   const [repository] = useState(() => new LocalRepository<T>(key, initial))
   const [value, setValue] = useState<T>(() => {
+    if (!persist) return initial
     const stored = repository.load() as T
     if (key === 'wg-songs' && Array.isArray(stored)) return stored.map(normalizeSong) as T
     if (key === 'wg-settings' && !localStorage.getItem(key)) return { ...(stored as object), theme: window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } as T
     return stored
   })
   useEffect(() => {
-    if (!supabaseConfigured) repository.save(value)
-  }, [repository, value])
+    if (persist) repository.save(value)
+  }, [persist, repository, value])
   return [value, setValue] as const
 }
 
 export default function App() {
-  const [songs, setSongs] = useLocalState<Song[]>('wg-songs', demoSongs)
-  const [setlists, setSetlists] = useLocalState<Setlist[]>('wg-setlists', seedSetlists)
+  const [songs, setSongs] = useLocalState<Song[]>('wg-songs', supabaseConfigured ? [] : demoSongs, !supabaseConfigured)
+  const [setlists, setSetlists] = useLocalState<Setlist[]>('wg-setlists', supabaseConfigured ? [] : seedSetlists, !supabaseConfigured)
   const [settings, setSettings] = useLocalState<Settings>('wg-settings', defaultSettings)
   const [role, setRole] = useState<UserRole>('user')
   const [authLoading, setAuthLoading] = useState(supabaseConfigured)
@@ -91,6 +92,13 @@ export default function App() {
     return () => { active = false }
   }, [setSongs, setSetlists])
 
+  const refreshShared = async () => {
+    const snapshot = await loadSharedSnapshot()
+    setSongs(snapshot.songs)
+    setSetlists(snapshot.setlists)
+    return snapshot
+  }
+
   const saveSong = async (song: Song) => {
     const normalized = normalizeSong(song)
     try {
@@ -101,6 +109,19 @@ export default function App() {
             id: isUuid(normalized.id) ? normalized.id : crypto.randomUUID(),
             sections: normalized.sections.map((section) => ({ ...section, id: isUuid(section.id) ? section.id : crypto.randomUUID() })),
           }
+
+      if (supabaseConfigured) {
+        const snapshot = await refreshShared()
+        const confirmed = snapshot.songs.find((item) => item.id === saved.id)
+        if (!confirmed) throw new Error('Song was saved but could not be loaded from the database.')
+        if (confirmed.title !== normalized.title) throw new Error('The song title did not persist after save.')
+        const savedChords = confirmed.sections[0]?.chordText.trim() ?? ''
+        const expectedChords = normalized.sections[0]?.chordText.trim() ?? ''
+        if (expectedChords && savedChords !== expectedChords) throw new Error('The song chords did not persist after save.')
+        setError('')
+        return confirmed
+      }
+
       setSongs((current) => {
         const previousId = isUuid(normalized.id) ? normalized.id : saved.id
         const withoutPrevious = current.filter((item) => item.id !== previousId && item.id !== saved.id)
@@ -125,12 +146,19 @@ export default function App() {
 
   const deleteSong = async (song: Song) => {
     try {
-      if (supabaseConfigured) await deleteSharedSong(song.id)
-      setSongs((current) => current.filter((item) => item.id !== song.id))
-      setSetlists((current) => current.map((setlist) => ({ ...setlist, songIds: setlist.songIds.filter((songId) => songId !== song.id) })))
+      if (supabaseConfigured) {
+        await deleteSharedSong(song.id)
+        await refreshShared()
+      } else {
+        setSongs((current) => current.filter((item) => item.id !== song.id))
+        setSetlists((current) => current.map((setlist) => ({ ...setlist, songIds: setlist.songIds.filter((songId) => songId !== song.id) })))
+      }
       setError('')
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete song.')
+      const message = deleteError instanceof Error ? deleteError.message : 'Unable to delete song.'
+      console.error('Unable to delete song', { songId: song.id, error: deleteError })
+      setError(message)
+      throw deleteError instanceof Error ? deleteError : new Error(message)
     }
   }
 
@@ -140,17 +168,23 @@ export default function App() {
       const saved = supabaseConfigured
         ? await upsertSunday(setlist)
         : { ...setlist, id: isUuid(setlist.id) ? setlist.id : crypto.randomUUID() }
-      setSetlists((current) => {
-        const index = current.findIndex((item) => item.id === setlist.id || item.id === saved.id)
-        if (index < 0) return [saved, ...current]
-        const next = [...current]
-        next[index] = saved
-        return next
-      })
+      if (supabaseConfigured) {
+        await refreshShared()
+      } else {
+        setSetlists((current) => {
+          const index = current.findIndex((item) => item.id === setlist.id || item.id === saved.id)
+          if (index < 0) return [saved, ...current]
+          const next = [...current]
+          next[index] = saved
+          return next
+        })
+      }
       setError('')
       return saved
     } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : 'Unable to update Sunday.')
+      const message = updateError instanceof Error ? updateError.message : 'Unable to update Sunday.'
+      console.error('Unable to update Sunday', updateError)
+      setError(message)
     }
   }
   const createSetlist = async () => {
@@ -172,9 +206,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage songs={songs} setlists={setlists} onCreateSong={createSong} isOwner={isOwner} />} />
           <Route path="/songs" element={<SongLibrary songs={songs} onCreate={createSong} onUpdate={saveSong} onDuplicate={duplicateSong} onDelete={deleteSong} isOwner={isOwner} />} />
-          <Route path="/songs/new" element={isOwner ? <SongEditor songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
-          <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
-          <Route path="/songs/:songId" element={<SongPage songs={songs} settings={settings} isOwner={isOwner} />} />
+          <Route path="/songs/new" element={isOwner ? <SongEditor key="new-song" songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
+          <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor key={`${location.pathname}`} songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
+          <Route path="/songs/:songId" element={<SongPage key={location.pathname} songs={songs} settings={settings} isOwner={isOwner} />} />
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} isOwner={isOwner} />} />
           <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />

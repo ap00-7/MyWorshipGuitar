@@ -23,7 +23,7 @@ export function parseChordProgression(input: string) {
   const cleaned = input
     .replace(/[|]/g, ' ')
     .replace(/[–—]/g, '-')
-    .replace(/\s*[-/]+\s*/g, ' ')
+    .replace(/\s+-\s+/g, ' ')
     .trim()
 
   if (!cleaned) return []

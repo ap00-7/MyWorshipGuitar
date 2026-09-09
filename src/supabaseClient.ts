@@ -12,6 +12,9 @@ export async function getUserRole(userId: string | undefined): Promise<UserRole>
   if (!supabase || !userId) return 'user'
 
   const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
-  if (error) throw error
+  if (error) {
+    const message = [error.message, error.details, error.hint, error.code].filter(Boolean).join(' — ')
+    throw new Error(message || 'Unable to load account role.')
+  }
   return data?.role === 'owner' ? 'owner' : 'user'
 }

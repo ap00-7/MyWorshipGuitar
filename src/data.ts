@@ -4,6 +4,7 @@ export type Section = {
   id: string
   name: string
   chordText: string
+  guitar2ChordText?: string
   lines?: string[]
   chordLines?: string[]
   note?: string
@@ -16,6 +17,7 @@ export type Song = {
   key: string
   currentKey: string
   capo: number
+  guitar2Capo: number
   bpm: number
   favorite: boolean
   tags: string[]
@@ -25,10 +27,16 @@ export type Song = {
   lastPlayed?: string
 }
 
+const numericCapo = (value: unknown) => {
+  const capo = Number(value)
+  return Number.isFinite(capo) ? Math.min(12, Math.max(0, capo)) : 0
+}
+
 export const normalizeSection = (section: Partial<Section> & { id?: string; name?: string; chordText?: string; lines?: string[]; chordLines?: string[] }): Section => ({
   id: section.id?.trim() || '',
   name: section.name?.trim() || 'Section',
   chordText: section.chordText?.trim() ?? (Array.isArray(section.lines) ? section.lines.join('\n') : Array.isArray(section.chordLines) ? section.chordLines.join('\n') : ''),
+  guitar2ChordText: section.guitar2ChordText?.trim() ?? '',
   lines: Array.isArray(section.lines) ? section.lines : undefined,
   chordLines: Array.isArray(section.chordLines) ? section.chordLines : undefined,
   note: section.note,
@@ -40,12 +48,13 @@ export const normalizeSong = (song: Partial<Song> & { id?: string }): Song => ({
   artist: song.artist?.trim() || 'Unknown artist',
   key: song.key || 'C',
   currentKey: song.currentKey || song.key || 'C',
-  capo: Number(song.capo) || 0,
+  capo: numericCapo(song.capo),
+  guitar2Capo: numericCapo(song.guitar2Capo),
   bpm: Number(song.bpm) || 72,
   favorite: Boolean(song.favorite),
   tags: Array.isArray(song.tags) ? song.tags : [],
   notes: song.notes || '',
-  sections: Array.isArray(song.sections) && song.sections.length > 0 ? song.sections.map(normalizeSection) : [{ id: '', name: 'Verse 1', chordText: 'C G Am F\nC G C' }],
+  sections: Array.isArray(song.sections) && song.sections.length > 0 ? song.sections.map(normalizeSection) : [{ id: '', name: 'Verse 1', chordText: 'C G Am F\nC G C', guitar2ChordText: '' }],
   chordImage: song.chordImage,
   lastPlayed: song.lastPlayed,
 })
@@ -70,6 +79,7 @@ export const demoSongs: Song[] = [
     key: 'C',
     currentKey: 'C',
     capo: 0,
+    guitar2Capo: 0,
     bpm: 74,
     favorite: true,
     tags: ['Sunday', 'Acoustic'],
@@ -87,6 +97,7 @@ export const demoSongs: Song[] = [
     key: 'G',
     currentKey: 'G',
     capo: 0,
+    guitar2Capo: 0,
     bpm: 82,
     favorite: false,
     tags: ['Upbeat'],
