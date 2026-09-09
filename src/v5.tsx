@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { capoShapeKey, chromatic, parseChordProgression, simplifyChord, transposeChord, type Notation } from './music'
+import { capoShapeKey, GUITAR2_CAPO, isIsoDate, keyOptions, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
 
 const editorKey = () => crypto.randomUUID()
@@ -19,8 +19,12 @@ type ChordDefinition = {
 const rootOptions = ['All', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 const typeOptions = ['All', 'Major', 'Minor', '7', 'Maj7', 'm7', 'Sus2', 'Sus4', 'Add9', 'Dim', 'Aug', '6', '9', '11', '13', '5', 'Slash']
 
-const keyIndex = (key: string) => Math.max(0, chromatic.indexOf(key.replace('b', '#')))
-const shiftKey = (key: string, amount: number) => chromatic[(keyIndex(key) + amount + 24) % 12]
+const hasCustomGuitar2 = (song: Song) => song.sections.some((section) => Boolean(section.guitar2ChordText?.trim()))
+
+const guitar2TextForSection = (section: Section, notation: Notation) => {
+  const custom = section.guitar2ChordText?.trim()
+  return custom || suggestGuitar2Progression(section.chordText || '', notation)
+}
 
 const sectionChordLines = (section: Section) => {
   if (typeof section.chordText === 'string' && section.chordText.trim()) {
@@ -209,11 +213,11 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
     return <Empty title="Song not found" />
   }
 
-  const selectedCapo = guitar === 1 ? song.capo : song.guitar2Capo
-  const interval = (keyIndex(viewKey) - keyIndex(song.key) + 12) % 12
+  const customGuitar2 = hasCustomGuitar2(song)
+  const selectedCapo = guitar === 1 ? song.capo : (customGuitar2 ? (song.guitar2Capo || GUITAR2_CAPO) : GUITAR2_CAPO)
+  const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
-  const hasGuitar2 = song.sections.some((section) => Boolean(section.guitar2ChordText?.trim()))
-  const updateKey = (amount: number) => setViewKey((current) => shiftKey(current, amount))
+  const updateKey = (amount: number) => setViewKey((current) => shiftKey(current, amount, settings.notation))
 
   return (
     <div className="page continuous-page">
@@ -242,7 +246,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
         <button onClick={() => setViewKey(song.key)}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
         <select value={viewKey} onChange={(event) => setViewKey(event.target.value)} aria-label="Select key">
-          {chromatic.map((key) => <option key={key}>{key}</option>)}
+          {keyOptions.map((key) => <option key={key}>{key}</option>)}
         </select>
         <div className="guitar-switch">
           <button className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>
@@ -250,18 +254,14 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
         </div>
       </div>
 
-      {guitar === 2 && !hasGuitar2 ? (
-        <div className="empty guitar-empty">
-          <h2>No Guitar 2 chords yet</h2>
-          <p>This song only has a Guitar 1 progression. The owner can add Guitar 2 chords in Edit song.</p>
-        </div>
-      ) : (
-        <div className="continuous-sheet">
+      <div className="continuous-sheet">
           {song.sections.map((section) => {
-            const lines = guitar === 2 ? sectionChordLines({ ...section, chordText: section.guitar2ChordText || '' }) : sectionChordLines(section)
+            const lines = guitar === 2
+              ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation) })
+              : sectionChordLines(section)
             return (
               <section className="continuous-section" key={section.id || section.name}>
-                <div className="continuous-label">{section.name.toUpperCase()}</div>
+                <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ' · suggested capo 5' : ''}</div>
                 {lines.map((line, lineIndex) => (
                   <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
                     {parseChordProgression(line).map((chord, chordIndex) => (
@@ -275,7 +275,6 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
             )
           })}
         </div>
-      )}
 
       {song.chordImage?.dataUrl && (
         <div className="image-preview song-image">
@@ -305,7 +304,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   const [artist, setArtist] = useState(existing?.artist || '')
   const [key, setKey] = useState(existing?.key || 'C')
   const [capo, setCapo] = useState(existing?.capo || 0)
-  const [guitar2Capo, setGuitar2Capo] = useState(existing?.guitar2Capo || 0)
+  const [guitar2Capo, setGuitar2Capo] = useState(existing?.guitar2Capo || GUITAR2_CAPO)
   const [notes, setNotes] = useState(existing?.notes || '')
   const [image, setImage] = useState(existing?.chordImage)
   const [guitar, setGuitar] = useState<1 | 2>(1)
@@ -319,7 +318,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     setArtist(existing.artist)
     setKey(existing.key)
     setCapo(existing.capo)
-    setGuitar2Capo(existing.guitar2Capo)
+    setGuitar2Capo(existing.guitar2Capo || GUITAR2_CAPO)
     setNotes(existing.notes)
     setImage(existing.chordImage)
     setSections(existing.sections.length ? existing.sections : [blankSection()])
@@ -342,12 +341,18 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
 
     const normalizedSections = sections
       .filter((section) => section.name.trim() || section.chordText.trim() || section.guitar2ChordText?.trim())
-      .map((section) => ({
-        ...section,
-        name: section.name.trim() || 'Section',
-        chordText: section.chordText.trim(),
-        guitar2ChordText: section.guitar2ChordText?.trim() ?? '',
-      }))
+      .map((section) => {
+        const guitar1 = section.chordText.trim()
+        const suggested = suggestGuitar2Progression(guitar1)
+        const entered = (section.guitar2ChordText ?? '').trim()
+        const custom = entered && entered !== suggested
+        return {
+          ...section,
+          name: section.name.trim() || 'Section',
+          chordText: guitar1,
+          guitar2ChordText: custom ? entered : '',
+        }
+      })
 
     const song: Song = {
       id: existing?.id || '',
@@ -356,7 +361,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
       key,
       currentKey: key,
       capo,
-      guitar2Capo,
+      guitar2Capo: guitar2Capo || GUITAR2_CAPO,
       bpm: existing?.bpm || 72,
       favorite: existing?.favorite || false,
       tags: existing?.tags || [],
@@ -439,7 +444,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
           <label>
             Key
             <select value={key} onChange={(event) => setKey(event.target.value)}>
-              {chromatic.map((item) => <option key={item}>{item}</option>)}
+              {keyOptions.map((item) => <option key={item}>{item}</option>)}
             </select>
           </label>
           <label>
@@ -472,11 +477,11 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
 
               <textarea
                 className="textarea-editor chord-textarea"
-                value={guitar === 1 ? section.chordText : (section.guitar2ChordText || '')}
+                value={guitar === 1 ? section.chordText : guitar2TextForSection(section, 'auto')}
                 onChange={(event) => updateSection(section.id, guitar === 1 ? 'chordText' : 'guitar2ChordText', event.target.value)}
-                placeholder={guitar === 1 ? `C G Am F\nC G C` : `Am F C G\nAm G C`}
+                placeholder={guitar === 1 ? `C G Am F\nC G C` : suggestGuitar2Progression(section.chordText || 'C G Am F\nC G C')}
               />
-              <small>Section {index + 1} · {guitar === 1 ? 'Guitar 1 chords' : 'Guitar 2 chords'}</small>
+              <small>Section {index + 1} · {guitar === 1 ? 'Guitar 1 chords' : (section.guitar2ChordText?.trim() ? 'Guitar 2 chords (custom)' : 'Guitar 2 suggested · capo 5')}</small>
             </div>
           ))}
         </div>
@@ -552,7 +557,17 @@ export function ChordLibrary() {
     { name: 'Asus4', root: 'A', type: 'Sus4', notes: ['A', 'D', 'E'], strings: [-1, 0, 2, 3, 0, 0], fingers: ['x', '0', '2', '3', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Dadd9', root: 'D', type: 'Add9', notes: ['D', 'F#', 'A', 'E'], strings: [-1, -1, 0, 2, 3, 0], fingers: ['x', 'x', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Gadd9', root: 'G', type: 'Add9', notes: ['G', 'B', 'D', 'A'], strings: [3, 2, 0, 0, 3, 3], fingers: ['3', '2', '0', '0', '3', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'C/E', root: 'C', type: 'Slash', notes: ['C', 'E', 'G', 'B'], strings: [0, 1, 0, 2, 3, 0], fingers: ['0', '1', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'F#', root: 'F#', type: 'Major', notes: ['F#', 'A#', 'C#'], strings: [2, 4, 4, 3, 2, 2], fingers: ['1', '3', '4', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 2 },
+    { name: 'F#m', root: 'F#', type: 'Minor', notes: ['F#', 'A', 'C#'], strings: [2, 4, 4, 2, 2, 2], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 2 },
+    { name: 'C#m', root: 'C#', type: 'Minor', notes: ['C#', 'E', 'G#'], strings: [-1, 4, 6, 6, 5, 4], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 4 },
+    { name: 'G#m', root: 'G#', type: 'Minor', notes: ['G#', 'B', 'D#'], strings: [4, 6, 6, 4, 4, 4], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 4 },
+    { name: 'Bb', root: 'Bb', type: 'Major', notes: ['Bb', 'D', 'F'], strings: [1, 1, 3, 3, 3, 1], fingers: ['1', '1', '3', '3', '3', '1'], difficulty: 'Intermediate', baseFret: 1 },
+    { name: 'Bbm', root: 'Bb', type: 'Minor', notes: ['Bb', 'Db', 'F'], strings: [1, 1, 3, 3, 2, 1], fingers: ['1', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 1 },
+    { name: 'Bm', root: 'B', type: 'Minor', notes: ['B', 'D', 'F#'], strings: [-1, 2, 4, 4, 3, 2], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 2 },
+    { name: 'Cm', root: 'C', type: 'Minor', notes: ['C', 'Eb', 'G'], strings: [-1, 3, 5, 5, 4, 3], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 3 },
+    { name: 'Fm', root: 'F', type: 'Minor', notes: ['F', 'Ab', 'C'], strings: [1, 3, 3, 1, 1, 1], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 1 },
+    { name: 'Gm', root: 'G', type: 'Minor', notes: ['G', 'Bb', 'D'], strings: [3, 5, 5, 3, 3, 3], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 3 },
+    { name: 'D/F#', root: 'D', type: 'Slash', notes: ['D', 'F#', 'A'], strings: [2, -1, 0, 2, 3, 2], fingers: ['2', 'x', '0', '1', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'G/B', root: 'G', type: 'Slash', notes: ['G', 'B', 'D'], strings: [0, 2, 0, 0, 0, 3], fingers: ['0', '2', '0', '0', '0', '3'], difficulty: 'Beginner', baseFret: 1 },
   ], [])
 

@@ -5,6 +5,7 @@ import { defaultSettings, demoSongs, normalizeSong, type Setlist, type Settings,
 import { LocalRepository } from './repositories'
 import { deleteSharedSong, isUuid, loadSharedSnapshot, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
+import { upcomingSundayIso } from './music'
 import { ChordLibrary, HomePage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
@@ -188,9 +189,9 @@ export default function App() {
     }
   }
   const createSetlist = async () => {
-    await updateSetlist({ id: '', name: `Sunday ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, date: new Date().toISOString().slice(0, 10), description: '', songIds: [] })
+    await updateSetlist({ id: '', name: `Sunday ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, date: upcomingSundayIso(), description: '', songIds: [] })
   }
-  const duplicateSetlist = async (previous: Setlist) => updateSetlist({ ...previous, id: '', name: `${previous.name} · Copy`, date: new Date().toISOString().slice(0, 10) })
+  const duplicateSetlist = async (previous: Setlist) => updateSetlist({ ...previous, id: '', name: `${previous.name} · Copy`, date: upcomingSundayIso() })
   const signOut = async () => { await supabase?.auth.signOut(); setRole('user'); navigate('/') }
 
   const shouldShowGlobalLoading = (authLoading || dataLoading) && location.pathname !== '/owner'
