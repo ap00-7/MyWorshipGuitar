@@ -194,7 +194,7 @@ export default function App() {
   }
   const duplicateSetlist = async (previous: Setlist) => {
     const date = upcomingSundayIso()
-    updateSetlist({ ...previous, id: '', name: formatSundayTitle(date), date })
+    await updateSetlist({ ...previous, id: '', name: formatSundayTitle(date), date })
   }
   const signOut = async () => { await supabase?.auth.signOut(); setRole('user'); navigate('/') }
 
