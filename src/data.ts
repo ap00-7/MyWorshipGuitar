@@ -26,7 +26,7 @@ export type Song = {
 }
 
 export const normalizeSection = (section: Partial<Section> & { id?: string; name?: string; chordText?: string; lines?: string[]; chordLines?: string[] }): Section => ({
-  id: section.id ?? Math.random().toString(36).slice(2, 9),
+  id: section.id?.trim() || '',
   name: section.name?.trim() || 'Section',
   chordText: section.chordText?.trim() ?? (Array.isArray(section.lines) ? section.lines.join('\n') : Array.isArray(section.chordLines) ? section.chordLines.join('\n') : ''),
   lines: Array.isArray(section.lines) ? section.lines : undefined,
@@ -35,7 +35,7 @@ export const normalizeSection = (section: Partial<Section> & { id?: string; name
 })
 
 export const normalizeSong = (song: Partial<Song> & { id?: string }): Song => ({
-  id: song.id ?? Math.random().toString(36).slice(2, 9),
+  id: song.id?.trim() || '',
   title: song.title?.trim() || 'Untitled song',
   artist: song.artist?.trim() || 'Unknown artist',
   key: song.key || 'C',
@@ -45,7 +45,7 @@ export const normalizeSong = (song: Partial<Song> & { id?: string }): Song => ({
   favorite: Boolean(song.favorite),
   tags: Array.isArray(song.tags) ? song.tags : [],
   notes: song.notes || '',
-  sections: Array.isArray(song.sections) && song.sections.length > 0 ? song.sections.map(normalizeSection) : [{ id: Math.random().toString(36).slice(2, 9), name: 'Verse 1', chordText: 'C G Am F\nC G C' }],
+  sections: Array.isArray(song.sections) && song.sections.length > 0 ? song.sections.map(normalizeSection) : [{ id: '', name: 'Verse 1', chordText: 'C G Am F\nC G C' }],
   chordImage: song.chordImage,
   lastPlayed: song.lastPlayed,
 })

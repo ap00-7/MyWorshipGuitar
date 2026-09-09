@@ -1,13 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { BookOpen, CalendarDays, Guitar, Home, LogIn, LogOut, Settings as SettingsIcon } from 'lucide-react'
-import { Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { defaultSettings, demoSongs, normalizeSong, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
-import { deleteSharedSong, deleteSunday, loadSharedSnapshot, upsertSharedSong, upsertSunday } from './sharedRepository'
+import { deleteSharedSong, isUuid, loadSharedSnapshot, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { ChordLibrary, HomePage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
 
-const id = () => crypto.randomUUID?.() ?? Math.random().toString(36).slice(2, 9)
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
 
 function useLocalState<T>(key: string, initial: T) {
@@ -32,6 +31,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(supabaseConfigured)
   const [dataLoading, setDataLoading] = useState(supabaseConfigured)
   const [error, setError] = useState('')
+  const location = useLocation()
   const navigate = useNavigate()
   const isOwner = role === 'owner'
 
@@ -94,43 +94,74 @@ export default function App() {
   const saveSong = async (song: Song) => {
     const normalized = normalizeSong(song)
     try {
-      if (supabaseConfigured) await upsertSharedSong(normalized)
-      setSongs((current) => current.some((item) => item.id === normalized.id) ? current.map((item) => item.id === normalized.id ? normalized : item) : [normalized, ...current])
+      const saved = supabaseConfigured
+        ? await upsertSharedSong(normalized)
+        : {
+            ...normalized,
+            id: isUuid(normalized.id) ? normalized.id : crypto.randomUUID(),
+            sections: normalized.sections.map((section) => ({ ...section, id: isUuid(section.id) ? section.id : crypto.randomUUID() })),
+          }
+      setSongs((current) => {
+        const previousId = isUuid(normalized.id) ? normalized.id : saved.id
+        const withoutPrevious = current.filter((item) => item.id !== previousId && item.id !== saved.id)
+        return [saved, ...withoutPrevious]
+      })
+      setError('')
+      return saved
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save song.')
+      const message = saveError instanceof Error ? saveError.message : 'Unable to save song.'
+      console.error('Unable to save song', { songId: normalized.id, title: normalized.title, error: saveError })
+      setError(message)
+      throw saveError instanceof Error ? saveError : new Error(message)
     }
   }
 
-  const duplicateSong = async (song: Song) => saveSong({ ...song, id: id(), title: `${song.title} (Copy)`, sections: song.sections.map((section) => ({ ...section, id: id() })) })
+  const duplicateSong = async (song: Song) => saveSong({
+    ...song,
+    id: '',
+    title: `${song.title} (Copy)`,
+    sections: song.sections.map((section) => ({ ...section, id: '' })),
+  })
 
   const deleteSong = async (song: Song) => {
     try {
       if (supabaseConfigured) await deleteSharedSong(song.id)
       setSongs((current) => current.filter((item) => item.id !== song.id))
       setSetlists((current) => current.map((setlist) => ({ ...setlist, songIds: setlist.songIds.filter((songId) => songId !== song.id) })))
+      setError('')
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete song.')
     }
   }
 
   const createSong = () => navigate('/songs/new')
-  const createSetlist = async () => {
-    const setlist: Setlist = { id: id(), name: `Sunday ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, date: new Date().toISOString().slice(0, 10), description: '', songIds: [] }
-    await updateSetlist(setlist)
-    setSetlists((current) => current.some((item) => item.id === setlist.id) ? current : [...current, setlist])
-  }
   const updateSetlist = async (setlist: Setlist) => {
     try {
-      if (supabaseConfigured) await upsertSunday(setlist)
-      setSetlists((current) => current.map((item) => item.id === setlist.id ? setlist : item))
+      const saved = supabaseConfigured
+        ? await upsertSunday(setlist)
+        : { ...setlist, id: isUuid(setlist.id) ? setlist.id : crypto.randomUUID() }
+      setSetlists((current) => {
+        const index = current.findIndex((item) => item.id === setlist.id || item.id === saved.id)
+        if (index < 0) return [saved, ...current]
+        const next = [...current]
+        next[index] = saved
+        return next
+      })
+      setError('')
+      return saved
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Unable to update Sunday.')
     }
   }
-  const duplicateSetlist = async (previous: Setlist) => updateSetlist({ ...previous, id: id(), name: `${previous.name} · Copy`, date: new Date().toISOString().slice(0, 10) })
+  const createSetlist = async () => {
+    await updateSetlist({ id: '', name: `Sunday ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, date: new Date().toISOString().slice(0, 10), description: '', songIds: [] })
+  }
+  const duplicateSetlist = async (previous: Setlist) => updateSetlist({ ...previous, id: '', name: `${previous.name} · Copy`, date: new Date().toISOString().slice(0, 10) })
   const signOut = async () => { await supabase?.auth.signOut(); setRole('user'); navigate('/') }
 
-  if (authLoading || dataLoading) return <div className="page"><p>Loading shared worship content...</p></div>
+  const shouldShowGlobalLoading = (authLoading || dataLoading) && location.pathname !== '/owner'
+
+  if (shouldShowGlobalLoading) return <div className="page"><p>Loading shared worship content...</p></div>
 
   const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/chords', label: 'Chords', icon: Guitar }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
   return (

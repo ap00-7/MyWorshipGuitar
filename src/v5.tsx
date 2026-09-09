@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { capoShapeKey, chromatic, parseChordProgression, simplifyChord, transposeChord, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
 
-const id = () => Math.random().toString(36).slice(2, 9)
+const editorKey = () => crypto.randomUUID()
 
 type ChordDefinition = {
   name: string
@@ -273,7 +273,7 @@ function Empty({ title }: { title: string }) {
   )
 }
 
-export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave: (song: Song) => void | Promise<void>; onDelete: (song: Song) => void | Promise<void> }) {
+export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave: (song: Song) => Promise<Song>; onDelete: (song: Song) => void | Promise<void> }) {
   const { songId } = useParams()
   const navigate = useNavigate()
   const existing = songs.find((song) => song.id === songId)
@@ -284,10 +284,11 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   const [capo, setCapo] = useState(existing?.capo || 0)
   const [notes, setNotes] = useState(existing?.notes || '')
   const [image, setImage] = useState(existing?.chordImage)
-  const [sections, setSections] = useState<Section[]>(existing?.sections?.length ? existing.sections : [{ id: id(), name: 'Verse 1', chordText: 'C G Am F\nC G C' }])
+  const [sections, setSections] = useState<Section[]>(existing?.sections?.length ? existing.sections : [{ id: editorKey(), name: 'Verse 1', chordText: 'C G Am F\nC G C' }])
+  const [isSaving, setIsSaving] = useState(false)
 
   const addSection = () => {
-    setSections((current) => [...current, { id: id(), name: `Section ${current.length + 1}`, chordText: 'C G Am F' }])
+    setSections((current) => [...current, { id: editorKey(), name: `Section ${current.length + 1}`, chordText: 'C G Am F' }])
   }
 
   const removeSection = (sectionId: string) => {
@@ -295,6 +296,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   }
 
   const save = async () => {
+    if (isSaving) return
     if (!title.trim()) {
       window.alert('Song title is required.')
       return
@@ -309,7 +311,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
       }))
 
     const song: Song = {
-      id: existing?.id || id(),
+      id: existing?.id || '',
       title: title.trim(),
       artist: artist.trim() || 'Unknown artist',
       key,
@@ -324,8 +326,19 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
       lastPlayed: existing?.lastPlayed,
     }
 
-    await onSave(song)
-    navigate(`/songs/${song.id}`)
+    setIsSaving(true)
+    try {
+      const saved = await onSave(song)
+      if (!saved?.id) {
+        throw new Error('Song save did not return a database id.')
+      }
+      navigate(`/songs/${saved.id}`)
+    } catch (error) {
+      console.error('Song save failed', error)
+      window.alert(error instanceof Error ? error.message : 'Unable to save song. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const updateSection = (sectionId: string, field: 'name' | 'chordText', value: string) => {
@@ -352,7 +365,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
           <div className="eyebrow">Song editor</div>
           <h1>{existing ? 'Edit song' : 'Add song'}</h1>
         </div>
-        <button className="primary-button" onClick={save}><Save size={16} />Save song</button>
+        <button className="primary-button" onClick={save} disabled={isSaving}><Save size={16} />{isSaving ? 'Saving...' : 'Save song'}</button>
       </header>
 
       <div className="editor-form">
