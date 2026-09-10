@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
 
@@ -224,10 +224,15 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, 
   )
 }
 
-export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings: Settings; isOwner: boolean }) {
+export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]; setlists: Setlist[]; settings: Settings; isOwner: boolean }) {
   const { songId } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const song = songs.find((item) => item.id === songId)
+  const sundayId = searchParams.get('sunday')
+  const sunday = setlists.find((item) => item.id === sundayId)
+  const sundaySongIds = sunday?.songIds ?? []
+  const sundayIndex = song ? sundaySongIds.indexOf(song.id) : -1
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [viewKey1, setViewKey1] = useState(song?.key ?? 'C')
   const [viewKey2, setViewKey2] = useState(song?.key ?? 'C')
@@ -235,6 +240,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
   const [sheetOnly, setSheetOnly] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
   const nativeFullscreen = useRef(false)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (!song?.key) return
@@ -297,6 +303,24 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
     setSheetOnly(false)
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined)
   }
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (!sunday || sundayIndex < 0 || event.touches.length !== 1) return
+    const touch = event.touches[0]
+    touchStart.current = { x: touch.clientX, y: touch.clientY }
+  }
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = touchStart.current
+    touchStart.current = null
+    if (!start || !sunday || sundayIndex < 0 || event.changedTouches.length !== 1) return
+    const touch = event.changedTouches[0]
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    if (Math.abs(deltaX) < 64 || Math.abs(deltaX) <= Math.abs(deltaY)) return
+    const targetIndex = sundayIndex + (deltaX < 0 ? 1 : -1)
+    const targetId = sundaySongIds[targetIndex]
+    if (!targetId || targetId === song?.id || !songs.some((item) => item.id === targetId)) return
+    navigate(`/songs/${targetId}?sunday=${encodeURIComponent(sunday.id)}`)
+  }
 
   return (
     <div className={`page continuous-page${sheetOnly ? ' sheet-only-fallback' : ''}`}>
@@ -339,7 +363,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
         </div>
       </div>
 
-        <div className="continuous-sheet" ref={sheetRef} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
+        <div className="continuous-sheet" ref={sheetRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
           {sheetOnly && <button className="sheet-exit-button" onClick={() => void exitSheetOnly()}><Minimize2 size={15} />Exit full screen</button>}
           {song.sections.map((section) => {
             const lines = guitar === 2
@@ -951,7 +975,7 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
               return (
                 <div className="sunday-song" key={song.id}>
                   <span className="song-order">{index + 1}</span>
-                  <Link to={`/songs/${song.id}`} className="song-summary">
+                  <Link to={`/songs/${song.id}?sunday=${encodeURIComponent(sunday.id)}`} className="song-summary">
                     <strong>{song.title}</strong>
                   </Link>
                   {isOwner && <div className="sunday-controls">
