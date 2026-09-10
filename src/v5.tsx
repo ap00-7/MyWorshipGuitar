@@ -921,14 +921,14 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
       <header className="sunday-header">
         <div>
           <div className="eyebrow">This week's worship service</div>
-          <h1>{formatSundayTitle(sunday.date)}</h1>
+          <h1>Sunday Service</h1>
           <select className="sunday-selector" value={sunday.id} onChange={(event) => setSelectedSundayId(event.target.value)} aria-label="Select Sunday schedule">
             {setlists.map((item) => <option key={item.id} value={item.id}>{formatSundayTitle(item.date)}</option>)}
           </select>
-          {isOwner ? <input className="sunday-date-input" type="date" value={sunday.date} onChange={(event) => {
+          {isOwner && <input className="sunday-date-input" type="date" value={sunday.date} onChange={(event) => {
             const nextDate = toIsoDate(event.target.value)
             if (nextDate && isSundayIso(nextDate)) void onUpdate({ ...sunday, date: nextDate })
-          }} aria-label="Sunday date" /> : <p>{formatSundayDate(sunday.date)}</p>}
+          }} aria-label="Sunday date" />}
         </div>
         <div className="sunday-header-actions">
           {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
@@ -941,7 +941,6 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
           <div className="section-heading">
             <div>
                 <span className="eyebrow">Songs for this service</span>
-                <h2>{formatSundayTitle(sunday.date)}</h2>
             </div>
           </div>
 
