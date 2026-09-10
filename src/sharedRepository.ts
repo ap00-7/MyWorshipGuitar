@@ -8,7 +8,6 @@ export type SharedSnapshot = { songs: Song[]; setlists: Setlist[] }
 type DbSong = {
   id: string
   title: string
-  artist: string
   original_key: string
   current_key: string
   capo: number
@@ -18,6 +17,7 @@ type DbSong = {
   favorite: boolean
   tags: string[]
   notes: string
+  youtube_url?: string | null
   chord_image_path: string | null
   sections: Array<{ id: string; name: string; chord_text: string; guitar2_chord_text?: string; note: string | null; position?: number }>
 }
@@ -31,8 +31,10 @@ type DbSunday = {
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const SONG_SELECT_WITH_GUITAR2 = 'id,title,artist,original_key,current_key,capo,guitar2_capo,guitar2_customized,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,guitar2_chord_text,note,position)'
-const SONG_SELECT_BASE = 'id,title,artist,original_key,current_key,capo,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,note,position)'
+const SONG_SELECT_WITH_GUITAR2_YOUTUBE = 'id,title,original_key,current_key,capo,guitar2_capo,guitar2_customized,bpm,favorite,tags,notes,youtube_url,chord_image_path,sections:song_sections(id,name,chord_text,guitar2_chord_text,note,position)'
+const SONG_SELECT_BASE_YOUTUBE = 'id,title,original_key,current_key,capo,bpm,favorite,tags,notes,youtube_url,chord_image_path,sections:song_sections(id,name,chord_text,note,position)'
+const SONG_SELECT_WITH_GUITAR2 = 'id,title,original_key,current_key,capo,guitar2_capo,guitar2_customized,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,guitar2_chord_text,note,position)'
+const SONG_SELECT_BASE = 'id,title,original_key,current_key,capo,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,note,position)'
 
 export function isUuid(value: string | undefined | null): value is string {
   return Boolean(value && UUID_PATTERN.test(value))
@@ -62,12 +64,15 @@ function isMissingGuitar2Column(error: unknown) {
   return text.includes('guitar2') || text.includes('42703')
 }
 
+function isMissingYoutubeColumn(error: unknown) {
+  return JSON.stringify(error).toLowerCase().includes('youtube_url')
+}
+
 function mapDbSong(song: DbSong): Song {
   const client = requireSupabase()
   return normalizeSong({
     id: song.id,
     title: song.title,
-    artist: song.artist,
     key: song.original_key,
     currentKey: song.current_key,
     capo: song.capo,
@@ -77,6 +82,7 @@ function mapDbSong(song: DbSong): Song {
     favorite: song.favorite,
     tags: song.tags ?? [],
     notes: song.notes,
+    youtubeUrl: song.youtube_url ?? '',
     chordImage: song.chord_image_path ? { name: song.chord_image_path, dataUrl: client.storage.from('chord-images').getPublicUrl(song.chord_image_path).data.publicUrl } : undefined,
     sections: (song.sections ?? [])
       .slice()
@@ -93,14 +99,15 @@ function mapDbSong(song: DbSong): Song {
 
 async function selectSongById(songId: string) {
   const client = requireSupabase()
-  const withGuitar2 = await client.from('songs').select(SONG_SELECT_WITH_GUITAR2).eq('id', songId).single()
-  if (!withGuitar2.error && withGuitar2.data) return withGuitar2.data as unknown as DbSong
-  if (withGuitar2.error && !isMissingGuitar2Column(withGuitar2.error)) throwIfError(withGuitar2.error, 'Song was saved but could not be reloaded.')
-
-  const fallback = await client.from('songs').select(SONG_SELECT_BASE).eq('id', songId).single()
-  throwIfError(fallback.error, 'Song was saved but could not be reloaded.')
-  if (!fallback.data) throw new Error('Song was saved but could not be reloaded.')
-  return fallback.data as unknown as DbSong
+  const selections = [SONG_SELECT_WITH_GUITAR2_YOUTUBE, SONG_SELECT_BASE_YOUTUBE, SONG_SELECT_WITH_GUITAR2, SONG_SELECT_BASE]
+  for (const selection of selections) {
+    const result = await client.from('songs').select(selection).eq('id', songId).single()
+    if (!result.error && result.data) return result.data as unknown as DbSong
+    if (result.error && !isMissingGuitar2Column(result.error) && !isMissingYoutubeColumn(result.error)) {
+      throwIfError(result.error, 'Song was saved but could not be reloaded.')
+    }
+  }
+  throw new Error('Song was saved but could not be reloaded.')
 }
 
 export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
@@ -108,10 +115,17 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   const sundaysResult = await client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position)').order('service_date', { ascending: false })
   throwIfError(sundaysResult.error, 'Unable to load Sunday schedule.')
 
-  const withGuitar2 = await client.from('songs').select(SONG_SELECT_WITH_GUITAR2).order('updated_at', { ascending: false })
-  const songsResult = withGuitar2.error && isMissingGuitar2Column(withGuitar2.error)
-    ? await client.from('songs').select(SONG_SELECT_BASE).order('updated_at', { ascending: false })
-    : withGuitar2
+  const selections = [SONG_SELECT_WITH_GUITAR2_YOUTUBE, SONG_SELECT_BASE_YOUTUBE, SONG_SELECT_WITH_GUITAR2, SONG_SELECT_BASE]
+  let songsResult: { data: unknown; error: unknown } | undefined
+  for (const selection of selections) {
+    const result = await client.from('songs').select(selection).order('updated_at', { ascending: false })
+    if (!result.error) {
+      songsResult = result as unknown as { data: unknown; error: unknown }
+      break
+    }
+    if (!isMissingGuitar2Column(result.error) && !isMissingYoutubeColumn(result.error)) throwIfError(result.error, 'Unable to load songs.')
+  }
+  if (!songsResult) throw new Error('Unable to load songs.')
   throwIfError(songsResult.error, 'Unable to load songs.')
 
   const songs = ((songsResult.data ?? []) as unknown as DbSong[]).map(mapDbSong)
@@ -182,7 +196,6 @@ export async function upsertSharedSong(song: Song): Promise<Song> {
   const existingId = isUuid(song.id) ? song.id : undefined
   const songFields = {
     title: song.title,
-    artist: song.artist,
     original_key: song.key,
     current_key: song.key,
     capo: song.capo,
@@ -192,10 +205,10 @@ export async function upsertSharedSong(song: Song): Promise<Song> {
     favorite: song.favorite,
     tags: song.tags,
     notes: song.notes,
+    youtube_url: song.youtubeUrl || null,
   }
   const songFieldsBase = {
     title: song.title,
-    artist: song.artist,
     original_key: song.key,
     current_key: song.key,
     capo: song.capo,
@@ -204,6 +217,7 @@ export async function upsertSharedSong(song: Song): Promise<Song> {
     tags: song.tags,
     notes: song.notes,
   }
+  const { youtube_url: _youtubeUrl, ...songFieldsWithoutYoutube } = songFields
 
   async function writeSong(fields: Record<string, unknown>) {
     if (existingId) {
@@ -221,11 +235,15 @@ export async function upsertSharedSong(song: Song): Promise<Song> {
   }
 
   let result = await writeSong(songFields)
+  if (result.error && isMissingYoutubeColumn(result.error)) {
+    if (song.youtubeUrl) throw new Error('YouTube links need the youtube_url column. Run the additive migration in supabase/schema.sql.')
+    result = await writeSong(songFieldsWithoutYoutube)
+  }
   if (result.error && isMissingGuitar2Column(result.error)) {
     if (songUsesGuitar2(song)) {
       throw new Error('Guitar 2 data needs the guitar2_capo column. Run the latest supabase/schema.sql in the Supabase SQL editor.')
     }
-    result = await writeSong(songFieldsBase)
+    result = await writeSong(song.youtubeUrl ? songFields : songFieldsWithoutYoutube)
   }
   throwIfError(result.error, existingId ? 'Unable to update song.' : 'Unable to save song.')
   if (!result.data?.id) throw new Error('Song save did not return a database id.')

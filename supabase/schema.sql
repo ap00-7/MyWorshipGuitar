@@ -27,6 +27,7 @@ create table if not exists public.songs (
   favorite boolean not null default false,
   tags text[] not null default '{}',
   notes text not null default '',
+  youtube_url text,
   chord_image_path text,
   guitar2_capo integer not null default 0 check (guitar2_capo between 0 and 12),
   guitar2_customized boolean not null default false,
@@ -172,6 +173,7 @@ create policy "owner can delete chord images" on storage.objects for delete usin
 -- Additive updates for existing projects created before Guitar 2 columns existed.
 alter table public.songs add column if not exists guitar2_capo integer not null default 0;
 alter table public.songs add column if not exists guitar2_customized boolean not null default false;
+alter table public.songs add column if not exists youtube_url text;
 alter table public.song_sections add column if not exists guitar2_chord_text text not null default '';
 
 create or replace function public.touch_updated_at()

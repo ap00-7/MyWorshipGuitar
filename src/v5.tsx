@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
@@ -18,6 +18,30 @@ type ChordDefinition = {
 }
 const rootOptions = ['All', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 const typeOptions = ['All', 'Major', 'Minor', '7', 'Maj7', 'm7', 'Sus2', 'Sus4', 'Add9', 'Dim', 'Aug', '6', '9', '11', '13', '5', 'Slash']
+
+function normalizeYouTubeUrl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  try {
+    const url = new URL(trimmed)
+    const hostname = url.hostname.toLowerCase()
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    if (hostname === 'youtu.be') return url.pathname.length > 1 ? url.toString() : null
+    if (!['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(hostname)) return null
+    return url.pathname === '/watch' && Boolean(url.searchParams.get('v')) ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+function renderNoteText(notes: string) {
+  return notes.split(/(https?:\/\/[^\s]+)/g).map((part, index) => {
+    if (!/^https?:\/\//i.test(part)) return <Fragment key={index}>{part}</Fragment>
+    const href = part.replace(/[),.!?;:]+$/, '')
+    const trailing = part.slice(href.length)
+    return <Fragment key={index}><a href={href} target="_blank" rel="noopener noreferrer">{href}</a>{trailing}</Fragment>
+  })
+}
 
 const hasCustomGuitar2 = (song: Song) => song.guitar2Customized || song.sections.some((section) => Boolean(section.guitar2ChordText?.trim()))
 
@@ -129,7 +153,6 @@ function SongRow({ song }: { song: Song }) {
       <span className="song-art">{song.title.slice(0, 1)}</span>
       <span className="song-meta">
         <strong>{song.title}</strong>
-        <small>{song.artist}</small>
       </span>
       <span className="key-pill">{song.currentKey}</span>
       <ChevronRight size={17} />
@@ -142,7 +165,7 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, 
   const [favoriteOnly, setFavoriteOnly] = useState(false)
 
   const filtered = songs.filter((song) => {
-    const text = `${song.title} ${song.artist} ${song.currentKey} ${song.sections.flatMap((section) => sectionChordLines(section)).join(' ')}`.toLowerCase()
+    const text = `${song.title} ${song.currentKey} ${song.sections.flatMap((section) => sectionChordLines(section)).join(' ')}`.toLowerCase()
     return text.includes(query.toLowerCase()) && (!favoriteOnly || song.favorite)
   })
 
@@ -159,7 +182,7 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, 
       <div className="v5-search-row">
         <div className="search">
           <Search size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, artist, key, or chord" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, key, or chord" />
         </div>
         <button className={favoriteOnly ? 'filter-button selected' : 'filter-button'} onClick={() => setFavoriteOnly(!favoriteOnly)}>
           ★ Favorites
@@ -173,7 +196,6 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, 
               <span className="song-art large-art">{song.title.slice(0, 1)}</span>
               <div>
                 <h2>{song.title}</h2>
-                <p>{song.artist}</p>
                 <div className="song-facts">
                   Key <b>{song.currentKey}</b> · Capo <b>{song.capo}</b>
                 </div>
@@ -210,6 +232,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [viewKey1, setViewKey1] = useState(song?.key ?? 'C')
   const [viewKey2, setViewKey2] = useState(song?.key ?? 'C')
+  const [chordScale, setChordScale] = useState(1)
 
   useEffect(() => {
     if (!song?.key) return
@@ -236,7 +259,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
 
       <header className="v5-song-header">
         <div>
-          <div className="eyebrow">Chord sheet · {song.artist}</div>
+          <div className="eyebrow">Chord sheet</div>
           <h1>{song.title}</h1>
           <div className="song-tags">
             <span>Concert Key {viewKey}</span>
@@ -264,9 +287,14 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
           <button className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>
           <button className={guitar === 2 ? 'active' : ''} onClick={() => setGuitar(2)}>Guitar 2</button>
         </div>
+        <div className="chord-size-controls" aria-label="Chord font size">
+          <span>Chord size</span>
+          <button onClick={() => setChordScale((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))} disabled={chordScale <= 0.7}>A−</button>
+          <button onClick={() => setChordScale((current) => Math.min(1.35, Number((current + 0.1).toFixed(2))))} disabled={chordScale >= 1.35}>A+</button>
+        </div>
       </div>
 
-      <div className="continuous-sheet">
+      <div className="continuous-sheet" style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
           {song.sections.map((section) => {
             const lines = guitar === 2
               ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, song.capo, selectedCapo) })
@@ -289,6 +317,18 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
           <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
         </div>
       )}
+      {song.notes.trim() && (
+        <section className="song-notes">
+          <div className="eyebrow">Notes</div>
+          <p>{renderNoteText(song.notes)}</p>
+        </section>
+      )}
+      {song.youtubeUrl && (
+        <section className="song-reference">
+          <div className="eyebrow">Reference</div>
+          <a className="secondary-button" href={song.youtubeUrl} target="_blank" rel="noreferrer">Watch on YouTube <ChevronRight size={15} /></a>
+        </section>
+      )}
     </div>
   )
 }
@@ -309,7 +349,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   const blankSection = (): Section => ({ id: editorKey(), name: 'Verse 1', chordText: 'C G Am F\nC G C', guitar2ChordText: '' })
 
   const [title, setTitle] = useState(existing?.title || '')
-  const [artist, setArtist] = useState(existing?.artist || '')
+  const [youtubeUrl, setYoutubeUrl] = useState(existing?.youtubeUrl || '')
   const [key, setKey] = useState(existing?.key || 'C')
   const [capo, setCapo] = useState(existing?.capo || 0)
   const [guitar2Capo, setGuitar2Capo] = useState(existing?.guitar2Capo || 0)
@@ -324,7 +364,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   useEffect(() => {
     if (!existing) return
     setTitle(existing.title)
-    setArtist(existing.artist)
+    setYoutubeUrl(existing.youtubeUrl)
     setKey(existing.key)
     setCapo(existing.capo)
     setGuitar2Capo(existing.guitar2Capo)
@@ -342,10 +382,28 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     setSections((current) => current.filter((section) => section.id !== sectionId))
   }
 
+  const moveSection = (sectionId: string, target: 'top' | 'up' | 'down' | 'bottom') => {
+    setSections((current) => {
+      const index = current.findIndex((section) => section.id === sectionId)
+      if (index < 0) return current
+      const targetIndex = target === 'top' ? 0 : target === 'up' ? index - 1 : target === 'down' ? index + 1 : current.length - 1
+      if (targetIndex < 0 || targetIndex >= current.length || targetIndex === index) return current
+      const next = [...current]
+      const [section] = next.splice(index, 1)
+      next.splice(targetIndex, 0, section)
+      return next
+    })
+  }
+
   const save = async () => {
     if (isSaving) return
     if (!title.trim()) {
       window.alert('Song title is required.')
+      return
+    }
+    const normalizedYoutubeUrl = normalizeYouTubeUrl(youtubeUrl)
+    if (normalizedYoutubeUrl === null) {
+      window.alert('Enter a valid YouTube URL.')
       return
     }
 
@@ -365,7 +423,6 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     const song: Song = {
       id: existing?.id || '',
       title: title.trim(),
-      artist: artist.trim() || 'Unknown artist',
       key,
       currentKey: key,
       capo,
@@ -375,6 +432,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
       favorite: existing?.favorite || false,
       tags: existing?.tags || [],
       notes,
+      youtubeUrl: normalizedYoutubeUrl,
       sections: normalizedSections,
       chordImage: image,
       lastPlayed: existing?.lastPlayed,
@@ -444,8 +502,8 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
             <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Amazing Grace" />
           </label>
           <label>
-            Artist
-            <input value={artist} onChange={(event) => setArtist(event.target.value)} placeholder="Artist name" />
+            YouTube reference
+            <input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="https://youtu.be/..." />
           </label>
         </div>
 
@@ -485,6 +543,12 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
             <div className="section-card" key={section.id}>
               <div className="section-card-header">
                 <input value={section.name} onChange={(event) => updateSection(section.id, 'name', event.target.value)} placeholder="Verse 1" />
+                {sections.length > 1 && <div className="section-reorder-controls">
+                  <button className="icon-button" title="Move to top" aria-label="Move section to top" disabled={index === 0} onClick={() => moveSection(section.id, 'top')}><ChevronsUp size={15} /></button>
+                  <button className="icon-button" title="Move up" aria-label="Move section up" disabled={index === 0} onClick={() => moveSection(section.id, 'up')}><ArrowUp size={15} /></button>
+                  <button className="icon-button" title="Move down" aria-label="Move section down" disabled={index === sections.length - 1} onClick={() => moveSection(section.id, 'down')}><ArrowDown size={15} /></button>
+                  <button className="icon-button" title="Move to bottom" aria-label="Move section to bottom" disabled={index === sections.length - 1} onClick={() => moveSection(section.id, 'bottom')}><ChevronsDown size={15} /></button>
+                </div>}
                 {sections.length > 1 && (
                   <button className="icon-button" aria-label="Remove section" onClick={() => removeSection(section.id)}><Trash2 size={15} /></button>
                 )}
@@ -794,7 +858,7 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
     )
   }
 
-  const available = songs.filter((song) => !sunday.songIds.includes(song.id) && `${song.title} ${song.artist}`.toLowerCase().includes(query.toLowerCase()))
+  const available = songs.filter((song) => !sunday.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
 
   const moveSong = (songId: string, direction: -1 | 1) => {
     const index = sunday.songIds.indexOf(songId)
@@ -844,7 +908,6 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
                   <span className="song-order">{index + 1}</span>
                   <Link to={`/songs/${song.id}`} className="song-summary">
                     <strong>{song.title}</strong>
-                    <small>{song.artist}</small>
                   </Link>
                   {isOwner && <div className="sunday-controls">
                     <button className="icon-button" onClick={() => moveSong(song.id, -1)} aria-label="Move earlier"><ChevronLeft size={15} /></button>
@@ -874,7 +937,6 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
             {available.length ? available.map((song) => (
               <button key={song.id} className="available-song" onClick={() => onUpdate({ ...sunday, songIds: [...sunday.songIds, song.id] })}>
                 <strong>{song.title}</strong>
-                <small>{song.artist}</small>
               </button>
             )) : <p className="muted-text">No songs match.</p>}
           </div>

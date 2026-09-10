@@ -13,7 +13,6 @@ export type Section = {
 export type Song = {
   id: string
   title: string
-  artist: string
   key: string
   currentKey: string
   capo: number
@@ -23,6 +22,7 @@ export type Song = {
   favorite: boolean
   tags: string[]
   notes: string
+  youtubeUrl: string
   sections: Section[]
   chordImage?: ChordImage
   lastPlayed?: string
@@ -46,7 +46,6 @@ export const normalizeSection = (section: Partial<Section> & { id?: string; name
 export const normalizeSong = (song: Partial<Song> & { id?: string }): Song => ({
   id: song.id?.trim() || '',
   title: song.title?.trim() || 'Untitled song',
-  artist: song.artist?.trim() || 'Unknown artist',
   key: song.key || 'C',
   currentKey: song.currentKey || song.key || 'C',
   capo: numericCapo(song.capo),
@@ -56,6 +55,7 @@ export const normalizeSong = (song: Partial<Song> & { id?: string }): Song => ({
   favorite: Boolean(song.favorite),
   tags: Array.isArray(song.tags) ? song.tags : [],
   notes: song.notes || '',
+  youtubeUrl: song.youtubeUrl?.trim() || '',
   sections: Array.isArray(song.sections) && song.sections.length > 0 ? song.sections.map(normalizeSection) : [{ id: '', name: 'Verse 1', chordText: 'C G Am F\nC G C', guitar2ChordText: '' }],
   chordImage: song.chordImage,
   lastPlayed: song.lastPlayed,
@@ -77,7 +77,6 @@ export const demoSongs: Song[] = [
   {
     id: 'grace-forever',
     title: 'Grace Forever',
-    artist: 'Demo Worship',
     key: 'C',
     currentKey: 'C',
     capo: 0,
@@ -87,6 +86,7 @@ export const demoSongs: Song[] = [
     favorite: true,
     tags: ['Sunday', 'Acoustic'],
     notes: 'Start gently and build in the bridge.',
+    youtubeUrl: '',
     sections: [
       { id: 'gf-1', name: 'Verse 1', chordText: 'C G Am F\nC G C' },
       { id: 'gf-2', name: 'Chorus', chordText: 'F C G Am\nF C G' },
@@ -96,7 +96,6 @@ export const demoSongs: Song[] = [
   {
     id: 'open-heavens',
     title: 'Open Heavens',
-    artist: 'Demo Worship',
     key: 'G',
     currentKey: 'G',
     capo: 0,
@@ -106,6 +105,7 @@ export const demoSongs: Song[] = [
     favorite: false,
     tags: ['Upbeat'],
     notes: 'Open and spacious for the first verse.',
+    youtubeUrl: '',
     sections: [
       { id: 'oh-1', name: 'Verse', chordText: 'G D Em C\nG D C' },
       { id: 'oh-2', name: 'Chorus', chordText: 'C G D Em\nC G D C' },
