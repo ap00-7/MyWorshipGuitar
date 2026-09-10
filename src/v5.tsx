@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { capoShapeKey, formatSundayDate, formatSundayTitle, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
+import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
 
 const editorKey = () => crypto.randomUUID()
@@ -52,8 +52,7 @@ const displayChord = (chord: string, interval: number, notation: Notation, simpl
 }
 
 const renderChordLine = (line: string, interval: number, notation: Notation, simplifyValue: boolean) => {
-  const tokens = parseChordProgression(line)
-  return tokens.length ? tokens.map((token, index) => <span key={`${token}-${index}`} className="chord-token">{displayChord(token, interval, notation, simplifyValue)}</span>) : <span className="chord-token muted">{line}</span>
+  return <span className="chord-token">{formatTransposedChordLine(line, interval, notation, simplifyValue)}</span>
 }
 
 export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreateSong: () => void; isOwner: boolean }) {
@@ -240,9 +239,9 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
           <div className="eyebrow">Chord sheet · {song.artist}</div>
           <h1>{song.title}</h1>
           <div className="song-tags">
-            <span>Key {viewKey}</span>
+            <span>Concert Key {viewKey}</span>
+            <span>{guitar === 2 ? `Guitar 2: ${shapeKey} shapes` : `Guitar 1: ${shapeKey} shapes`}</span>
             <span>Capo {selectedCapo}</span>
-            <span>Shapes {shapeKey}</span>
             {guitar === 2 && <span>{customGuitar2 ? 'Custom Guitar 2' : `Suggested · ${suggestion.family} shapes`}</span>}
           </div>
         </div>
@@ -253,8 +252,8 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
       </header>
 
       <div className="song-key-bar">
-        <strong>{viewKey}</strong>
-        <small>Original {song.key} · Guitar {guitar}</small>
+        <strong>{shapeKey}</strong>
+        <small>Concert key {viewKey} · Guitar {guitar}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => setViewKey(song.key)}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
@@ -277,11 +276,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
                 <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · suggested capo ${suggestion.capo}` : ''}</div>
                 {lines.map((line, lineIndex) => (
                   <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
-                    {parseChordProgression(line).map((chord, chordIndex) => (
-                      <span className="chord-text" key={`${chord}-${chordIndex}`}>
-                        {displayChord(chord, interval, settings.notation, settings.simplify)}
-                      </span>
-                    ))}
+                    <span className="chord-text">{formatTransposedChordLine(line, interval, settings.notation, settings.simplify)}</span>
                   </div>
                 ))}
               </section>

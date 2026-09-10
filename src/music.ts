@@ -30,6 +30,33 @@ const flatNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', '
 
 const chordTokenPattern = /^[A-G](?:#|b)?(?:m(?!aj)|maj)?(?:maj7|m7|maj9|m9|add(?:9|11|13)|sus[24]|dim7?|aug|7|9|11|13|6|m6|5|no[35]|\([^)]+\))?(?:\/[A-G](?:#|b)?)?$/i
 
+function splitChordPart(part: string) {
+  const suffixMatch = part.match(/(\/+)?$/)
+  const suffix = suffixMatch?.[1] ?? ''
+  const core = suffix ? part.slice(0, -suffix.length) : part
+  const chords: string[] = []
+  let remaining = core
+
+  while (remaining) {
+    let match = ''
+    for (let length = 1; length <= remaining.length; length += 1) {
+      const candidate = remaining.slice(0, length)
+      if (chordTokenPattern.test(candidate)) match = candidate
+    }
+    if (!match) return { chords: [] as string[], suffix: '' }
+    chords.push(match)
+    remaining = remaining.slice(match.length)
+  }
+
+  return { chords, suffix }
+}
+
+function formatChordPart(part: string, transform: (chord: string) => string) {
+  const parsed = splitChordPart(part)
+  if (!parsed.chords.length) return null
+  return `${parsed.chords.map(transform).join(' ')}${parsed.suffix}`
+}
+
 export function noteIndex(note: string) {
   return noteIndexByName[note] ?? noteIndexByName[note.charAt(0)] ?? 0
 }
@@ -70,9 +97,7 @@ export function parseChordProgression(input: string) {
 
   return cleaned
     .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .filter((part) => chordTokenPattern.test(part))
+    .flatMap((part) => splitChordPart(part).chords)
 }
 
 export function extractChordLines(lines: string[]) {
@@ -96,9 +121,16 @@ export function transposeProgressionText(text: string, interval: number, notatio
     if (!line.trim()) return line
     return line.split(/(\s+)/).map((part) => {
       if (!part.trim() || /^\s+$/.test(part)) return part
-      return chordTokenPattern.test(part) ? transposeChord(part, interval, notation) : part
+      return formatChordPart(part, (chord) => transposeChord(chord, interval, notation)) ?? part
     }).join('')
   }).join('\n')
+}
+
+export function formatTransposedChordLine(line: string, interval: number, notation: Notation = 'auto', simplify = false) {
+  return line.split(/(\s+)/).map((part) => {
+    if (!part.trim() || /^\s+$/.test(part)) return part
+    return formatChordPart(part, (chord) => transposeChord(simplify ? simplifyChord(chord) : chord, interval, notation)) ?? part
+  }).join('')
 }
 
 export function collectProgressionChords(text: string) {
