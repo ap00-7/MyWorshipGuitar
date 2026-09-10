@@ -28,7 +28,9 @@ const noteIndexByName: Record<string, number> = {
 const sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const flatNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
 
-const chordTokenPattern = /^[A-G](?:#|b)?(?:m(?!aj)|maj)?(?:maj7|m7|maj9|m9|add(?:9|11|13)|sus[24]|dim7?|aug|7|9|11|13|6|m6|5|no[35]|\([^)]+\))?(?:\/[A-G](?:#|b)?)?$/i
+const chordComponentPattern = String.raw`[A-G](?:#|b)?(?:maj7|maj9|m7|m9|add(?:9|11|13)|sus[24]|dim7?|aug|maj|m6|m|7|9|11|13|6|5|no[35]|\([^)]+\))?`
+const chordTokenPattern = new RegExp(`^${chordComponentPattern}(?:/${chordComponentPattern})?$`)
+const chordTokenPartsPattern = new RegExp(`^(${chordComponentPattern})(?:/(${chordComponentPattern}))?$`)
 
 function splitChordPart(part: string) {
   const suffixMatch = part.match(/(\/+)?$/)
@@ -51,10 +53,19 @@ function splitChordPart(part: string) {
   return { chords, suffix }
 }
 
+function parseChordToken(token: string) {
+  const suffixMatch = token.match(/(\/+)?$/)
+  const suffix = suffixMatch?.[1] ?? ''
+  const core = suffix ? token.slice(0, -suffix.length) : token
+  const match = core.match(chordTokenPartsPattern)
+  if (!match) return null
+  return { main: match[1], bass: match[2], suffix }
+}
+
 function formatChordPart(part: string, transform: (chord: string) => string) {
   const parsed = splitChordPart(part)
   if (!parsed.chords.length) return null
-  return `${parsed.chords.map(transform).join(' ')}${parsed.suffix}`
+  return `${parsed.chords.map(transform).join('')}${parsed.suffix}`
 }
 
 export function noteIndex(note: string) {
@@ -108,12 +119,17 @@ export function extractChordLines(lines: string[]) {
 }
 
 export function transposeChord(chord: string, interval: number, notation: Notation = 'auto') {
-  const match = chord.match(/^([A-G](?:#|b)?)(.*?)(?:\/([A-G](?:#|b)?))?$/)
-  if (!match) return chord
+  const parsed = parseChordToken(chord)
+  if (!parsed) return chord
 
-  const root = transposeNote(match[1], interval, notation)
-  const bass = match[3] ? `/${transposeNote(match[3], interval, notation)}` : ''
-  return `${root}${match[2]}${bass}`
+  const transposeComponent = (component: string) => {
+    const match = component.match(/^([A-G](?:#|b)?)(.*)$/)
+    if (!match) return component
+    return `${transposeNote(match[1], interval, notation)}${match[2]}`
+  }
+
+  const bass = parsed.bass ? `/${transposeComponent(parsed.bass)}` : ''
+  return `${transposeComponent(parsed.main)}${bass}${parsed.suffix}`
 }
 
 export function transposeProgressionText(text: string, interval: number, notation: Notation = 'auto') {
@@ -138,9 +154,12 @@ export function collectProgressionChords(text: string) {
 }
 
 function chordRootAndSymbol(chord: string) {
-  const match = chord.match(/^([A-G](?:#|b)?)(.*?)(?:\/([A-G](?:#|b)?))?$/)
-  if (!match) return { root: 'C', symbol: chord, quality: '', bass: '' }
-  return { root: match[1], symbol: chord, quality: match[2], bass: match[3] || '' }
+  const parsed = parseChordToken(chord)
+  if (!parsed) return { root: 'C', symbol: chord, quality: '', bass: '' }
+  const main = parsed.main.match(/^([A-G](?:#|b)?)(.*)$/)
+  const bass = parsed.bass?.match(/^([A-G](?:#|b)?)/)
+  if (!main) return { root: 'C', symbol: chord, quality: '', bass: '' }
+  return { root: main[1], symbol: chord, quality: main[2], bass: bass?.[1] || '' }
 }
 
 function easyShapeName(chord: string) {
