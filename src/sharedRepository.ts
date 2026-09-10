@@ -1,5 +1,6 @@
 import type { Setlist, Song } from './data'
 import { normalizeSong } from './data'
+import { isSundayIso, toIsoDate } from './music'
 import { supabase } from './supabaseClient'
 
 export type SharedSnapshot = { songs: Song[]; setlists: Setlist[] }
@@ -12,6 +13,7 @@ type DbSong = {
   current_key: string
   capo: number
   guitar2_capo?: number
+  guitar2_customized?: boolean
   bpm: number
   favorite: boolean
   tags: string[]
@@ -29,7 +31,7 @@ type DbSunday = {
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const SONG_SELECT_WITH_GUITAR2 = 'id,title,artist,original_key,current_key,capo,guitar2_capo,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,guitar2_chord_text,note,position)'
+const SONG_SELECT_WITH_GUITAR2 = 'id,title,artist,original_key,current_key,capo,guitar2_capo,guitar2_customized,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,guitar2_chord_text,note,position)'
 const SONG_SELECT_BASE = 'id,title,artist,original_key,current_key,capo,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,note,position)'
 
 export function isUuid(value: string | undefined | null): value is string {
@@ -70,6 +72,7 @@ function mapDbSong(song: DbSong): Song {
     currentKey: song.current_key,
     capo: song.capo,
     guitar2Capo: song.guitar2_capo ?? 0,
+    guitar2Customized: Boolean(song.guitar2_customized),
     bpm: song.bpm,
     favorite: song.favorite,
     tags: song.tags ?? [],
@@ -145,7 +148,7 @@ async function removeChordImage(songId: string, imagePath: string | null) {
 }
 
 function songUsesGuitar2(song: Song) {
-  return song.guitar2Capo > 0 || song.sections.some((section) => Boolean(section.guitar2ChordText?.trim()))
+  return song.guitar2Customized || song.guitar2Capo > 0 || song.sections.some((section) => Boolean(section.guitar2ChordText?.trim()))
 }
 
 async function replaceSections(songId: string, song: Song) {
@@ -184,6 +187,7 @@ export async function upsertSharedSong(song: Song): Promise<Song> {
     current_key: song.key,
     capo: song.capo,
     guitar2_capo: song.guitar2Capo,
+    guitar2_customized: song.guitar2Customized,
     bpm: song.bpm,
     favorite: song.favorite,
     tags: song.tags,
@@ -253,10 +257,12 @@ export async function deleteSharedSong(songId: string) {
 
 export async function upsertSunday(setlist: Setlist): Promise<Setlist> {
   const client = requireSupabase()
+  const date = toIsoDate(setlist.date)
+  if (!date || !isSundayIso(date)) throw new Error('Sunday schedules must use a valid Sunday date.')
   const existingId = isUuid(setlist.id) ? setlist.id : undefined
   const sundayFields = {
     name: setlist.name,
-    service_date: setlist.date || new Date().toISOString().slice(0, 10),
+    service_date: date,
     description: setlist.description,
   }
 
@@ -276,6 +282,9 @@ export async function upsertSunday(setlist: Setlist): Promise<Setlist> {
       savedId = data.id
     }
   } else {
+    const { data: duplicate, error: duplicateError } = await client.from('sundays').select('id').eq('service_date', date).maybeSingle()
+    throwIfError(duplicateError, 'Unable to check for an existing Sunday.')
+    if (duplicate?.id) throw new Error('A Sunday schedule already exists for that date.')
     const { data, error: sundayError } = await client.from('sundays').insert(sundayFields).select('id').single()
     throwIfError(sundayError, 'Unable to save Sunday.')
     if (!data?.id) throw new Error('Sunday save did not return a database id.')

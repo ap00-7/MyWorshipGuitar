@@ -5,7 +5,7 @@ import { defaultSettings, demoSongs, normalizeSong, type Setlist, type Settings,
 import { LocalRepository } from './repositories'
 import { deleteSharedSong, isUuid, loadSharedSnapshot, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
-import { formatSundayTitle, upcomingSundayIso } from './music'
+import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
 import { ChordLibrary, HomePage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
@@ -166,9 +166,11 @@ export default function App() {
   const createSong = () => navigate('/songs/new')
   const updateSetlist = async (setlist: Setlist) => {
     try {
+      const date = toIsoDate(setlist.date)
+      if (!date || !isSundayIso(date)) throw new Error('Sunday schedules must use a valid Sunday date.')
       const saved = supabaseConfigured
-        ? await upsertSunday(setlist)
-        : { ...setlist, id: isUuid(setlist.id) ? setlist.id : crypto.randomUUID() }
+        ? await upsertSunday({ ...setlist, date, name: formatSundayTitle(date) })
+        : { ...setlist, date, name: formatSundayTitle(date), id: isUuid(setlist.id) ? setlist.id : crypto.randomUUID() }
       if (supabaseConfigured) {
         await refreshShared()
       } else {
@@ -186,15 +188,16 @@ export default function App() {
       const message = updateError instanceof Error ? updateError.message : 'Unable to update Sunday.'
       console.error('Unable to update Sunday', updateError)
       setError(message)
+      throw updateError instanceof Error ? updateError : new Error(message)
     }
   }
   const createSetlist = async () => {
-    const date = upcomingSundayIso()
+    const date = nextUnusedSundayIso(setlists.map((item) => item.date), upcomingSundayIso())
     await updateSetlist({ id: '', name: formatSundayTitle(date), date, description: '', songIds: [] })
   }
   const duplicateSetlist = async (previous: Setlist) => {
-    const date = upcomingSundayIso()
-    await updateSetlist({ ...previous, id: '', name: formatSundayTitle(date), date })
+    const date = nextUnusedSundayIso(setlists.map((item) => item.date), upcomingSundayIso())
+    return updateSetlist({ ...previous, id: '', name: formatSundayTitle(date), date })
   }
   const signOut = async () => { await supabase?.auth.signOut(); setRole('user'); navigate('/') }
 

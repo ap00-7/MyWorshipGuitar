@@ -1,7 +1,7 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { capoShapeKey, formatSundayDate, formatSundayTitle, GUITAR2_CAPO, isIsoDate, keyOptions, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Capo, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
+import { capoShapeKey, formatSundayDate, formatSundayTitle, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
 
 const editorKey = () => crypto.randomUUID()
@@ -19,12 +19,16 @@ type ChordDefinition = {
 const rootOptions = ['All', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 const typeOptions = ['All', 'Major', 'Minor', '7', 'Maj7', 'm7', 'Sus2', 'Sus4', 'Add9', 'Dim', 'Aug', '6', '9', '11', '13', '5', 'Slash']
 
-const hasCustomGuitar2 = (song: Song) => song.sections.some((section) => Boolean(section.guitar2ChordText?.trim()))
+const hasCustomGuitar2 = (song: Song) => song.guitar2Customized || song.sections.some((section) => Boolean(section.guitar2ChordText?.trim()))
 
-const guitar2TextForSection = (section: Section, notation: Notation, originalKey: string = 'C') => {
+const guitar2TextForSection = (section: Section, notation: Notation, guitar1Capo = 0, guitar2Capo?: number) => {
   const custom = section.guitar2ChordText?.trim()
-  return custom || suggestGuitar2Progression(section.chordText || '', notation, originalKey)
+  return custom || (guitar2Capo === undefined ? suggestGuitar2Progression(section.chordText || '', notation, guitar1Capo) : guitar2ProgressionAtCapo(section.chordText || '', guitar1Capo, guitar2Capo, notation))
 }
+
+const songGuitar2Arrangement = (song: Pick<Song, 'sections' | 'capo'>, notation: Notation) => (
+  suggestGuitar2Arrangement(song.sections.map((section) => section.chordText).join('\n'), song.capo, notation)
+)
 
 const sectionChordLines = (section: Section) => {
   if (typeof section.chordText === 'string' && section.chordText.trim()) {
@@ -53,7 +57,8 @@ const renderChordLine = (line: string, interval: number, notation: Notation, sim
 }
 
 export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreateSong: () => void; isOwner: boolean }) {
-  const sunday = setlists[0]
+  const upcoming = upcomingSundayIso()
+  const sunday = setlists.find((item) => item.date === upcoming) ?? setlists.find((item) => (item.date || '') >= upcoming) ?? setlists[0]
   const formattedDate = sunday?.date ? formatSundayDate(sunday.date) : null
 
   return (
@@ -204,10 +209,13 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
   const navigate = useNavigate()
   const song = songs.find((item) => item.id === songId)
   const [guitar, setGuitar] = useState<1 | 2>(1)
-  const [viewKey, setViewKey] = useState(song?.key ?? 'C')
+  const [viewKey1, setViewKey1] = useState(song?.key ?? 'C')
+  const [viewKey2, setViewKey2] = useState(song?.key ?? 'C')
 
   useEffect(() => {
-    if (song?.key) setViewKey(song.key)
+    if (!song?.key) return
+    setViewKey1(song.key)
+    setViewKey2(song.key)
   }, [song?.id, song?.key])
 
   if (!song) {
@@ -215,8 +223,10 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
   }
 
   const customGuitar2 = hasCustomGuitar2(song)
-  const suggestedCapo = suggestGuitar2Capo(song.key)
-  const selectedCapo = guitar === 1 ? song.capo : (customGuitar2 ? (song.guitar2Capo || suggestedCapo) : suggestedCapo)
+  const suggestion = songGuitar2Arrangement(song, settings.notation)
+  const selectedCapo = guitar === 1 ? song.capo : (customGuitar2 ? song.guitar2Capo : suggestion.capo)
+  const viewKey = guitar === 1 ? viewKey1 : viewKey2
+  const setViewKey = guitar === 1 ? setViewKey1 : setViewKey2
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
   const updateKey = (amount: number) => setViewKey((current) => shiftKey(current, amount, settings.notation))
@@ -233,6 +243,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
             <span>Key {viewKey}</span>
             <span>Capo {selectedCapo}</span>
             <span>Shapes {shapeKey}</span>
+            {guitar === 2 && <span>{customGuitar2 ? 'Custom Guitar 2' : `Suggested · ${suggestion.family} shapes`}</span>}
           </div>
         </div>
         <div className="song-header-actions">
@@ -243,7 +254,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
 
       <div className="song-key-bar">
         <strong>{viewKey}</strong>
-        <small>Original {song.key}</small>
+        <small>Original {song.key} · Guitar {guitar}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => setViewKey(song.key)}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
@@ -259,11 +270,11 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
       <div className="continuous-sheet">
           {song.sections.map((section) => {
             const lines = guitar === 2
-              ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, song.key) })
+              ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, song.capo, selectedCapo) })
               : sectionChordLines(section)
             return (
               <section className="continuous-section" key={section.id || section.name}>
-                <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · suggested capo ${suggestedCapo}` : ''}</div>
+                <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · suggested capo ${suggestion.capo}` : ''}</div>
                 {lines.map((line, lineIndex) => (
                   <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
                     {parseChordProgression(line).map((chord, chordIndex) => (
@@ -306,7 +317,8 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   const [artist, setArtist] = useState(existing?.artist || '')
   const [key, setKey] = useState(existing?.key || 'C')
   const [capo, setCapo] = useState(existing?.capo || 0)
-  const [guitar2Capo, setGuitar2Capo] = useState(existing?.guitar2Capo || suggestGuitar2Capo(existing?.key || 'C'))
+  const [guitar2Capo, setGuitar2Capo] = useState(existing?.guitar2Capo || 0)
+  const [guitar2Customized, setGuitar2Customized] = useState(existing?.guitar2Customized || false)
   const [notes, setNotes] = useState(existing?.notes || '')
   const [image, setImage] = useState(existing?.chordImage)
   const [guitar, setGuitar] = useState<1 | 2>(1)
@@ -320,7 +332,8 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     setArtist(existing.artist)
     setKey(existing.key)
     setCapo(existing.capo)
-    setGuitar2Capo(existing.guitar2Capo || suggestGuitar2Capo(existing.key))
+    setGuitar2Capo(existing.guitar2Capo)
+    setGuitar2Customized(existing.guitar2Customized)
     setNotes(existing.notes)
     setImage(existing.chordImage)
     setSections(existing.sections.length ? existing.sections : [blankSection()])
@@ -345,14 +358,12 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
       .filter((section) => section.name.trim() || section.chordText.trim() || section.guitar2ChordText?.trim())
       .map((section) => {
         const guitar1 = section.chordText.trim()
-        const suggested = suggestGuitar2Progression(guitar1, 'auto', key)
         const entered = (section.guitar2ChordText ?? '').trim()
-        const custom = entered && entered !== suggested
         return {
           ...section,
           name: section.name.trim() || 'Section',
           chordText: guitar1,
-          guitar2ChordText: custom ? entered : '',
+          guitar2ChordText: guitar2Customized ? entered : '',
         }
       })
 
@@ -363,7 +374,8 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
       key,
       currentKey: key,
       capo,
-      guitar2Capo: guitar2Capo || suggestGuitar2Capo(key),
+      guitar2Capo: guitar2Customized ? guitar2Capo : suggestGuitar2Arrangement(sections.map((section) => section.chordText).join('\n'), capo, 'auto').capo,
+      guitar2Customized,
       bpm: existing?.bpm || 72,
       favorite: existing?.favorite || false,
       tags: existing?.tags || [],
@@ -451,7 +463,13 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
           </label>
           <label>
             {guitar === 1 ? 'Guitar 1 capo' : 'Guitar 2 capo'}
-            <select value={guitar === 1 ? capo : guitar2Capo} onChange={(event) => (guitar === 1 ? setCapo(Number(event.target.value)) : setGuitar2Capo(Number(event.target.value)))}>
+            <select value={guitar === 1 ? capo : guitar2Capo} onChange={(event) => {
+              if (guitar === 1) setCapo(Number(event.target.value))
+              else {
+                setGuitar2Capo(Number(event.target.value))
+                setGuitar2Customized(true)
+              }
+            }}>
               {Array.from({ length: 13 }, (_, value) => <option key={value} value={value}>{value}</option>)}
             </select>
           </label>
@@ -479,11 +497,14 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
 
               <textarea
                 className="textarea-editor chord-textarea"
-                value={guitar === 1 ? section.chordText : guitar2TextForSection(section, 'auto', key)}
-                onChange={(event) => updateSection(section.id, guitar === 1 ? 'chordText' : 'guitar2ChordText', event.target.value)}
-                placeholder={guitar === 1 ? `C G Am F\nC G C` : suggestGuitar2Progression(section.chordText || 'C G Am F\nC G C', 'auto', key)}
+                value={guitar === 1 ? section.chordText : guitar2TextForSection(section, 'auto', capo, guitar2Customized ? guitar2Capo : suggestGuitar2Arrangement(sections.map((item) => item.chordText).join('\n'), capo, 'auto').capo)}
+                onChange={(event) => {
+                  if (guitar === 2) setGuitar2Customized(true)
+                  updateSection(section.id, guitar === 1 ? 'chordText' : 'guitar2ChordText', event.target.value)
+                }}
+                placeholder={guitar === 1 ? `C G Am F\nC G C` : suggestGuitar2Progression(section.chordText || 'C G Am F\nC G C')}
               />
-              <small>Section {index + 1} · {guitar === 1 ? 'Guitar 1 chords' : (section.guitar2ChordText?.trim() ? 'Guitar 2 chords (custom)' : `Guitar 2 suggested · capo ${suggestGuitar2Capo(key)}`)}</small>
+              <small>Section {index + 1} · {guitar === 1 ? 'Guitar 1 chords' : (guitar2Customized ? 'Guitar 2 chords (custom)' : 'Guitar 2 suggested')}</small>
             </div>
           ))}
         </div>
@@ -751,9 +772,16 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
 }
 
 export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void; isOwner: boolean }) {
-  const sunday = setlists[0]
-  const previous = setlists[1]
+  const [selectedSundayId, setSelectedSundayId] = useState('')
   const [query, setQuery] = useState('')
+  const upcoming = upcomingSundayIso()
+  const defaultSunday = setlists.find((item) => item.date === upcoming) ?? setlists.find((item) => item.date >= upcoming) ?? setlists[0]
+  const sunday = setlists.find((item) => item.id === selectedSundayId) ?? defaultSunday
+  const previous = setlists.find((item) => item.id !== sunday?.id)
+
+  useEffect(() => {
+    if (sunday && sunday.id !== selectedSundayId) setSelectedSundayId(sunday.id)
+  }, [selectedSundayId, sunday])
 
   if (!sunday) {
     return (
@@ -761,7 +789,7 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
         <header className="sunday-header">
           <div>
             <div className="eyebrow">This week's worship service</div>
-            <h1>Sunday</h1>
+              <h1>Sunday</h1>
           </div>
           <div className="sunday-header-actions">
             {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
@@ -783,16 +811,19 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
     onUpdate({ ...sunday, songIds: next })
   }
 
-  const sundayTitle = formatSundayTitle(sunday.date)
-  const formattedDate = formatSundayDate(sunday.date)
-
   return (
     <div className="page sunday-page">
       <header className="sunday-header">
         <div>
           <div className="eyebrow">This week's worship service</div>
-          <h1>{sundayTitle}</h1>
-          {isOwner ? <input className="sunday-date-input" value={sunday.date} onChange={(event) => onUpdate({ ...sunday, date: event.target.value })} aria-label="Sunday date" /> : <p>{formattedDate}</p>}
+          <h1>{formatSundayTitle(sunday.date)}</h1>
+          <select className="sunday-selector" value={sunday.id} onChange={(event) => setSelectedSundayId(event.target.value)} aria-label="Select Sunday schedule">
+            {setlists.map((item) => <option key={item.id} value={item.id}>{formatSundayTitle(item.date)}</option>)}
+          </select>
+          {isOwner ? <input className="sunday-date-input" type="date" value={sunday.date} onChange={(event) => {
+            const nextDate = toIsoDate(event.target.value)
+            if (nextDate && isSundayIso(nextDate)) void onUpdate({ ...sunday, date: nextDate })
+          }} aria-label="Sunday date" /> : <p>{formatSundayDate(sunday.date)}</p>}
         </div>
         <div className="sunday-header-actions">
           {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
@@ -804,8 +835,8 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
         <main className="sunday-songs">
           <div className="section-heading">
             <div>
-              <span className="eyebrow">Service songs</span>
-              <h2>{sunday.name}</h2>
+                <span className="eyebrow">Songs for this service</span>
+                <h2>{formatSundayTitle(sunday.date)}</h2>
             </div>
           </div>
 

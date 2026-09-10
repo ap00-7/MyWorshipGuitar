@@ -29,6 +29,7 @@ create table if not exists public.songs (
   notes text not null default '',
   chord_image_path text,
   guitar2_capo integer not null default 0 check (guitar2_capo between 0 and 12),
+  guitar2_customized boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -52,6 +53,8 @@ create table if not exists public.sundays (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create unique index if not exists sundays_service_date_unique on public.sundays(service_date);
 
 create table if not exists public.sunday_songs (
   sunday_id uuid not null references public.sundays(id) on delete cascade,
@@ -168,6 +171,7 @@ create policy "owner can delete chord images" on storage.objects for delete usin
 
 -- Additive updates for existing projects created before Guitar 2 columns existed.
 alter table public.songs add column if not exists guitar2_capo integer not null default 0;
+alter table public.songs add column if not exists guitar2_customized boolean not null default false;
 alter table public.song_sections add column if not exists guitar2_chord_text text not null default '';
 
 create or replace function public.touch_updated_at()

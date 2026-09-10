@@ -18,6 +18,7 @@ export type Song = {
   currentKey: string
   capo: number
   guitar2Capo: number
+  guitar2Customized: boolean
   bpm: number
   favorite: boolean
   tags: string[]
@@ -50,6 +51,7 @@ export const normalizeSong = (song: Partial<Song> & { id?: string }): Song => ({
   currentKey: song.currentKey || song.key || 'C',
   capo: numericCapo(song.capo),
   guitar2Capo: numericCapo(song.guitar2Capo),
+  guitar2Customized: Boolean(song.guitar2Customized),
   bpm: Number(song.bpm) || 72,
   favorite: Boolean(song.favorite),
   tags: Array.isArray(song.tags) ? song.tags : [],
@@ -80,6 +82,7 @@ export const demoSongs: Song[] = [
     currentKey: 'C',
     capo: 0,
     guitar2Capo: 0,
+    guitar2Customized: false,
     bpm: 74,
     favorite: true,
     tags: ['Sunday', 'Acoustic'],
@@ -98,6 +101,7 @@ export const demoSongs: Song[] = [
     currentKey: 'G',
     capo: 0,
     guitar2Capo: 0,
+    guitar2Customized: false,
     bpm: 82,
     favorite: false,
     tags: ['Upbeat'],

@@ -1,39 +1,14 @@
-﻿export const chromatic = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+export const chromatic = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 export const keyOptions = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B']
 
 export type Notation = 'sharps' | 'flats' | 'auto'
 
-export const GUITAR2_CAPO = 5
-export const GUITAR2_SHIFT = -5
-
-// Common guitar-friendly capo positions that produce good chord shapes
-const PRACTICAL_CAPOS = [0, 2, 3, 5, 7]
-
-// Determine optimal capo for Guitar 2 based on the original key
-export function suggestGuitar2Capo(originalKey: string): number {
-  const keyIndex = noteIndex(originalKey)
-  
-  // Try different capo positions and choose one that produces practical shapes
-  for (const capo of PRACTICAL_CAPOS) {
-    const shiftedIndex = (keyIndex - capo + 12) % 12
-    const shapeKey = sharpNames[shiftedIndex]
-    
-    // Prefer capo positions that result in common open chord shapes (C, G, D, A, E)
-    const commonOpenKeys = ['C', 'G', 'D', 'A', 'E']
-    if (commonOpenKeys.includes(shapeKey)) {
-      return capo
-    }
-  }
-  
-  // Default to capo 5 if no perfect match found
-  return 5
-}
-
-// Calculate the appropriate transposition for Guitar 2 based on optimal capo
-export function suggestGuitar2Shift(originalKey: string): number {
-  const optimalCapo = suggestGuitar2Capo(originalKey)
-  return -optimalCapo
-}
+const PRACTICAL_CAPOS = [0, 1, 2, 3, 4, 5, 6, 7]
+const OPEN_MAJOR = new Set(['C', 'G', 'D', 'A', 'E'])
+const OPEN_MINOR = new Set(['Am', 'Em', 'Dm'])
+const OPEN_SEVENTH = new Set(['C7', 'G7', 'D7', 'A7', 'E7', 'B7', 'Cmaj7', 'Dmaj7', 'Fmaj7', 'Amaj7', 'Emaj7'])
+const OPEN_SUS = new Set(['Dsus2', 'Dsus4', 'Asus2', 'Asus4', 'Esus4', 'Csus2', 'Csus4', 'Gsus4', 'Gsus2'])
+const BARRE_FRIENDLY = new Set(['Bm', 'F#m', 'C#m', 'F', 'Bm7', 'F#m7', 'C#m7'])
 
 const noteIndexByName: Record<string, number> = {
   C: 0, 'B#': 0,
@@ -53,7 +28,7 @@ const noteIndexByName: Record<string, number> = {
 const sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const flatNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
 
-const chordTokenPattern = /^(?:[A-G](?:#|b)?(?:maj7|m7|maj9|m9|add9|sus[24]|dim|aug|7|9|11|13|6|m6|5)?(?:\/[A-G](?:#|b)?)?|[A-G](?:#|b)?m(?:7|9|6)?(?:\/[A-G](?:#|b)?)?)$/i
+const chordTokenPattern = /^[A-G](?:#|b)?(?:m(?!aj)|maj)?(?:maj7|m7|maj9|m9|add(?:9|11|13)|sus[24]|dim7?|aug|7|9|11|13|6|m6|5|no[35]|\([^)]+\))?(?:\/[A-G](?:#|b)?)?$/i
 
 export function noteIndex(note: string) {
   return noteIndexByName[note] ?? noteIndexByName[note.charAt(0)] ?? 0
@@ -126,9 +101,81 @@ export function transposeProgressionText(text: string, interval: number, notatio
   }).join('\n')
 }
 
-export function suggestGuitar2Progression(guitar1Text: string, notation: Notation = 'auto', originalKey: string = 'C') {
-  const shift = suggestGuitar2Shift(originalKey)
-  return transposeProgressionText(guitar1Text, shift, notation)
+export function collectProgressionChords(text: string) {
+  return text.split('\n').flatMap((line) => parseChordProgression(line))
+}
+
+function chordRootAndSymbol(chord: string) {
+  const match = chord.match(/^([A-G](?:#|b)?)(.*?)(?:\/([A-G](?:#|b)?))?$/)
+  if (!match) return { root: 'C', symbol: chord, quality: '', bass: '' }
+  return { root: match[1], symbol: chord, quality: match[2], bass: match[3] || '' }
+}
+
+function easyShapeName(chord: string) {
+  const { root, quality } = chordRootAndSymbol(chord)
+  const minor = /^m(?!aj)/.test(quality)
+  return `${root}${minor ? 'm' : ''}`
+}
+
+export function shapePlayabilityScore(chord: string) {
+  const { root, quality, bass } = chordRootAndSymbol(chord)
+  const full = `${root}${quality}`
+  const simple = easyShapeName(chord)
+  let score = 5
+  if (OPEN_MAJOR.has(root) && !/^m(?!aj)/.test(quality)) score = 12
+  if (OPEN_MINOR.has(simple)) score = 12
+  if (OPEN_SEVENTH.has(full) || OPEN_SUS.has(full)) score = 10
+  if (BARRE_FRIENDLY.has(simple) || BARRE_FRIENDLY.has(full)) score = 4
+  if (['Bb', 'B', 'F#', 'C#', 'G#', 'Eb', 'Ab', 'Gb'].includes(root) && !OPEN_SEVENTH.has(full)) score = 2
+  if (bass && OPEN_MAJOR.has(bass)) score += 1
+  if (bass && ['F#', 'Bb', 'C#', 'G#'].includes(bass)) score -= 2
+  return score
+}
+
+export type Guitar2Arrangement = {
+  capo: number
+  text: string
+  family: string
+  different: boolean
+}
+
+function scoreArrangement(soundingChords: string[], guitar1Capo: number, capo: number, notation: Notation) {
+  if (!soundingChords.length) return { capo, score: -Infinity, shapes: [] as string[], family: 'C' }
+  const shapes = soundingChords.map((chord) => transposeChord(chord, -capo, notation))
+  const playability = shapes.reduce((sum, chord) => sum + shapePlayabilityScore(chord), 0) / shapes.length
+  const uniqueRoots = [...new Set(shapes.map((chord) => chordRootAndSymbol(chord).root))]
+  const openFamily = uniqueRoots.filter((root) => OPEN_MAJOR.has(root)).length
+  const sameCapo = capo === guitar1Capo
+  const sourceShapes = soundingChords.map((chord) => transposeChord(chord, -guitar1Capo, notation))
+  const differentCount = shapes.reduce((count, shape, index) => count + (shape !== sourceShapes[index] ? 1 : 0), 0)
+  let score = playability * 10 + openFamily * 3 + differentCount * 8 - capo * 0.6
+  if (sameCapo) score -= 35
+  if (capo === 0 && guitar1Capo === 0) score -= 12
+  return { capo, score, shapes, family: uniqueRoots[0] || 'C' }
+}
+
+export function suggestGuitar2Arrangement(guitar1Text: string, guitar1Capo = 0, notation: Notation = 'auto'): Guitar2Arrangement {
+  const sounding = collectProgressionChords(guitar1Text).map((chord) => transposeChord(chord, guitar1Capo, notation))
+  if (!sounding.length) return { capo: Math.min(5, Math.max(0, guitar1Capo === 5 ? 0 : 5)), text: guitar1Text, family: 'C', different: true }
+
+  const ranked = PRACTICAL_CAPOS
+    .map((capo) => scoreArrangement(sounding, guitar1Capo, capo, notation))
+    .sort((a, b) => b.score - a.score)
+  const chosen = ranked[0] ?? scoreArrangement(sounding, guitar1Capo, 5, notation)
+  return {
+    capo: chosen.capo,
+    text: guitar2ProgressionAtCapo(guitar1Text, guitar1Capo, chosen.capo, notation),
+    family: chosen.family,
+    different: chosen.shapes.some((shape, index) => shape !== transposeChord(sounding[index], -guitar1Capo, notation)),
+  }
+}
+
+export function suggestGuitar2Progression(guitar1Text: string, notation: Notation = 'auto', guitar1Capo = 0) {
+  return suggestGuitar2Arrangement(guitar1Text, guitar1Capo, notation).text
+}
+
+export function guitar2ProgressionAtCapo(guitar1Text: string, guitar1Capo: number, guitar2Capo: number, notation: Notation = 'auto') {
+  return transposeProgressionText(transposeProgressionText(guitar1Text, guitar1Capo, notation), -guitar2Capo, notation)
 }
 
 export function simplifyChord(chord: string) {
@@ -177,15 +224,41 @@ export function upcomingSundayIso(from = new Date()) {
   return formatLocalIsoDate(date)
 }
 
-export function formatSundayDate(isoDate: string): string {
-  if (!isIsoDate(isoDate)) return isoDate
-  const date = new Date(`${isoDate}T00:00:00`)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+export function parseLocalIsoDate(isoDate: string) {
+  const iso = toIsoDate(isoDate)
+  if (!iso) return null
+  const [year, month, day] = iso.split('-').map(Number)
+  return new Date(year, month - 1, day)
 }
 
-export function formatSundayTitle(isoDate: string): string {
-  if (!isIsoDate(isoDate)) return 'Sunday'
-  const date = new Date(`${isoDate}T00:00:00`)
-  const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', weekday: 'short' }
-  return date.toLocaleDateString('en-US', options)
+export function isSundayIso(isoDate: string) {
+  return parseLocalIsoDate(isoDate)?.getDay() === 0
+}
+
+export function formatSundayDate(isoDate: string) {
+  const date = parseLocalIsoDate(isoDate)
+  if (!date) return isoDate
+  return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
+}
+
+export function formatSundayTitle(isoDate: string) {
+  const date = parseLocalIsoDate(isoDate)
+  if (!date) return 'Sunday'
+  return date.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+export function nextUnusedSundayIso(existingDates: string[], from = upcomingSundayIso()) {
+  const taken = new Set(existingDates.map((date) => toIsoDate(date)).filter(Boolean))
+  const start = parseLocalIsoDate(from) ?? parseLocalIsoDate(upcomingSundayIso())
+  if (!start) return upcomingSundayIso()
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  if (cursor.getDay() !== 0) {
+    cursor.setDate(cursor.getDate() + ((7 - cursor.getDay()) % 7))
+  }
+  for (let index = 0; index < 52; index += 1) {
+    const iso = formatLocalIsoDate(cursor)
+    if (!taken.has(iso)) return iso
+    cursor.setDate(cursor.getDate() + 7)
+  }
+  return formatLocalIsoDate(cursor)
 }
