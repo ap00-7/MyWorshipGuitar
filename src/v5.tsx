@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
@@ -94,7 +94,6 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
             <em>always ready.</em>
           </h1>
         </div>
-        <span className="dashboard-mark">WG</span>
       </header>
 
       <section className="home-sunday">
@@ -233,12 +232,45 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
   const [viewKey1, setViewKey1] = useState(song?.key ?? 'C')
   const [viewKey2, setViewKey2] = useState(song?.key ?? 'C')
   const [chordScale, setChordScale] = useState(1)
+  const [sheetOnly, setSheetOnly] = useState(false)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const nativeFullscreen = useRef(false)
 
   useEffect(() => {
     if (!song?.key) return
     setViewKey1(song.key)
     setViewKey2(song.key)
   }, [song?.id, song?.key])
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (document.fullscreenElement === sheetRef.current) setSheetOnly(true)
+      else if (nativeFullscreen.current) {
+        nativeFullscreen.current = false
+        setSheetOnly(false)
+      }
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
+  useEffect(() => {
+    type WakeLock = { release: () => Promise<void> }
+    if (!song?.id) return
+    const wakeLock = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLock> } }
+    let sentinel: WakeLock | null = null
+    const requestWakeLock = async () => {
+      if (document.hidden || !wakeLock.wakeLock) return
+      try { sentinel = await wakeLock.wakeLock.request('screen') } catch { sentinel = null }
+    }
+    const handleVisibilityChange = () => { if (!document.hidden) void requestWakeLock() }
+    void requestWakeLock()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (sentinel) void sentinel.release()
+    }
+  }, [song?.id])
 
   if (!song) {
     return <Empty title="Song not found" />
@@ -252,9 +284,22 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
   const updateKey = (amount: number) => setViewKey((current) => shiftKey(current, amount, settings.notation))
+  const enterSheetOnly = async () => {
+    setSheetOnly(true)
+    if (!sheetRef.current?.requestFullscreen) return
+    try {
+      await sheetRef.current.requestFullscreen()
+      nativeFullscreen.current = true
+    } catch { /* CSS fallback remains active when browser fullscreen is unavailable. */ }
+  }
+  const exitSheetOnly = async () => {
+    nativeFullscreen.current = false
+    setSheetOnly(false)
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined)
+  }
 
   return (
-    <div className="page continuous-page">
+    <div className={`page continuous-page${sheetOnly ? ' sheet-only-fallback' : ''}`}>
       <button className="back-button" onClick={() => navigate('/songs')}><ChevronLeft size={16} />Songs</button>
 
       <header className="v5-song-header">
@@ -270,7 +315,7 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
         </div>
         <div className="song-header-actions">
           {isOwner && <Link className="secondary-button" to={`/songs/${song.id}/edit`}>Edit</Link>}
-          <button className="primary-button" onClick={() => document.documentElement.requestFullscreen?.()}>Fullscreen</button>
+          <button className="primary-button" onClick={() => void enterSheetOnly()}><Maximize2 size={15} />Fullscreen</button>
         </div>
       </header>
 
@@ -294,7 +339,8 @@ export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings
         </div>
       </div>
 
-      <div className="continuous-sheet" style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
+        <div className="continuous-sheet" ref={sheetRef} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
+          {sheetOnly && <button className="sheet-exit-button" onClick={() => void exitSheetOnly()}><Minimize2 size={15} />Exit full screen</button>}
           {song.sections.map((section) => {
             const lines = guitar === 2
               ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, song.capo, selectedCapo) })
@@ -910,8 +956,8 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
                     <strong>{song.title}</strong>
                   </Link>
                   {isOwner && <div className="sunday-controls">
-                    <button className="icon-button" onClick={() => moveSong(song.id, -1)} aria-label="Move earlier"><ChevronLeft size={15} /></button>
-                    <button className="icon-button" onClick={() => moveSong(song.id, 1)} aria-label="Move later"><ChevronRight size={15} /></button>
+                    <button className="icon-button" onClick={() => moveSong(song.id, -1)} aria-label="Move earlier" disabled={index === 0}><ChevronLeft size={15} /></button>
+                    <button className="icon-button" onClick={() => moveSong(song.id, 1)} aria-label="Move later" disabled={index === sunday.songIds.length - 1}><ChevronRight size={15} /></button>
                     <button className="icon-button" onClick={() => onUpdate({ ...sunday, songIds: sunday.songIds.filter((item) => item !== song.id) })} aria-label="Remove from Sunday"><Trash2 size={15} /></button>
                   </div>}
                 </div>

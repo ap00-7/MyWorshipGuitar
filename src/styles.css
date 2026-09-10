@@ -656,6 +656,39 @@ nav {
   background: var(--paper);
 }
 
+.sheet-only-fallback {
+  max-width: none;
+  padding: 0;
+}
+
+.sheet-only-fallback > *:not(.continuous-sheet) {
+  display: none;
+}
+
+.sheet-only-fallback .continuous-sheet,
+.continuous-sheet:fullscreen {
+  min-height: 100vh;
+  border: 0;
+  border-radius: 0;
+  overflow: auto;
+}
+
+.sheet-exit-button {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 11px;
+}
+
 .continuous-section {
   padding: 22px 22px 26px;
   border-bottom: 1px solid var(--line);
