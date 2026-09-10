@@ -642,6 +642,7 @@ nav {
 .continuous-line {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 18px;
   margin-bottom: 12px;
   font: 500 clamp(23px, 2.5vw, 36px) 'DM Mono', monospace;
