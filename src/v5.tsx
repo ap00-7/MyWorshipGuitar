@@ -99,8 +99,8 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
       <section className="home-sunday">
         <div>
           <span className="eyebrow">This Sunday</span>
-          <h2>{sunday?.name || 'No Sunday set yet'}</h2>
-          <p>{formattedDate || 'Open Sunday to prepare your set.'}</p>
+          <h2>{formattedDate || sunday?.name || 'No Sunday set yet'}</h2>
+          {!sunday && <p>Open Sunday to prepare your set.</p>}
         </div>
         <Link className="primary-button" to="/sunday">
           Open Sunday <ChevronRight size={15} />
@@ -159,13 +159,12 @@ function SongRow({ song }: { song: Song }) {
   )
 }
 
-export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, isOwner }: { songs: Song[]; onCreate: () => void; onUpdate: (song: Song) => void; onDuplicate: (song: Song) => void; onDelete: (song: Song) => void; isOwner: boolean }) {
+export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }: { songs: Song[]; onCreate: () => void; onDuplicate: (song: Song) => void; onDelete: (song: Song) => void; isOwner: boolean }) {
   const [query, setQuery] = useState('')
-  const [favoriteOnly, setFavoriteOnly] = useState(false)
 
   const filtered = songs.filter((song) => {
     const text = `${song.title} ${song.currentKey} ${song.sections.flatMap((section) => sectionChordLines(section)).join(' ')}`.toLowerCase()
-    return text.includes(query.toLowerCase()) && (!favoriteOnly || song.favorite)
+    return text.includes(query.toLowerCase())
   })
 
   return (
@@ -183,9 +182,6 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, 
           <Search size={16} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, key, or chord" />
         </div>
-        <button className={favoriteOnly ? 'filter-button selected' : 'filter-button'} onClick={() => setFavoriteOnly(!favoriteOnly)}>
-          ★ Favorites
-        </button>
       </div>
 
       <div className="v5-song-grid">
@@ -202,7 +198,6 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, 
             </Link>
 
             {isOwner && <div className="v5-card-actions">
-              <button aria-label="Favorite" className={song.favorite ? 'star active' : 'star'} onClick={() => void Promise.resolve(onUpdate({ ...song, favorite: !song.favorite })).catch((error) => window.alert(error instanceof Error ? error.message : 'Unable to update song.'))}>★</button>
               <Link className="text-button" to={`/songs/${song.id}/edit`}>Edit</Link>
               <button aria-label="Duplicate song" className="icon-button subtle" onClick={() => void Promise.resolve(onDuplicate(song)).catch((error) => window.alert(error instanceof Error ? error.message : 'Unable to duplicate song.'))}><Copy size={15} /></button>
               <button aria-label="Delete song" className="icon-button subtle" onClick={() => {
@@ -324,7 +319,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
 
   return (
     <div className={`page continuous-page${sheetOnly ? ' sheet-only-fallback' : ''}`}>
-      <button className="back-button" onClick={() => navigate('/songs')}><ChevronLeft size={16} />Songs</button>
+      <button className="back-button" onClick={() => navigate(sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/songs')}><ChevronLeft size={16} />Songs</button>
 
       <header className="v5-song-header">
         <div>
@@ -871,37 +866,14 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
           </div>
         </div>
 
-        <div className="setting">
-          <div>
-            <h3>Chord size</h3>
-            <p>Choose a comfortable reading size.</p>
-          </div>
-          <select value={settings.chordSize || 'large'} onChange={(event) => onSettings({ ...settings, chordSize: event.target.value as Settings['chordSize'] })}>
-            <option value="small">Small</option>
-            <option value="medium">Medium</option>
-            <option value="large">Large</option>
-            <option value="xl">Extra large</option>
-          </select>
-        </div>
-
-        <div className="setting">
-          <div>
-            <h3>Notation</h3>
-            <p>Choose a preferred chord naming style.</p>
-          </div>
-          <select value={settings.notation} onChange={(event) => onSettings({ ...settings, notation: event.target.value as Notation })}>
-            <option value="auto">Automatic</option>
-            <option value="sharps">Sharps</option>
-            <option value="flats">Flats</option>
-          </select>
-        </div>
       </div>
     </div>
   )
 }
 
 export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void; isOwner: boolean }) {
-  const [selectedSundayId, setSelectedSundayId] = useState('')
+  const [searchParams] = useSearchParams()
+  const [selectedSundayId, setSelectedSundayId] = useState(() => searchParams.get('sunday') || '')
   const [query, setQuery] = useState('')
   const upcoming = upcomingSundayIso()
   const defaultSunday = setlists.find((item) => item.date === upcoming) ?? setlists.find((item) => item.date >= upcoming) ?? setlists[0]

@@ -213,7 +213,7 @@ export default function App() {
         {error && <div className="app-error" role="alert">{error}</div>}
         <Routes>
           <Route path="/" element={<HomePage songs={songs} setlists={setlists} onCreateSong={createSong} isOwner={isOwner} />} />
-          <Route path="/songs" element={<SongLibrary songs={songs} onCreate={createSong} onUpdate={saveSong} onDuplicate={duplicateSong} onDelete={deleteSong} isOwner={isOwner} />} />
+          <Route path="/songs" element={<SongLibrary songs={songs} onCreate={createSong} onDuplicate={duplicateSong} onDelete={deleteSong} isOwner={isOwner} />} />
           <Route path="/songs/new" element={isOwner ? <SongEditor key="new-song" songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor key={`${location.pathname}`} songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId" element={<SongPage key={location.pathname} songs={songs} setlists={setlists} settings={settings} isOwner={isOwner} />} />
