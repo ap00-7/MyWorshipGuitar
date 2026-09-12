@@ -251,6 +251,7 @@ nav {
 
 .home-sunday {
   display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
@@ -273,11 +274,13 @@ nav {
 
 .home-actions {
   display: grid;
+  width: 100%;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
 .home-actions button, .home-actions a {
+  width: 100%;
   min-height: clamp(128px, 12vw, 160px);
   border: 1px solid var(--line);
   border-radius: 14px;
