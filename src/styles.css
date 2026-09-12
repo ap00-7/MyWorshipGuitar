@@ -691,6 +691,10 @@ nav {
   min-width: 0;
 }
 
+.image-zoom-viewport img {
+  max-width: none;
+}
+
 .image-zoom-viewport.zoomed {
   max-height: min(80vh, 900px);
   overflow: auto;
