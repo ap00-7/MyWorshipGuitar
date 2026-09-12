@@ -651,6 +651,51 @@ nav {
   object-fit: contain;
 }
 
+.image-zoom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.image-zoom-controls button {
+  width: 36px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.image-zoom-controls button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.image-zoom-controls button:disabled {
+  cursor: default;
+  opacity: .4;
+}
+
+.image-zoom-controls span {
+  min-width: 44px;
+  color: var(--muted);
+  font: 500 11px 'DM Mono', monospace;
+  text-align: center;
+}
+
+.image-zoom-viewport {
+  min-width: 0;
+}
+
+.image-zoom-viewport.zoomed {
+  max-height: min(80vh, 900px);
+  overflow: auto;
+}
+
 .song-notes, .song-reference {
   margin-top: 18px;
   padding: 18px 20px;
