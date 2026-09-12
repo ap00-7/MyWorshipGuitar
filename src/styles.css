@@ -696,10 +696,11 @@ nav {
   margin: 0 auto;
 }
 
-.image-zoom-content img {
+.song-image .image-zoom-content img {
   width: 100%;
   height: auto;
   max-width: none;
+  max-height: none;
 }
 
 .image-zoom-viewport.zoomed {
