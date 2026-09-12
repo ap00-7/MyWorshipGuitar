@@ -255,7 +255,7 @@ nav {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 22px 24px;
+  padding: clamp(20px, 3vw, 28px) clamp(18px, 3vw, 30px);
   border: 1px solid var(--line);
   border-radius: 16px;
   background: linear-gradient(135deg, rgba(117, 146, 112, 0.12), rgba(255,255,255,0.08));
@@ -281,18 +281,28 @@ nav {
 
 .home-actions button, .home-actions a {
   width: 100%;
-  min-height: clamp(128px, 12vw, 160px);
+  min-height: clamp(132px, 12vw, 156px);
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--paper);
   color: var(--ink);
-  padding: 17px 16px;
+  padding: 19px 18px;
   text-align: left;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 9px;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.home-actions button:hover, .home-actions a:hover {
+  border-color: rgba(189, 79, 53, 0.38);
+  box-shadow: 0 10px 22px rgba(33, 28, 22, 0.06);
+}
+
+.home-actions button:active, .home-actions a:active {
+  transform: scale(0.985);
 }
 
 .home-actions b { font-size: 15px; }
@@ -564,6 +574,7 @@ nav {
   border-radius: 12px;
   background: var(--panel);
   margin-bottom: 18px;
+  box-shadow: 0 8px 20px rgba(33, 28, 22, 0.04);
 }
 
 .song-key-bar strong {
@@ -701,7 +712,7 @@ nav {
 
 .continuous-label {
   color: var(--accent);
-  font: 500 12px 'DM Mono', monospace;
+  font: 600 11px 'DM Mono', monospace;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   margin-bottom: 14px;
@@ -1261,6 +1272,10 @@ nav {
   .home-sunday {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .home-sunday .primary-button {
+    width: 100%;
   }
 
   .form-row {
