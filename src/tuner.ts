@@ -13,9 +13,9 @@ export const GUITAR_STRINGS = [
 ] as const
 
 const MIN_FREQUENCY = 70
-const MAX_FREQUENCY = 700
-const MIN_RMS = 0.008
-const YIN_THRESHOLD = 0.14
+const MAX_FREQUENCY = 400
+const MIN_RMS = 0.01
+const YIN_THRESHOLD = 0.18
 
 export function centsFromFrequency(frequency: number, targetFrequency: number) {
   return 1200 * Math.log2(frequency / targetFrequency)
@@ -25,6 +25,14 @@ export function frequencyToNote(frequency: number) {
   const midi = Math.round(69 + 12 * Math.log2(frequency / 440))
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
   return { name: noteNames[(midi + 1200) % 12], octave: Math.floor(midi / 12) - 1, midi }
+}
+
+export function nearestString(frequency: number) {
+  return GUITAR_STRINGS.reduce((nearest, guitarString) => {
+    const distance = Math.abs(centsFromFrequency(frequency, guitarString.frequency))
+    const nearestDistance = Math.abs(centsFromFrequency(frequency, nearest.frequency))
+    return distance < nearestDistance ? guitarString : nearest
+  }, GUITAR_STRINGS[0])
 }
 
 function rmsOf(buffer: Float32Array) {
@@ -42,56 +50,82 @@ function refinedTau(values: Float32Array, tau: number) {
   return denominator === 0 ? tau : tau + 0.5 * (left - right) / denominator
 }
 
-export function detectPitch(buffer: Float32Array, sampleRate: number): PitchDetection | null {
-  if (buffer.length < 256 || rmsOf(buffer) < MIN_RMS) return null
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
 
-  const minTau = Math.max(2, Math.floor(sampleRate / MAX_FREQUENCY))
-  const maxTau = Math.min(buffer.length - 2, Math.ceil(sampleRate / MIN_FREQUENCY))
+export function detectPitch(buffer: Float32Array, sampleRate: number): PitchDetection | null {
+  if (!buffer.length || buffer.length < 2048 || sampleRate <= 0) return null
+
+  let mean = 0
+  for (const sample of buffer) mean += sample
+  mean /= buffer.length
+
+  const centered = new Float32Array(buffer.length)
+  for (let index = 0; index < buffer.length; index += 1) centered[index] = buffer[index] - mean
+
+  const signalRms = rmsOf(centered)
+  if (signalRms < MIN_RMS) return null
+
+  const minTau = Math.max(2, Math.ceil(sampleRate / MAX_FREQUENCY))
+  const maxTau = Math.min(buffer.length - 2, Math.floor(sampleRate / MIN_FREQUENCY))
+  if (maxTau <= minTau) return null
+
   const difference = new Float32Array(maxTau + 1)
+  const yin = new Float32Array(maxTau + 1)
+  let running = 0
+  let bestTau = minTau
+  let bestValue = Number.POSITIVE_INFINITY
+
   for (let tau = minTau; tau <= maxTau; tau += 1) {
     let sum = 0
     for (let index = 0; index < buffer.length - tau; index += 1) {
-      const delta = buffer[index] - buffer[index + tau]
+      const delta = centered[index] - centered[index + tau]
       sum += delta * delta
     }
-    difference[tau] = sum
-  }
 
-  const cumulative = new Float32Array(maxTau + 1)
-  let running = 0
-  let bestTau = -1
-  let bestValue = 1
-  const candidates: { tau: number; value: number }[] = []
-  for (let tau = minTau; tau <= maxTau; tau += 1) {
-    running += difference[tau]
-    const value = running === 0 ? 1 : difference[tau] * tau / running
-    cumulative[tau] = value
+    difference[tau] = sum
+    running += sum
+    const value = running === 0 ? 1 : (sum / Math.max(running, 1)) * tau
+    yin[tau] = value
+
     if (value < bestValue) {
       bestValue = value
       bestTau = tau
     }
-    if (tau > minTau && tau < maxTau && value < cumulative[tau - 1] && value <= cumulative[tau + 1] && value < YIN_THRESHOLD) {
-      candidates.push({ tau, value })
+  }
+
+  const candidates: { tau: number; value: number; frequency: number }[] = []
+  for (let tau = minTau + 1; tau < maxTau; tau += 1) {
+    const value = yin[tau]
+    const previous = yin[tau - 1]
+    const next = yin[tau + 1]
+
+    if (value < previous && value <= next && value < YIN_THRESHOLD) {
+      const frequency = sampleRate / refinedTau(yin, tau)
+      if (frequency >= MIN_FREQUENCY && frequency <= MAX_FREQUENCY) {
+        candidates.push({ tau, value, frequency })
+      }
     }
   }
 
-  if (bestTau < 0 || bestValue > 0.32) return null
-  const guitarCandidates = GUITAR_STRINGS.map((guitarString) => {
-    const expectedTau = Math.round(sampleRate / guitarString.frequency)
-    const startTau = Math.max(minTau, Math.floor(expectedTau * 0.94))
-    const endTau = Math.min(maxTau, Math.ceil(expectedTau * 1.06))
-    let tau = startTau
-    for (let nextTau = startTau + 1; nextTau <= endTau; nextTau += 1) {
-      if (cumulative[nextTau] < cumulative[tau]) tau = nextTau
-    }
-    return { tau, value: cumulative[tau] }
-  })
-    .filter((candidate) => candidate.value <= 0.32)
-    .sort((a, b) => a.tau - b.tau)
-  const guitarCandidate = guitarCandidates[0] ?? null
-  const candidate = guitarCandidate ?? candidates[0] ?? { tau: bestTau, value: bestValue }
-  let frequency = sampleRate / refinedTau(cumulative, candidate.tau)
+  if (!candidates.length) return null
 
-  if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) return null
-  return { frequency, confidence: Math.max(0, Math.min(1, 1 - candidate.value)) }
+  const scoredCandidates = candidates.map((candidate) => {
+    const target = nearestString(candidate.frequency)
+    const offset = Math.abs(centsFromFrequency(candidate.frequency, target.frequency))
+    const harmonicPenalty = Math.abs(Math.round(Math.log2(candidate.frequency / target.frequency))) > 0 ? 0.35 : 0
+    return { ...candidate, offset, score: candidate.value + harmonicPenalty + offset / 1000 }
+  })
+
+  scoredCandidates.sort((a, b) => a.score - b.score)
+  const preferred = scoredCandidates[0]
+
+  if (preferred.offset > 250) return null
+
+  const confidence = clamp(1 - preferred.value / YIN_THRESHOLD, 0, 1)
+  return {
+    frequency: preferred.frequency,
+    confidence: confidence * (preferred.offset < 100 ? 1 : 0.85),
+  }
 }
