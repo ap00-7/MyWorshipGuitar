@@ -876,9 +876,10 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
   const [selectedSundayId, setSelectedSundayId] = useState(() => searchParams.get('sunday') || '')
   const [query, setQuery] = useState('')
   const upcoming = upcomingSundayIso()
-  const defaultSunday = setlists.find((item) => item.date === upcoming) ?? setlists.find((item) => item.date >= upcoming) ?? setlists[0]
-  const sunday = setlists.find((item) => item.id === selectedSundayId) ?? defaultSunday
-  const previous = setlists.find((item) => item.id !== sunday?.id)
+  const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
+  const defaultSunday = sundaySetlists.find((item) => item.date === upcoming) ?? sundaySetlists.find((item) => item.date >= upcoming) ?? sundaySetlists[0]
+  const sunday = sundaySetlists.find((item) => item.id === selectedSundayId) ?? defaultSunday
+  const previous = sundaySetlists.find((item) => item.id !== sunday?.id)
 
   useEffect(() => {
     if (sunday && sunday.id !== selectedSundayId) setSelectedSundayId(sunday.id)
@@ -919,7 +920,7 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
           <div className="eyebrow">This week's worship service</div>
           <h1>Sunday Service</h1>
           <select className="sunday-selector" value={sunday.id} onChange={(event) => setSelectedSundayId(event.target.value)} aria-label="Select Sunday schedule">
-            {setlists.map((item) => <option key={item.id} value={item.id}>{formatSundayTitle(item.date)}</option>)}
+            {sundaySetlists.map((item) => <option key={item.id} value={item.id}>{formatSundayTitle(item.date)}</option>)}
           </select>
           {isOwner && <input className="sunday-date-input" type="date" value={sunday.date} onChange={(event) => {
             const nextDate = toIsoDate(event.target.value)
