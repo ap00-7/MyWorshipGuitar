@@ -13,7 +13,7 @@ export const GUITAR_STRINGS = [
 ] as const
 
 const MIN_FREQUENCY = 70
-const MAX_FREQUENCY = 420
+const MAX_FREQUENCY = 700
 const MIN_RMS = 0.008
 const YIN_THRESHOLD = 0.14
 
