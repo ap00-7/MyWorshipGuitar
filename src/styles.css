@@ -1153,6 +1153,23 @@ nav {
 
 .available-song small { color: var(--muted); }
 
+.tuner-page { max-width: 760px; }
+.tuner-header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+.tuner-header h1 { margin: 8px 0 0; font: 600 clamp(32px, 5vw, 52px) 'Playfair Display', serif; letter-spacing: -0.05em; line-height: 1.05; }
+.tuner-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); padding: clamp(22px, 5vw, 42px); text-align: center; }
+.tuner-status { color: var(--muted); font: 500 10px 'DM Mono', monospace; letter-spacing: .12em; text-transform: uppercase; }
+.tuner-note { margin-top: 14px; color: var(--ink); font: 600 clamp(76px, 16vw, 138px) 'Playfair Display', serif; line-height: .9; }
+.tuner-note small { display: inline-block; margin-left: 5px; color: var(--muted); font: 500 18px 'DM Mono', monospace; vertical-align: top; }
+.tuner-frequency { min-height: 22px; margin-top: 14px; color: var(--muted); font: 500 15px 'DM Mono', monospace; }
+.tuner-cents { min-height: 20px; margin-top: 7px; color: var(--muted); font: 500 13px 'DM Mono', monospace; }
+.tuner-indicator { display: grid; grid-template-columns: 54px minmax(0, 1fr) 54px; align-items: center; gap: 12px; margin: 38px 0 20px; color: var(--muted); font: 500 10px 'DM Mono', monospace; text-transform: uppercase; }
+.tuner-indicator-label:first-child { text-align: left; }.tuner-indicator-label:last-child { text-align: right; }
+.tuner-scale { position: relative; height: 2px; background: var(--line); }
+.tuner-center { position: absolute; left: 50%; top: -6px; width: 1px; height: 14px; background: var(--muted); }
+.tuner-needle { position: absolute; left: 50%; top: -7px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--accent); transition: transform 180ms ease; }
+.tuner-reference { display: flex; justify-content: center; align-items: baseline; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }.tuner-reference strong { color: var(--ink); font: 600 23px 'DM Mono', monospace; }.tuner-reference small { font: 500 12px 'DM Mono', monospace; }
+.tuner-strings { margin-top: 28px; }.string-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }.string-choice { min-width: 0; display: grid; gap: 4px; padding: 13px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); }.string-choice:hover, .string-choice.active { border-color: var(--accent); background: rgba(189, 79, 53, .08); }.string-choice span, .string-choice small { color: var(--muted); font: 500 10px 'DM Mono', monospace; }.string-choice strong { font: 600 20px 'DM Mono', monospace; }.tuner-error { margin: 18px 0 0; padding: 12px 14px; border: 1px solid rgba(189, 79, 53, .35); border-radius: 10px; color: var(--accent); font-size: 13px; }.tuner-toggle { width: 100%; justify-content: center; margin-top: 22px; }
+
 @media (max-width: 850px) {
   .app { flex-direction: column; }
   .sidebar {
@@ -1252,6 +1269,11 @@ nav {
     padding-top: 4px;
     border-top: 0;
   }
+
+  .tuner-page { padding: 26px 16px calc(100px + env(safe-area-inset-bottom)); }
+  .tuner-panel { padding: 26px 16px 22px; }
+  .tuner-indicator { grid-template-columns: 46px minmax(0, 1fr) 46px; gap: 8px; margin-top: 30px; }
+  .string-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
   .sidebar-account .text-button {
     min-height: 32px;

@@ -7,6 +7,7 @@ import { deleteSharedSong, isUuid, loadSharedSnapshot, upsertSharedSong, upsertS
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
 import { ChordLibrary, HomePage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
+import { TunerPage } from './TunerPage'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
 
@@ -219,6 +220,7 @@ export default function App() {
           <Route path="/songs/:songId" element={<SongPage key={location.pathname} songs={songs} setlists={setlists} settings={settings} isOwner={isOwner} />} />
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} isOwner={isOwner} />} />
           <Route path="/chords" element={<ChordLibrary />} />
+          <Route path="/tuner" element={<TunerPage />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />
           <Route path="/owner" element={<OwnerLogin />} />
           <Route path="*" element={<HomePage songs={songs} setlists={setlists} onCreateSong={createSong} isOwner={isOwner} />} />
