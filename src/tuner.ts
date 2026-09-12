@@ -3,8 +3,17 @@ export type PitchDetection = {
   confidence: number
 }
 
-const MIN_FREQUENCY = 55
-const MAX_FREQUENCY = 520
+export const GUITAR_STRINGS = [
+  { number: 6, note: 'E', octave: 2, frequency: 82.4069 },
+  { number: 5, note: 'A', octave: 2, frequency: 110 },
+  { number: 4, note: 'D', octave: 3, frequency: 146.8324 },
+  { number: 3, note: 'G', octave: 3, frequency: 195.9977 },
+  { number: 2, note: 'B', octave: 3, frequency: 246.9417 },
+  { number: 1, note: 'E', octave: 4, frequency: 329.6276 },
+] as const
+
+const MIN_FREQUENCY = 70
+const MAX_FREQUENCY = 420
 const MIN_RMS = 0.008
 const YIN_THRESHOLD = 0.14
 
@@ -33,7 +42,7 @@ function refinedTau(values: Float32Array, tau: number) {
   return denominator === 0 ? tau : tau + 0.5 * (left - right) / denominator
 }
 
-export function detectPitch(buffer: Float32Array, sampleRate: number, targetFrequency?: number): PitchDetection | null {
+export function detectPitch(buffer: Float32Array, sampleRate: number): PitchDetection | null {
   if (buffer.length < 256 || rmsOf(buffer) < MIN_RMS) return null
 
   const minTau = Math.max(2, Math.floor(sampleRate / MAX_FREQUENCY))
@@ -67,29 +76,21 @@ export function detectPitch(buffer: Float32Array, sampleRate: number, targetFreq
   }
 
   if (bestTau < 0 || bestValue > 0.32) return null
-  const targetCandidates = targetFrequency
-    ? candidates
-      .map((candidate) => ({ ...candidate, frequency: sampleRate / refinedTau(cumulative, candidate.tau) }))
-      .filter((candidate) => candidate.frequency >= targetFrequency * 0.5 && candidate.frequency <= targetFrequency * 2)
-      .sort((a, b) => Math.abs(Math.log2(a.frequency / targetFrequency)) - Math.abs(Math.log2(b.frequency / targetFrequency)))
-    : []
-  let targetCandidate: { tau: number; value: number } | null = null
-  if (targetFrequency) {
-    const expectedTau = Math.round(sampleRate / targetFrequency)
-    const startTau = Math.max(minTau, Math.floor(expectedTau * 0.97))
-    const endTau = Math.min(maxTau, Math.ceil(expectedTau * 1.03))
-    for (let tau = startTau; tau <= endTau; tau += 1) {
-      if (!targetCandidate || cumulative[tau] < targetCandidate.value) targetCandidate = { tau, value: cumulative[tau] }
+  const guitarCandidates = GUITAR_STRINGS.map((guitarString) => {
+    const expectedTau = Math.round(sampleRate / guitarString.frequency)
+    const startTau = Math.max(minTau, Math.floor(expectedTau * 0.94))
+    const endTau = Math.min(maxTau, Math.ceil(expectedTau * 1.06))
+    let tau = startTau
+    for (let nextTau = startTau + 1; nextTau <= endTau; nextTau += 1) {
+      if (cumulative[nextTau] < cumulative[tau]) tau = nextTau
     }
-    if (!targetCandidate || targetCandidate.value > 0.32) targetCandidate = null
-  }
-  const candidate = targetCandidate ?? targetCandidates[0] ?? candidates[0] ?? { tau: bestTau, value: bestValue }
+    return { tau, value: cumulative[tau] }
+  })
+    .filter((candidate) => candidate.value <= 0.32)
+    .sort((a, b) => a.tau - b.tau)
+  const guitarCandidate = guitarCandidates[0] ?? null
+  const candidate = guitarCandidate ?? candidates[0] ?? { tau: bestTau, value: bestValue }
   let frequency = sampleRate / refinedTau(cumulative, candidate.tau)
-
-  if (targetFrequency) {
-    if (frequency > targetFrequency * 1.8 && frequency < targetFrequency * 2.2) frequency /= 2
-    if (frequency < targetFrequency * 0.55 && frequency > targetFrequency * 0.45) frequency *= 2
-  }
 
   if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) return null
   return { frequency, confidence: Math.max(0, Math.min(1, 1 - candidate.value)) }

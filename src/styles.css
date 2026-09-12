@@ -1170,6 +1170,17 @@ nav {
 .tuner-reference { display: flex; justify-content: center; align-items: baseline; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }.tuner-reference strong { color: var(--ink); font: 600 23px 'DM Mono', monospace; }.tuner-reference small { font: 500 12px 'DM Mono', monospace; }
 .tuner-strings { margin-top: 28px; }.string-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }.string-choice { min-width: 0; display: grid; gap: 4px; padding: 13px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); }.string-choice:hover, .string-choice.active { border-color: var(--accent); background: rgba(189, 79, 53, .08); }.string-choice span, .string-choice small { color: var(--muted); font: 500 10px 'DM Mono', monospace; }.string-choice strong { font: 600 20px 'DM Mono', monospace; }.tuner-error { margin: 18px 0 0; padding: 12px 14px; border: 1px solid rgba(189, 79, 53, .35); border-radius: 10px; color: var(--accent); font-size: 13px; }.tuner-toggle { width: 100%; justify-content: center; margin-top: 22px; }
 
+.tuner-panel { position: relative; overflow: hidden; }
+.tuner-panel.too-low .tuner-status, .tuner-panel.too-low .tuner-cents { color: #d97845; }
+.tuner-panel.in-tune .tuner-status, .tuner-panel.in-tune .tuner-cents { color: #75a875; }
+.tuner-panel.too-high .tuner-status, .tuner-panel.too-high .tuner-cents { color: #d0524d; }
+.tuner-scale { height: 8px; border-radius: 8px; background: linear-gradient(90deg, rgba(217, 120, 69, .72) 0%, rgba(217, 120, 69, .25) 35%, rgba(117, 168, 117, .88) 47%, rgba(117, 168, 117, .88) 53%, rgba(208, 82, 77, .25) 65%, rgba(208, 82, 77, .72) 100%); }
+.tuner-center { top: -8px; left: 50%; width: 2px; height: 24px; background: #75a875; box-shadow: 0 0 0 4px rgba(117, 168, 117, .12); }
+.tuner-needle { top: -9px; left: 50%; width: 26px; height: 26px; margin: 0; transform: translateX(-50%); background: var(--ink); border: 4px solid var(--paper); box-shadow: 0 0 0 2px var(--accent); transition: left 130ms cubic-bezier(.2, .8, .2, 1), background-color 180ms ease, box-shadow 180ms ease; }
+.tuner-panel.too-low .tuner-needle { background: #d97845; box-shadow: 0 0 0 2px #d97845; }.tuner-panel.in-tune .tuner-needle { background: #75a875; box-shadow: 0 0 0 2px #75a875; }.tuner-panel.too-high .tuner-needle { background: #d0524d; box-shadow: 0 0 0 2px #d0524d; }
+.tuner-detected { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 12px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); text-align: left; color: var(--muted); }.tuner-detected span { font: 500 10px 'DM Mono', monospace; letter-spacing: .08em; text-transform: uppercase; }.tuner-detected strong { color: var(--ink); font: 600 19px 'DM Mono', monospace; }.tuner-detected small { font: 500 14px 'DM Mono', monospace; }.tuner-stop { justify-content: center; margin: 16px auto 0; color: var(--muted); }
+.string-choice { cursor: default; }.string-choice.active { box-shadow: inset 0 -3px 0 #75a875; border-color: #75a875; }.string-choice.active strong { color: #75a875; }
+
 @media (max-width: 850px) {
   .app { flex-direction: column; }
   .sidebar {
@@ -1274,6 +1285,7 @@ nav {
   .tuner-panel { padding: 26px 16px 22px; }
   .tuner-indicator { grid-template-columns: 46px minmax(0, 1fr) 46px; gap: 8px; margin-top: 30px; }
   .string-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tuner-detected { grid-template-columns: 1fr auto; gap: 5px 10px; }.tuner-detected span { grid-column: 1 / -1; }.tuner-detected small { text-align: right; }
 
   .sidebar-account .text-button {
     min-height: 32px;
