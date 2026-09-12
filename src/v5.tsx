@@ -240,6 +240,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
   const [sheetOnly, setSheetOnly] = useState(false)
   const [imageZoom, setImageZoom] = useState(1)
   const sheetRef = useRef<HTMLDivElement>(null)
+  const imageViewportRef = useRef<HTMLDivElement>(null)
   const nativeFullscreen = useRef(false)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
 
@@ -248,6 +249,12 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
     setViewKey1(song.key)
     setViewKey2(song.key)
   }, [song?.id, song?.key])
+
+  useEffect(() => {
+    const viewport = imageViewportRef.current
+    if (!viewport || imageZoom <= 1) return
+    viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2)
+  }, [imageZoom])
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -390,8 +397,10 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
             <span>{Math.round(imageZoom * 100)}%</span>
             <button type="button" onClick={() => setImageZoom((current) => Math.min(2.5, Number((current + 0.25).toFixed(2))))} disabled={imageZoom >= 2.5} aria-label="Zoom in" title="Zoom in"><Plus size={16} /></button>
           </div>
-          <div className={imageZoom > 1 ? 'image-zoom-viewport zoomed' : 'image-zoom-viewport'}>
-            <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} style={{ width: `${imageZoom * 100}%` }} />
+          <div ref={imageViewportRef} className={imageZoom > 1 ? 'image-zoom-viewport zoomed' : 'image-zoom-viewport'}>
+            <div className="image-zoom-content" style={{ width: `${imageZoom * 100}%` }}>
+              <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
+            </div>
           </div>
         </div>
       )}

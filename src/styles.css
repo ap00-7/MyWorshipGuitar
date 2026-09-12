@@ -691,13 +691,21 @@ nav {
   min-width: 0;
 }
 
-.image-zoom-viewport img {
+.image-zoom-content {
+  max-width: none;
+  margin: 0 auto;
+}
+
+.image-zoom-content img {
+  width: 100%;
+  height: auto;
   max-width: none;
 }
 
 .image-zoom-viewport.zoomed {
   max-height: min(80vh, 900px);
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 .song-notes, .song-reference {
