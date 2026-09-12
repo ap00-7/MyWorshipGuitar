@@ -644,6 +644,13 @@ nav {
   margin-top: 18px;
 }
 
+.song-image img {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+}
+
 .song-notes, .song-reference {
   margin-top: 18px;
   padding: 18px 20px;
