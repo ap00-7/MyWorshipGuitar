@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Minus, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
@@ -238,9 +238,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
   const [viewKey2, setViewKey2] = useState(song?.key ?? 'C')
   const [chordScale, setChordScale] = useState(1)
   const [sheetOnly, setSheetOnly] = useState(false)
-  const [imageZoom, setImageZoom] = useState(1)
   const sheetRef = useRef<HTMLDivElement>(null)
-  const imageViewportRef = useRef<HTMLDivElement>(null)
   const nativeFullscreen = useRef(false)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
 
@@ -249,12 +247,6 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
     setViewKey1(song.key)
     setViewKey2(song.key)
   }, [song?.id, song?.key])
-
-  useEffect(() => {
-    const viewport = imageViewportRef.current
-    if (!viewport || imageZoom <= 1) return
-    viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2)
-  }, [imageZoom])
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -392,16 +384,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
 
       {song.chordImage?.dataUrl && (
         <div className="image-preview song-image">
-          <div className="image-zoom-controls" aria-label="Chord sheet image zoom controls">
-            <button type="button" onClick={() => setImageZoom((current) => Math.max(1, Number((current - 0.25).toFixed(2))))} disabled={imageZoom <= 1} aria-label="Zoom out" title="Zoom out"><Minus size={16} /></button>
-            <span>{Math.round(imageZoom * 100)}%</span>
-            <button type="button" onClick={() => setImageZoom((current) => Math.min(2.5, Number((current + 0.25).toFixed(2))))} disabled={imageZoom >= 2.5} aria-label="Zoom in" title="Zoom in"><Plus size={16} /></button>
-          </div>
-          <div ref={imageViewportRef} className={imageZoom > 1 ? 'image-zoom-viewport zoomed' : 'image-zoom-viewport'}>
-            <div className="image-zoom-content" style={{ width: `${imageZoom * 100}%` }}>
-              <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
-            </div>
-          </div>
+          <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
         </div>
       )}
       {song.notes.trim() && (

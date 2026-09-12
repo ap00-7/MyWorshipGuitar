@@ -644,69 +644,11 @@ nav {
   margin-top: 18px;
 }
 
-.song-image img {
+.image-preview.song-image img {
   width: 100%;
   height: auto;
   max-height: none;
   object-fit: contain;
-}
-
-.image-zoom-controls {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.image-zoom-controls button {
-  width: 36px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--paper);
-  color: var(--ink);
-}
-
-.image-zoom-controls button:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.image-zoom-controls button:disabled {
-  cursor: default;
-  opacity: .4;
-}
-
-.image-zoom-controls span {
-  min-width: 44px;
-  color: var(--muted);
-  font: 500 11px 'DM Mono', monospace;
-  text-align: center;
-}
-
-.image-zoom-viewport {
-  min-width: 0;
-}
-
-.image-zoom-content {
-  max-width: none;
-  margin: 0 auto;
-}
-
-.song-image .image-zoom-content img {
-  width: 100%;
-  height: auto;
-  max-width: none;
-  max-height: none;
-}
-
-.image-zoom-viewport.zoomed {
-  max-height: min(80vh, 900px);
-  overflow-x: auto;
-  overflow-y: auto;
 }
 
 .song-notes, .song-reference {
