@@ -89,19 +89,61 @@ function Metronome({ initialBpm }: { initialBpm: number }) {
   const [playing, setPlaying] = useState(false)
   const [error, setError] = useState('')
   const engineRef = useRef<MetronomeEngine | null>(null)
+  const holdTimeoutRef = useRef<number | null>(null)
+  const holdIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
     const engine = new MetronomeEngine()
     engine.setTempo(bpm)
     engineRef.current = engine
-    return () => { void engine.dispose(); engineRef.current = null }
+    return () => {
+      if (holdTimeoutRef.current) window.clearTimeout(holdTimeoutRef.current)
+      if (holdIntervalRef.current) window.clearInterval(holdIntervalRef.current)
+      void engine.dispose()
+      engineRef.current = null
+    }
   }, [])
 
+  const clampBpm = (value: number) => Math.min(240, Math.max(40, Math.round(value)))
+
   const updateBpm = (value: number) => {
-    const next = Math.min(240, Math.max(40, Math.round(value)))
+    const next = clampBpm(value)
     setBpm(next)
     localStorage.setItem('wg-metronome-bpm', String(next))
     engineRef.current?.setTempo(next)
+  }
+
+  const stopHold = () => {
+    if (holdTimeoutRef.current) {
+      window.clearTimeout(holdTimeoutRef.current)
+      holdTimeoutRef.current = null
+    }
+    if (holdIntervalRef.current) {
+      window.clearInterval(holdIntervalRef.current)
+      holdIntervalRef.current = null
+    }
+  }
+
+  const beginHold = (direction: 1 | -1) => {
+    stopHold()
+
+    const tick = () => {
+      setBpm((current) => {
+        const next = clampBpm(current + direction)
+        if (next !== current) {
+          localStorage.setItem('wg-metronome-bpm', String(next))
+          engineRef.current?.setTempo(next)
+        }
+        return next
+      })
+    }
+
+    tick()
+    holdTimeoutRef.current = window.setTimeout(() => {
+      holdIntervalRef.current = window.setInterval(() => {
+        tick()
+      }, 75)
+    }, 180)
   }
 
   const toggle = async () => {
@@ -121,11 +163,14 @@ function Metronome({ initialBpm }: { initialBpm: number }) {
 
   return (
     <section className="metronome" aria-label="Metronome">
-      <div className="metronome-heading"><span className="eyebrow">Metronome</span><button className={`metronome-toggle${playing ? ' active' : ''}`} onClick={() => void toggle()} aria-label={playing ? 'Pause metronome' : 'Play metronome'}>{playing ? '❚❚' : '▶'}</button></div>
+      <div className="metronome-heading">
+        <span className="eyebrow">Metronome</span>
+        <button className={`metronome-toggle${playing ? ' active' : ''}`} onClick={() => void toggle()} aria-label={playing ? 'Pause metronome' : 'Play metronome'}>{playing ? '❚❚' : '▶'}</button>
+      </div>
       <div className="metronome-controls">
-        <button onClick={() => updateBpm(bpm - 1)} aria-label="Decrease BPM">−</button>
+        <button type="button" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); beginHold(-1) }} onPointerUp={stopHold} onPointerLeave={stopHold} onPointerCancel={stopHold} onContextMenu={(event) => event.preventDefault()} aria-label="Decrease BPM">−</button>
         <label><input type="number" min="40" max="240" value={bpm} onChange={(event) => updateBpm(Number(event.target.value))} /> BPM</label>
-        <button onClick={() => updateBpm(bpm + 1)} aria-label="Increase BPM">＋</button>
+        <button type="button" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); beginHold(1) }} onPointerUp={stopHold} onPointerLeave={stopHold} onPointerCancel={stopHold} onContextMenu={(event) => event.preventDefault()} aria-label="Increase BPM">＋</button>
       </div>
       {error && <small className="metronome-error" role="alert">{error}</small>}
     </section>
@@ -143,11 +188,8 @@ function IntroSuggestor({ chordText, guitar2Text }: { chordText: string; guitar2
     <section className={`intro-suggestor${open ? ' open' : ''}`}>
       <button className="intro-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open}>Suggest Intro</button>
       {open && <div className="intro-content">
-        <div className="eyebrow">Based on the opening progression</div>
         <h3>{suggestion.title}</h3>
         <p className="intro-chords">{suggestion.chords.split('\n').map((line) => <span key={line}>{line}</span>)}</p>
-        {suggestion.pattern && <p className="intro-pattern"><strong>Pattern:</strong> {suggestion.pattern}</p>}
-        <button className="text-button" onClick={() => setSelected((current) => (current + 1) % suggestions.length)}>Try another</button>
       </div>}
     </section>
   )
@@ -441,39 +483,41 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
       </div>
 
       <div className="song-tools">
-        <Metronome key={song.id} initialBpm={song.bpm} />
         <IntroSuggestor chordText={introText} guitar2Text={guitar === 1 ? currentGuitar2Text : ''} />
       </div>
 
-        <div className="continuous-sheet" ref={sheetRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
-          {sheetOnly && <button className="sheet-exit-button" onClick={() => void exitSheetOnly()}><Minimize2 size={15} />Exit full screen</button>}
-          {song.sections.map((section) => {
-            const lines = guitar === 2
-              ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, song.capo, selectedCapo) })
-              : sectionChordLines(section)
-            return (
-              <section className="continuous-section" key={section.id || section.name}>
-                <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · suggested capo ${suggestion.capo}` : ''}</div>
-                {lines.map((line, lineIndex) => (
-                  <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
-                    <span className="chord-text">{formatTransposedChordLine(line, interval, settings.notation, settings.simplify)}</span>
-                  </div>
-                ))}
-              </section>
-            )
-          })}
-          {song.chordImage?.dataUrl && (
-            <div className="image-preview song-image">
-              <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
-            </div>
-          )}
-          {song.notes.trim() && (
-            <section className="song-notes">
-              <div className="eyebrow">Notes</div>
-              <p>{renderNoteText(song.notes)}</p>
+      <div className="continuous-sheet" ref={sheetRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
+        {sheetOnly && <button className="sheet-exit-button" onClick={() => void exitSheetOnly()}><Minimize2 size={15} />Exit full screen</button>}
+        {song.sections.map((section) => {
+          const lines = guitar === 2
+            ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, song.capo, selectedCapo) })
+            : sectionChordLines(section)
+          return (
+            <section className="continuous-section" key={section.id || section.name}>
+              <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · suggested capo ${suggestion.capo}` : ''}</div>
+              {lines.map((line, lineIndex) => (
+                <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
+                  <span className="chord-text">{formatTransposedChordLine(line, interval, settings.notation, settings.simplify)}</span>
+                </div>
+              ))}
             </section>
-          )}
-        </div>
+          )
+        })}
+        {song.chordImage?.dataUrl && (
+          <div className="image-preview song-image">
+            <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
+          </div>
+        )}
+      </div>
+
+      <Metronome key={song.id} initialBpm={song.bpm} />
+
+      {song.notes.trim() && (
+        <section className="song-notes">
+          <div className="eyebrow">Notes</div>
+          <p>{renderNoteText(song.notes)}</p>
+        </section>
+      )}
       {song.youtubeUrl && (
         <section className="song-reference">
           <div className="eyebrow">Reference</div>

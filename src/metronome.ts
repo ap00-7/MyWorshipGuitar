@@ -50,12 +50,13 @@ export class MetronomeEngine {
     const gain = this.context.createGain()
     oscillator.type = 'sine'
     oscillator.frequency.setValueAtTime(accent ? 1320 : 920, time)
+    const targetVolume = accent ? 0.18 : 0.12
     gain.gain.setValueAtTime(0.0001, time)
-    gain.gain.exponentialRampToValueAtTime(accent ? 0.11 : 0.075, time + 0.004)
-    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.055)
+    gain.gain.exponentialRampToValueAtTime(targetVolume, time + 0.004)
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.06)
     oscillator.connect(gain)
     gain.connect(this.context.destination)
     oscillator.start(time)
-    oscillator.stop(time + 0.06)
+    oscillator.stop(time + 0.07)
   }
 }
