@@ -373,7 +373,8 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
   const nativeFullscreen = useRef(false)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const customGuitar2 = song ? hasCustomGuitar2(song) : false
-  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation), [viewKey1, settings.notation])
+  const guitar1ShapeKey = capoShapeKey(viewKey1, song?.capo ?? 0, settings.notation)
+  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation).filter((option) => option.key !== guitar1ShapeKey), [viewKey1, settings.notation, guitar1ShapeKey])
   const guitar1Progression = song?.sections.map((section) => section.chordText).join('\n') ?? ''
 
   const selectGuitar2Option = (nextKey: string) => {
@@ -1074,7 +1075,8 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
   const currentSongId = songIds[index]
   const currentSong = songs.find((song) => song.id === currentSongId) ?? null
 
-  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation), [viewKey1, settings.notation])
+  const guitar1ShapeKey = capoShapeKey(viewKey1, currentSong?.capo ?? 0, settings.notation)
+  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation).filter((option) => option.key !== guitar1ShapeKey), [viewKey1, settings.notation, guitar1ShapeKey])
   const guitar1Progression = currentSong?.sections.map((section) => section.chordText).join('\n') ?? ''
 
   const selectGuitar2Option = (nextKey: string) => {
