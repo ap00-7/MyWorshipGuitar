@@ -179,10 +179,9 @@ function Metronome({ initialBpm }: { initialBpm: number }) {
 
 function IntroSuggestor({ chordText, guitar2Text }: { chordText: string; guitar2Text: string }) {
   const [open, setOpen] = useState(false)
-  const [selected, setSelected] = useState(0)
   const suggestions = suggestIntros(chordText, guitar2Text)
   if (!suggestions.length) return null
-  const suggestion: IntroSuggestion = suggestions[selected % suggestions.length]
+  const suggestion: IntroSuggestion = suggestions[0]
 
   return (
     <section className={`intro-suggestor${open ? ' open' : ''}`}>
@@ -353,6 +352,11 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
   const [viewKey1, setViewKey1] = useState(song?.key ?? 'C')
   const [viewKey2, setViewKey2] = useState(song?.key ?? 'C')
   const [chordScale, setChordScale] = useState(1)
+  const activeDisplayKey = guitar === 1 ? viewKey1 : viewKey2
+  const handleKeySelect = (nextKey: string) => {
+    if (guitar === 1) setViewKey1(nextKey)
+    else setViewKey2(nextKey)
+  }
   const [sheetOnly, setSheetOnly] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
   const nativeFullscreen = useRef(false)
@@ -468,7 +472,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => setViewKey(song.key)}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
-        <select value={viewKey} onChange={(event) => setViewKey(event.target.value)} aria-label="Select key">
+        <select value={activeDisplayKey} onChange={(event) => handleKeySelect(event.target.value)} aria-label="Select key">
           {keyOptions.map((key) => <option key={key}>{key}</option>)}
         </select>
         <div className="guitar-switch">
@@ -993,10 +997,100 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
   )
 }
 
+function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist; songs: Song[]; settings: Settings; onClose: () => void }) {
+  const [index, setIndex] = useState(0)
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null)
+  const songIds = sunday.songIds
+  const currentSongId = songIds[index]
+  const currentSong = songs.find((song) => song.id === currentSongId) ?? null
+
+  const goTo = (nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= songIds.length) return
+    setIndex(nextIndex)
+  }
+
+  const handleTouchStartEvent = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0]
+    setTouchStart({ x: touch.clientX, y: touch.clientY })
+  }
+
+  const handleTouchEndEvent = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStart) return
+    const touch = event.changedTouches[0]
+    const deltaX = touch.clientX - touchStart.x
+    const deltaY = touch.clientY - touchStart.y
+    const isHorizontal = Math.abs(deltaX) > 64 && Math.abs(deltaX) > Math.abs(deltaY)
+    if (!isHorizontal) return
+    if (deltaX < 0) goTo(index + 1)
+    else goTo(index - 1)
+    setTouchStart(null)
+  }
+
+  if (!currentSong) {
+    return (
+      <div className="worship-flow-empty">
+        <p>No songs in this Sunday service.</p>
+        <button className="secondary-button" onClick={onClose}>Back to Sunday</button>
+      </div>
+    )
+  }
+
+  const isFirst = index === 0
+  const isLast = index === songIds.length - 1
+
+  return (
+    <div className="worship-flow-panel" onTouchStart={handleTouchStartEvent} onTouchEnd={handleTouchEndEvent}>
+      <div className="worship-flow-header">
+        <div>
+          <div className="eyebrow">Worship Flow Mode</div>
+          <h2>{sunday.name}</h2>
+        </div>
+        <button className="secondary-button" onClick={onClose}>Exit flow</button>
+      </div>
+
+      <div className="worship-flow-status">
+        <span>{isFirst ? 'First song' : isLast ? 'Final song' : `Song ${index + 1} of ${songIds.length}`}</span>
+      </div>
+
+      <article className="worship-flow-song">
+        <div className="worship-flow-song-header">
+          <div>
+            <div className="eyebrow">Song {index + 1}</div>
+            <h3>{currentSong.title}</h3>
+          </div>
+          <div className="worship-flow-keys">
+            <span>Key {currentSong.key}</span>
+            <span>Capo {currentSong.capo}</span>
+          </div>
+        </div>
+
+        <div className="worship-flow-sections">
+          {currentSong.sections.map((section) => (
+            <section className="continuous-section" key={section.id || section.name}>
+              <div className="continuous-label">{section.name.toUpperCase()}</div>
+              {(section.chordText || '').split(/\n/).filter(Boolean).map((line, lineIndex) => (
+                <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
+                  <span className="chord-text">{line}</span>
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      </article>
+
+      <div className="worship-flow-controls">
+        <button className="secondary-button" onClick={() => goTo(index - 1)} disabled={isFirst}>Previous</button>
+        <button className="primary-button" onClick={() => goTo(index + 1)} disabled={isLast}>Next</button>
+      </div>
+    </div>
+  )
+}
+
 export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void; isOwner: boolean }) {
   const [searchParams] = useSearchParams()
   const [selectedSundayId, setSelectedSundayId] = useState(() => searchParams.get('sunday') || '')
   const [query, setQuery] = useState('')
+  const [flowOpen, setFlowOpen] = useState(false)
   const upcoming = upcomingSundayIso()
   const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
   const defaultSunday = sundaySetlists.find((item) => item.date === upcoming) ?? sundaySetlists.find((item) => item.date >= upcoming) ?? sundaySetlists[0]
@@ -1033,6 +1127,10 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
     const next = [...sunday.songIds]
     ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
     onUpdate({ ...sunday, songIds: next })
+  }
+
+  if (flowOpen) {
+    return <WorshipFlowMode sunday={sunday} songs={songs} settings={{} as Settings} onClose={() => setFlowOpen(false)} />
   }
 
   return (
@@ -1082,6 +1180,10 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
               )
             })}
           </div>
+
+          {sunday.songIds.length > 0 && (
+            <button className="worship-flow-button" onClick={() => setFlowOpen(true)}>Worship Flow Mode</button>
+          )}
         </main>
 
         {isOwner && <aside className="add-sunday-panel">
