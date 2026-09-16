@@ -82,6 +82,25 @@ export function normalizeKey(key: string) {
   return sharpNames[noteIndex(key)] || 'C'
 }
 
+export function keyQuality(key: string) {
+  return /m$/i.test(key.trim()) ? 'minor' : 'major'
+}
+
+export function keyRoot(key: string) {
+  return normalizeKey(key.trim().replace(/m$/i, ''))
+}
+
+export function isEquivalentKey(left: string, right: string) {
+  return keyRoot(left) === keyRoot(right) && keyQuality(left) === keyQuality(right)
+}
+
+function parseKey(key: string) {
+  const trimmed = key.trim()
+  const quality = keyQuality(trimmed)
+  const root = keyRoot(trimmed)
+  return { root, quality }
+}
+
 function spellNote(index: number, sourceNote: string, notation: Notation) {
   const next = (index + 120) % 12
   const family = notation === 'sharps' ? 'sharp' : notation === 'flats' ? 'flat' : noteAccidental(sourceNote)
@@ -234,48 +253,44 @@ export function simplifyChord(chord: string) {
 }
 
 export function capoShapeKey(soundingKey: string, capo: number, notation: Notation) {
-  return transposeNote(soundingKey, -capo, notation)
+  const { root, quality } = parseKey(soundingKey)
+  return `${transposeNote(root, -capo, notation)}${quality === 'minor' ? 'm' : ''}`
 }
 
 export function soundingKey(shapeKey: string, capo: number, notation: Notation) {
-  return transposeNote(shapeKey, capo, notation)
+  const { root, quality } = parseKey(shapeKey)
+  return `${transposeNote(root, capo, notation)}${quality === 'minor' ? 'm' : ''}`
 }
 
 export function transposeKey(key: string, interval: number, notation: Notation = 'auto') {
-  const trimmed = key.trim()
-  const quality = /m$/i.test(trimmed) ? 'm' : ''
-  const root = trimmed.replace(/m$/i, '')
-  return `${transposeNote(root, interval, notation)}${quality}`
+  const { root, quality } = parseKey(key)
+  return `${transposeNote(root, interval, notation)}${quality === 'minor' ? 'm' : ''}`
 }
 
 export function isCompatibleGuitar2Option(concertKey: string, shapeKey: string, capo: number, notation: Notation = 'auto') {
-  const target = normalizeKey(concertKey)
-  const actual = normalizeKey(soundingKey(shapeKey, capo, notation))
-  return actual === target && (shapeKey.endsWith('m') ? concertKey.endsWith('m') : !concertKey.endsWith('m'))
+  return isEquivalentKey(soundingKey(shapeKey, capo, notation), concertKey)
 }
 
 export function generateCompatibleGuitar2Options(concertKey: string, notation: Notation = 'auto') {
-  const trimmed = concertKey.trim()
-  const quality = /m$/i.test(trimmed) ? 'm' : ''
-  const root = normalizeKey(trimmed.replace(/m$/i, ''))
-  const targetKey = `${root}${quality}`
+  const { root, quality } = parseKey(concertKey)
+  const targetKey = `${root}${quality === 'minor' ? 'm' : ''}`
 
   return PRACTICAL_CAPOS
     .map((capo) => {
-      const shapeKey = `${transposeNote(root, -capo, notation)}${quality}`
+      const shapeKey = `${transposeNote(root, -capo, notation)}${quality === 'minor' ? 'm' : ''}`
       return {
         key: shapeKey,
         capo,
-        sounding: normalizeKey(soundingKey(shapeKey, capo, notation)),
+        sounding: soundingKey(shapeKey, capo, notation),
       }
     })
-    .filter((option) => option.sounding === root)
-    .filter((option, index, options) => options.findIndex((candidate) => candidate.key === option.key) === index)
+    .filter((option) => isCompatibleGuitar2Option(concertKey, option.key, option.capo, notation))
+    .filter((option, index, options) => options.findIndex((candidate) => candidate.key === option.key && candidate.capo === option.capo) === index)
     .sort((left, right) => {
       if (left.key === targetKey && right.key !== targetKey) return 1
       if (left.key !== targetKey && right.key === targetKey) return -1
-      const leftDistance = Math.abs(left.capo - 4)
-      const rightDistance = Math.abs(right.capo - 4)
+      const leftDistance = Math.abs(left.capo - 3)
+      const rightDistance = Math.abs(right.capo - 3)
       return leftDistance - rightDistance || left.capo - right.capo
     })
 }
