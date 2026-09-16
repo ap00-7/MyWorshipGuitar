@@ -3,7 +3,7 @@ export const keyOptions = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb
 
 export type Notation = 'sharps' | 'flats' | 'auto'
 
-const PRACTICAL_CAPOS = [0, 1, 2, 3, 4, 5, 6, 7]
+const PRACTICAL_CAPOS = Array.from({ length: 13 }, (_, index) => index)
 const OPEN_MAJOR = new Set(['C', 'G', 'D', 'A', 'E'])
 const OPEN_MINOR = new Set(['Am', 'Em', 'Dm'])
 const OPEN_SEVENTH = new Set(['C7', 'G7', 'D7', 'A7', 'E7', 'B7', 'Cmaj7', 'Dmaj7', 'Fmaj7', 'Amaj7', 'Emaj7'])
@@ -241,11 +241,43 @@ export function soundingKey(shapeKey: string, capo: number, notation: Notation) 
   return transposeNote(shapeKey, capo, notation)
 }
 
+export function transposeKey(key: string, interval: number, notation: Notation = 'auto') {
+  const trimmed = key.trim()
+  const quality = /m$/i.test(trimmed) ? 'm' : ''
+  const root = trimmed.replace(/m$/i, '')
+  return `${transposeNote(root, interval, notation)}${quality}`
+}
+
+export function isCompatibleGuitar2Option(concertKey: string, shapeKey: string, capo: number, notation: Notation = 'auto') {
+  const target = normalizeKey(concertKey)
+  const actual = normalizeKey(soundingKey(shapeKey, capo, notation))
+  return actual === target && (shapeKey.endsWith('m') ? concertKey.endsWith('m') : !concertKey.endsWith('m'))
+}
+
 export function generateCompatibleGuitar2Options(concertKey: string, notation: Notation = 'auto') {
-  return Array.from({ length: 13 }, (_, capo) => ({
-    key: normalizeKey(capoShapeKey(concertKey, capo, notation)),
-    capo,
-  })).filter((option, index, options) => options.findIndex((candidate) => candidate.key === option.key) === index)
+  const trimmed = concertKey.trim()
+  const quality = /m$/i.test(trimmed) ? 'm' : ''
+  const root = normalizeKey(trimmed.replace(/m$/i, ''))
+  const targetKey = `${root}${quality}`
+
+  return PRACTICAL_CAPOS
+    .map((capo) => {
+      const shapeKey = `${transposeNote(root, -capo, notation)}${quality}`
+      return {
+        key: shapeKey,
+        capo,
+        sounding: normalizeKey(soundingKey(shapeKey, capo, notation)),
+      }
+    })
+    .filter((option) => option.sounding === root)
+    .filter((option, index, options) => options.findIndex((candidate) => candidate.key === option.key) === index)
+    .sort((left, right) => {
+      if (left.key === targetKey && right.key !== targetKey) return 1
+      if (left.key !== targetKey && right.key === targetKey) return -1
+      const leftDistance = Math.abs(left.capo - 4)
+      const rightDistance = Math.abs(right.capo - 4)
+      return leftDistance - rightDistance || left.capo - right.capo
+    })
 }
 
 export function shiftKey(key: string, amount: number, notation: Notation = 'auto') {
