@@ -3,6 +3,8 @@ import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDo
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
+import { MetronomeEngine } from './metronome'
+import { suggestIntros, type IntroSuggestion } from './intro'
 
 const editorKey = () => crypto.randomUUID()
 
@@ -77,6 +79,78 @@ const displayChord = (chord: string, interval: number, notation: Notation, simpl
 
 const renderChordLine = (line: string, interval: number, notation: Notation, simplifyValue: boolean) => {
   return <span className="chord-token">{formatTransposedChordLine(line, interval, notation, simplifyValue)}</span>
+}
+
+function Metronome({ initialBpm }: { initialBpm: number }) {
+  const [bpm, setBpm] = useState(() => {
+    const stored = Number(localStorage.getItem('wg-metronome-bpm'))
+    return Number.isFinite(stored) ? Math.min(240, Math.max(40, stored)) : Math.min(240, Math.max(40, initialBpm || 80))
+  })
+  const [playing, setPlaying] = useState(false)
+  const [error, setError] = useState('')
+  const engineRef = useRef<MetronomeEngine | null>(null)
+
+  useEffect(() => {
+    const engine = new MetronomeEngine()
+    engine.setTempo(bpm)
+    engineRef.current = engine
+    return () => { void engine.dispose(); engineRef.current = null }
+  }, [])
+
+  const updateBpm = (value: number) => {
+    const next = Math.min(240, Math.max(40, Math.round(value)))
+    setBpm(next)
+    localStorage.setItem('wg-metronome-bpm', String(next))
+    engineRef.current?.setTempo(next)
+  }
+
+  const toggle = async () => {
+    setError('')
+    if (playing) {
+      engineRef.current?.stop()
+      setPlaying(false)
+      return
+    }
+    try {
+      await engineRef.current?.start()
+      setPlaying(true)
+    } catch (startError) {
+      setError(startError instanceof Error ? startError.message : 'Unable to start the metronome.')
+    }
+  }
+
+  return (
+    <section className="metronome" aria-label="Metronome">
+      <div className="metronome-heading"><span className="eyebrow">Metronome</span><button className={`metronome-toggle${playing ? ' active' : ''}`} onClick={() => void toggle()} aria-label={playing ? 'Pause metronome' : 'Play metronome'}>{playing ? '❚❚' : '▶'}</button></div>
+      <div className="metronome-controls">
+        <button onClick={() => updateBpm(bpm - 1)} aria-label="Decrease BPM">−</button>
+        <label><input type="number" min="40" max="240" value={bpm} onChange={(event) => updateBpm(Number(event.target.value))} /> BPM</label>
+        <button onClick={() => updateBpm(bpm + 1)} aria-label="Increase BPM">＋</button>
+      </div>
+      {error && <small className="metronome-error" role="alert">{error}</small>}
+    </section>
+  )
+}
+
+function IntroSuggestor({ chordText, guitar2Text }: { chordText: string; guitar2Text: string }) {
+  const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState(0)
+  const suggestions = suggestIntros(chordText, guitar2Text)
+  if (!suggestions.length) return null
+  const suggestion: IntroSuggestion = suggestions[selected % suggestions.length]
+
+  return (
+    <section className={`intro-suggestor${open ? ' open' : ''}`}>
+      <button className="intro-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open}>Suggest Intro</button>
+      {open && <div className="intro-content">
+        <div className="eyebrow">Based on the opening progression</div>
+        <h3>{suggestion.title}</h3>
+        <p className="intro-chords">{suggestion.chords.split('\n').map((line) => <span key={line}>{line}</span>)}</p>
+        {suggestion.pattern && <p className="intro-pattern"><strong>Pattern:</strong> {suggestion.pattern}</p>}
+        <button className="text-button" onClick={() => setSelected((current) => (current + 1) % suggestions.length)}>Try another</button>
+      </div>}
+    </section>
+  )
 }
 
 export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreateSong: () => void; isOwner: boolean }) {
@@ -289,6 +363,9 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
   const setViewKey = guitar === 1 ? setViewKey1 : setViewKey2
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
+  const currentGuitar2Text = song.sections.map((section) => guitar2TextForSection(section, settings.notation, song.capo, selectedCapo)).join('\n')
+  const currentGuitar1Text = song.sections.map((section) => section.chordText).join('\n')
+  const introText = guitar === 1 ? currentGuitar1Text : currentGuitar2Text
   const updateKey = (amount: number) => setViewKey((current) => shiftKey(current, amount, settings.notation))
   const enterSheetOnly = async () => {
     setSheetOnly(true)
@@ -363,6 +440,11 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
         </div>
       </div>
 
+      <div className="song-tools">
+        <Metronome key={song.id} initialBpm={song.bpm} />
+        <IntroSuggestor chordText={introText} guitar2Text={guitar === 1 ? currentGuitar2Text : ''} />
+      </div>
+
         <div className="continuous-sheet" ref={sheetRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
           {sheetOnly && <button className="sheet-exit-button" onClick={() => void exitSheetOnly()}><Minimize2 size={15} />Exit full screen</button>}
           {song.sections.map((section) => {
@@ -380,19 +462,18 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
               </section>
             )
           })}
+          {song.chordImage?.dataUrl && (
+            <div className="image-preview song-image">
+              <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
+            </div>
+          )}
+          {song.notes.trim() && (
+            <section className="song-notes">
+              <div className="eyebrow">Notes</div>
+              <p>{renderNoteText(song.notes)}</p>
+            </section>
+          )}
         </div>
-
-      {song.chordImage?.dataUrl && (
-        <div className="image-preview song-image">
-          <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
-        </div>
-      )}
-      {song.notes.trim() && (
-        <section className="song-notes">
-          <div className="eyebrow">Notes</div>
-          <p>{renderNoteText(song.notes)}</p>
-        </section>
-      )}
       {song.youtubeUrl && (
         <section className="song-reference">
           <div className="eyebrow">Reference</div>
@@ -814,6 +895,7 @@ function GuitarChordDiagram({ chord, compact = false }: { chord: ChordDefinition
         })}
       </div>
       <div className="diagram-board" style={{ '--diagram-frets': fretCount } as CSSProperties}>
+        {markers.map((marker, index) => <span key={`string-${marker.label}`} className="diagram-string" style={{ left: `${((index + 0.5) / markers.length) * 100}%` }} aria-hidden="true" />)}
         {Array.from({ length: fretCount }, (_, index) => <span key={`fret-${index}`} className="diagram-fret" style={{ gridRow: index + 1 }} />)}
         {markers.map((marker, index) => marker.position > 0 && marker.position >= chord.baseFret && marker.position < chord.baseFret + fretCount
           ? <span key={marker.label} className="diagram-mark fretted" style={{ gridColumn: index + 1, gridRow: marker.position - chord.baseFret + 1 }}><small>{marker.finger}</small></span>
