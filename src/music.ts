@@ -3,7 +3,7 @@ export const keyOptions = ['C', 'Cm', 'C#', 'C#m', 'Db', 'D', 'Dm', 'D#', 'D#m',
 
 export type Notation = 'sharps' | 'flats' | 'auto'
 
-const PRACTICAL_CAPOS = Array.from({ length: 13 }, (_, index) => index)
+const PRACTICAL_CAPOS = Array.from({ length: 8 }, (_, index) => index)
 const OPEN_MAJOR = new Set(['C', 'G', 'D', 'A', 'E'])
 const OPEN_MINOR = new Set(['Am', 'Em', 'Dm'])
 const OPEN_SEVENTH = new Set(['C7', 'G7', 'D7', 'A7', 'E7', 'B7', 'Cmaj7', 'Dmaj7', 'Fmaj7', 'Amaj7', 'Emaj7'])
@@ -215,6 +215,12 @@ export type Guitar2Arrangement = {
   different: boolean
 }
 
+export type Guitar2Option = {
+  key: string
+  capo: number
+  sounding: string
+}
+
 function scoreArrangement(soundingChords: string[], guitar1Capo: number, capo: number, notation: Notation) {
   if (!soundingChords.length) return { capo, score: -Infinity, shapes: [] as string[], family: 'C' }
   const shapes = soundingChords.map((chord) => transposeChord(chord, -capo, notation))
@@ -254,6 +260,24 @@ export function guitar2ProgressionAtCapo(guitar1Text: string, guitar1Capo: numbe
   return transposeProgressionText(transposeProgressionText(guitar1Text, guitar1Capo, notation), -guitar2Capo, notation)
 }
 
+export function chooseBestGuitar2Option(options: Guitar2Option[], guitar1Text = '', guitar1Capo = 0, notation: Notation = 'auto') {
+  if (!options.length) return null
+  const soundingChords = collectProgressionChords(guitar1Text).map((chord) => transposeChord(chord, guitar1Capo, notation))
+  const ranked = options.map((option) => {
+    const shapes = soundingChords.length
+      ? soundingChords.map((chord) => transposeChord(chord, -option.capo, notation))
+      : [option.key]
+    const playability = shapes.reduce((sum, chord) => sum + shapePlayabilityScore(chord), 0) / shapes.length
+    const openFamily = shapes.filter((chord) => OPEN_MAJOR.has(chordRootAndSymbol(chord).root) || OPEN_MINOR.has(easyShapeName(chord))).length
+    const highCapoPenalty = Math.max(0, option.capo - 3) * 1.5
+    const sameAsGuitar1Penalty = option.capo === guitar1Capo ? 4 : 0
+    const score = playability * 10 + openFamily * 2 - option.capo * 0.5 - highCapoPenalty - sameAsGuitar1Penalty
+    return { option, score }
+  })
+  ranked.sort((left, right) => right.score - left.score || left.option.capo - right.option.capo || left.option.key.localeCompare(right.option.key))
+  return ranked[0]?.option ?? null
+}
+
 export function simplifyChord(chord: string) {
   return chord.replace(/(maj7|m7|7|sus[24]|add9|dim|aug|maj9|m9|9|6|m6|11|13|5)/gi, '').replace(/\/[A-G](?:#|b)?$/, '')
 }
@@ -277,7 +301,7 @@ export function isCompatibleGuitar2Option(concertKey: string, shapeKey: string, 
   return isEquivalentKey(soundingKey(shapeKey, capo, notation), concertKey)
 }
 
-export function generateCompatibleGuitar2Options(concertKey: string, notation: Notation = 'auto') {
+export function generateCompatibleGuitar2Options(concertKey: string, notation: Notation = 'auto'): Guitar2Option[] {
   const { root, quality } = parseKey(concertKey)
   const targetKey = `${root}${quality === 'minor' ? 'm' : ''}`
 

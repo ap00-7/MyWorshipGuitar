@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { generateCompatibleGuitar2Options, isCompatibleGuitar2Option, soundingKey, transposeKey } from '../src/music.ts'
+import { chooseBestGuitar2Option, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, soundingKey, transposeKey } from '../src/music.ts'
 
 const expectedMinorPairs = [
   ['Em', 'Am', 7],
@@ -84,4 +84,15 @@ test('transposeKey preserves major/minor quality', () => {
   assert.equal(transposeKey('Em', 2, 'auto'), 'F#m')
   assert.equal(transposeKey('Am', -1, 'auto'), 'G#m')
   assert.equal(transposeKey('E', 2, 'auto'), 'F#')
+})
+
+test('Guitar 2 recommendation is deterministic and independent of option order', () => {
+  const options = generateCompatibleGuitar2Options('Em')
+  const progression = 'C G Am F\nC G C'
+  const recommended = chooseBestGuitar2Option(options, progression, 0, 'auto')
+  const shuffled = chooseBestGuitar2Option([...options].reverse(), progression, 0, 'auto')
+
+  assert.ok(recommended)
+  assert.deepEqual(shuffled, recommended)
+  assert.equal(soundingKey(recommended.key, recommended.capo, 'auto'), 'Em')
 })
