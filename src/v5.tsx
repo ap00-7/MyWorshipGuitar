@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
+import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, soundingKey, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
 import { MetronomeEngine } from './metronome'
 import { suggestIntros, type IntroSuggestion } from './intro'
@@ -350,23 +350,27 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
   const sundayIndex = song ? sundaySongIds.indexOf(song.id) : -1
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [viewKey1, setViewKey1] = useState(song?.key ?? 'C')
-  const [viewKey2, setViewKey2] = useState(song?.key ?? 'C')
+  const [viewKey2, setViewKey2] = useState(song ? capoShapeKey(song.key, song.capo, settings.notation) : 'C')
   const [chordScale, setChordScale] = useState(1)
+  const [sheetOnly, setSheetOnly] = useState(false)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const nativeFullscreen = useRef(false)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const customGuitar2 = song ? hasCustomGuitar2(song) : false
+  const suggestion = song ? songGuitar2Arrangement(song, settings.notation) : { capo: 0, text: '', family: 'C', different: false }
+
+  useEffect(() => {
+    if (!song?.key) return
+    const defaultGuitar2 = capoShapeKey(song.key, customGuitar2 ? song.guitar2Capo : suggestion.capo, settings.notation)
+    setViewKey1(song.key)
+    setViewKey2(defaultGuitar2)
+  }, [song?.id, song?.key, customGuitar2, suggestion.capo, settings.notation])
+
   const activeDisplayKey = guitar === 1 ? viewKey1 : viewKey2
   const handleKeySelect = (nextKey: string) => {
     if (guitar === 1) setViewKey1(nextKey)
     else setViewKey2(nextKey)
   }
-  const [sheetOnly, setSheetOnly] = useState(false)
-  const sheetRef = useRef<HTMLDivElement>(null)
-  const nativeFullscreen = useRef(false)
-  const touchStart = useRef<{ x: number; y: number } | null>(null)
-
-  useEffect(() => {
-    if (!song?.key) return
-    setViewKey1(song.key)
-    setViewKey2(song.key)
-  }, [song?.id, song?.key])
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -402,10 +406,8 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
     return <Empty title="Song not found" />
   }
 
-  const customGuitar2 = hasCustomGuitar2(song)
-  const suggestion = songGuitar2Arrangement(song, settings.notation)
   const selectedCapo = guitar === 1 ? song.capo : (customGuitar2 ? song.guitar2Capo : suggestion.capo)
-  const viewKey = guitar === 1 ? viewKey1 : viewKey2
+  const viewKey = guitar === 1 ? viewKey1 : soundingKey(viewKey2, selectedCapo, settings.notation)
   const setViewKey = guitar === 1 ? setViewKey1 : setViewKey2
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
@@ -470,7 +472,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
         <strong>{shapeKey}</strong>
         <small>Concert key {viewKey} · Guitar {guitar}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
-        <button onClick={() => setViewKey(song.key)}>Original</button>
+        <button onClick={() => setViewKey(guitar === 1 ? song.key : capoShapeKey(song.key, selectedCapo, settings.notation))}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
         <select value={activeDisplayKey} onChange={(event) => handleKeySelect(event.target.value)} aria-label="Select key">
           {keyOptions.map((key) => <option key={key}>{key}</option>)}
@@ -512,11 +514,17 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
             <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
           </div>
         )}
+        {sheetOnly && song.notes.trim() && (
+          <section className="song-notes">
+            <div className="eyebrow">Notes</div>
+            <p>{renderNoteText(song.notes)}</p>
+          </section>
+        )}
       </div>
 
-      <Metronome key={song.id} initialBpm={song.bpm} />
+      {!sheetOnly && <Metronome key={song.id} initialBpm={song.bpm} />}
 
-      {song.notes.trim() && (
+      {!sheetOnly && song.notes.trim() && (
         <section className="song-notes">
           <div className="eyebrow">Notes</div>
           <p>{renderNoteText(song.notes)}</p>
@@ -1000,21 +1008,30 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
 function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist; songs: Song[]; settings: Settings; onClose: () => void }) {
   const [index, setIndex] = useState(0)
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null)
+  const [guitar, setGuitar] = useState<1 | 2>(1)
+  const [viewKey1, setViewKey1] = useState('C')
+  const [viewKey2, setViewKey2] = useState('C')
   const songIds = sunday.songIds
   const currentSongId = songIds[index]
   const currentSong = songs.find((song) => song.id === currentSongId) ?? null
+
+  useEffect(() => {
+    if (!currentSong) return
+    setViewKey1(currentSong.key)
+    setViewKey2(capoShapeKey(currentSong.key, currentSong.capo, settings.notation))
+  }, [currentSong?.id, currentSong?.key, settings.notation])
 
   const goTo = (nextIndex: number) => {
     if (nextIndex < 0 || nextIndex >= songIds.length) return
     setIndex(nextIndex)
   }
 
-  const handleTouchStartEvent = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleTouchStartEvent = (event: TouchEvent<HTMLDivElement>) => {
     const touch = event.touches[0]
     setTouchStart({ x: touch.clientX, y: touch.clientY })
   }
 
-  const handleTouchEndEvent = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleTouchEndEvent = (event: TouchEvent<HTMLDivElement>) => {
     if (!touchStart) return
     const touch = event.changedTouches[0]
     const deltaX = touch.clientX - touchStart.x
@@ -1035,6 +1052,17 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
     )
   }
 
+  const customGuitar2 = hasCustomGuitar2(currentSong)
+  const suggestion = songGuitar2Arrangement(currentSong, settings.notation)
+  const selectedCapo = guitar === 1 ? currentSong.capo : (customGuitar2 ? currentSong.guitar2Capo : suggestion.capo)
+  const activeDisplayKey = guitar === 1 ? viewKey1 : viewKey2
+  const displayConcertKey = guitar === 1 ? viewKey1 : soundingKey(viewKey2, selectedCapo, settings.notation)
+  const shapeKey = capoShapeKey(displayConcertKey, selectedCapo, settings.notation)
+  const updateKey = (amount: number) => {
+    if (guitar === 1) setViewKey1((current) => shiftKey(current, amount, settings.notation))
+    else setViewKey2((current) => shiftKey(current, amount, settings.notation))
+  }
+
   const isFirst = index === 0
   const isLast = index === songIds.length - 1
 
@@ -1048,6 +1076,27 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
         <button className="secondary-button" onClick={onClose}>Exit flow</button>
       </div>
 
+      <div className="song-key-bar worship-flow-key-bar">
+        <strong>{shapeKey}</strong>
+        <small>Concert key {displayConcertKey} · Guitar {guitar}</small>
+        <button onClick={() => updateKey(-1)}>−1</button>
+        <button onClick={() => {
+          if (guitar === 1) setViewKey1(currentSong.key)
+          else setViewKey2(capoShapeKey(currentSong.key, selectedCapo, settings.notation))
+        }}>Original</button>
+        <button onClick={() => updateKey(1)}>＋1</button>
+        <select value={activeDisplayKey} onChange={(event) => {
+          if (guitar === 1) setViewKey1(event.target.value)
+          else setViewKey2(event.target.value)
+        }} aria-label="Select key">
+          {keyOptions.map((key) => <option key={key}>{key}</option>)}
+        </select>
+        <div className="guitar-switch">
+          <button className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>
+          <button className={guitar === 2 ? 'active' : ''} onClick={() => setGuitar(2)}>Guitar 2</button>
+        </div>
+      </div>
+
       <div className="worship-flow-status">
         <span>{isFirst ? 'First song' : isLast ? 'Final song' : `Song ${index + 1} of ${songIds.length}`}</span>
       </div>
@@ -1059,22 +1108,28 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
             <h3>{currentSong.title}</h3>
           </div>
           <div className="worship-flow-keys">
-            <span>Key {currentSong.key}</span>
-            <span>Capo {currentSong.capo}</span>
+            <span>Concert Key {displayConcertKey}</span>
+            <span>{guitar === 2 ? `Guitar 2: ${shapeKey} shapes` : `Guitar 1: ${shapeKey} shapes`}</span>
+            <span>Capo {selectedCapo}</span>
           </div>
         </div>
 
         <div className="worship-flow-sections">
-          {currentSong.sections.map((section) => (
-            <section className="continuous-section" key={section.id || section.name}>
-              <div className="continuous-label">{section.name.toUpperCase()}</div>
-              {(section.chordText || '').split(/\n/).filter(Boolean).map((line, lineIndex) => (
-                <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
-                  <span className="chord-text">{line}</span>
-                </div>
-              ))}
-            </section>
-          ))}
+          {currentSong.sections.map((section) => {
+            const lines = guitar === 2
+              ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, currentSong.capo, selectedCapo) })
+              : sectionChordLines(section)
+            return (
+              <section className="continuous-section" key={section.id || section.name}>
+                <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · suggested capo ${suggestion.capo}` : ''}</div>
+                {lines.map((line, lineIndex) => (
+                  <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
+                    <span className="chord-text">{formatTransposedChordLine(line, (noteIndex(displayConcertKey) - noteIndex(currentSong.key) + 12) % 12, settings.notation, settings.simplify)}</span>
+                  </div>
+                ))}
+              </section>
+            )
+          })}
         </div>
       </article>
 
@@ -1086,7 +1141,7 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
   )
 }
 
-export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void; isOwner: boolean }) {
+export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, onDuplicate, isOwner }: { songs: Song[]; setlists: Setlist[]; settings: Settings; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void; isOwner: boolean }) {
   const [searchParams] = useSearchParams()
   const [selectedSundayId, setSelectedSundayId] = useState(() => searchParams.get('sunday') || '')
   const [query, setQuery] = useState('')
@@ -1130,7 +1185,7 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
   }
 
   if (flowOpen) {
-    return <WorshipFlowMode sunday={sunday} songs={songs} settings={{} as Settings} onClose={() => setFlowOpen(false)} />
+    return <WorshipFlowMode sunday={sunday} songs={songs} settings={settings} onClose={() => setFlowOpen(false)} />
   }
 
   return (
