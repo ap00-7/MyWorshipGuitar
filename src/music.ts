@@ -1,5 +1,5 @@
 export const chromatic = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-export const keyOptions = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B']
+export const keyOptions = ['C', 'Cm', 'C#', 'C#m', 'Db', 'D', 'Dm', 'D#', 'D#m', 'Eb', 'E', 'Em', 'F', 'Fm', 'F#', 'F#m', 'Gb', 'G', 'Gm', 'G#', 'G#m', 'Ab', 'A', 'Am', 'A#', 'A#m', 'Bb', 'B', 'Bm']
 
 export type Notation = 'sharps' | 'flats' | 'auto'
 
@@ -79,15 +79,21 @@ export function noteAccidental(note: string): 'sharp' | 'flat' | 'natural' {
 }
 
 export function normalizeKey(key: string) {
-  return sharpNames[noteIndex(key)] || 'C'
+  const trimmed = String(key ?? '').trim()
+  const rootMatch = trimmed.match(/^([A-G](?:#|b)?)/i)
+  return (rootMatch ? rootMatch[1] : sharpNames[noteIndex(trimmed)] || 'C').replace(/m$/i, '')
 }
 
 export function keyQuality(key: string) {
-  return /m$/i.test(key.trim()) ? 'minor' : 'major'
+  const trimmed = String(key ?? '').trim()
+  if (/(?:^|\s)m$/i.test(trimmed) || /(?:^|\s)minor$/i.test(trimmed)) return 'minor'
+  return /(?:^|\s)[A-G](?:#|b)?m$/i.test(trimmed) || /(?:^|\s)[A-G](?:#|b)?minor$/i.test(trimmed) ? 'minor' : 'major'
 }
 
 export function keyRoot(key: string) {
-  return normalizeKey(key.trim().replace(/m$/i, ''))
+  const trimmed = String(key ?? '').trim()
+  const rootMatch = trimmed.match(/^([A-G](?:#|b)?)/i)
+  return normalizeKey(rootMatch ? rootMatch[1] : trimmed)
 }
 
 export function isEquivalentKey(left: string, right: string) {
@@ -95,9 +101,9 @@ export function isEquivalentKey(left: string, right: string) {
 }
 
 function parseKey(key: string) {
-  const trimmed = key.trim()
-  const quality = keyQuality(trimmed)
+  const trimmed = String(key ?? '').trim()
   const root = keyRoot(trimmed)
+  const quality = keyQuality(trimmed)
   return { root, quality }
 }
 
@@ -296,7 +302,7 @@ export function generateCompatibleGuitar2Options(concertKey: string, notation: N
 }
 
 export function shiftKey(key: string, amount: number, notation: Notation = 'auto') {
-  return transposeNote(key, amount, notation)
+  return transposeKey(key, amount, notation)
 }
 
 function pad2(value: number) {
