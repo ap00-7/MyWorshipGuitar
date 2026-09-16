@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, noteIndex, parseChordProgression, shiftKey, simplifyChord, soundingKey, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
+import { capoShapeKey, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, noteIndex, parseChordProgression, shiftKey, simplifyChord, soundingKey, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
 import { MetronomeEngine } from './metronome'
 import { suggestIntros, type IntroSuggestion } from './intro'
@@ -351,6 +351,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [viewKey1, setViewKey1] = useState(song?.key ?? 'C')
   const [viewKey2, setViewKey2] = useState(song ? capoShapeKey(song.key, song.capo, settings.notation) : 'C')
+  const [guitar2Capo, setGuitar2Capo] = useState(song ? song.capo : 0)
   const [chordScale, setChordScale] = useState(1)
   const [sheetOnly, setSheetOnly] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -358,18 +359,33 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const customGuitar2 = song ? hasCustomGuitar2(song) : false
   const suggestion = song ? songGuitar2Arrangement(song, settings.notation) : { capo: 0, text: '', family: 'C', different: false }
+  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation), [viewKey1, settings.notation])
 
   useEffect(() => {
     if (!song?.key) return
-    const defaultGuitar2 = capoShapeKey(song.key, customGuitar2 ? song.guitar2Capo : suggestion.capo, settings.notation)
     setViewKey1(song.key)
-    setViewKey2(defaultGuitar2)
-  }, [song?.id, song?.key, customGuitar2, suggestion.capo, settings.notation])
+    const defaultGuitar2 = compatibleGuitar2Options.find((option) => option.key === capoShapeKey(song.key, song.capo, settings.notation)) ?? compatibleGuitar2Options[0] ?? { key: capoShapeKey(song.key, 0, settings.notation), capo: 0 }
+    setViewKey2(defaultGuitar2.key)
+    setGuitar2Capo(defaultGuitar2.capo)
+  }, [song?.id, song?.key, settings.notation])
+
+  useEffect(() => {
+    if (!compatibleGuitar2Options.length) return
+    const currentSelection = compatibleGuitar2Options.find((option) => option.key === viewKey2) ?? compatibleGuitar2Options[0]
+    setViewKey2(currentSelection.key)
+    setGuitar2Capo(currentSelection.capo)
+  }, [viewKey1, settings.notation])
 
   const activeDisplayKey = guitar === 1 ? viewKey1 : viewKey2
   const handleKeySelect = (nextKey: string) => {
-    if (guitar === 1) setViewKey1(nextKey)
-    else setViewKey2(nextKey)
+    if (guitar === 1) {
+      setViewKey1(nextKey)
+      return
+    }
+    const option = compatibleGuitar2Options.find((candidate) => candidate.key === nextKey) ?? compatibleGuitar2Options[0]
+    if (!option) return
+    setViewKey2(option.key)
+    setGuitar2Capo(option.capo)
   }
 
   useEffect(() => {
@@ -406,15 +422,24 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
     return <Empty title="Song not found" />
   }
 
-  const selectedCapo = guitar === 1 ? song.capo : (customGuitar2 ? song.guitar2Capo : suggestion.capo)
+  const selectedCapo = guitar === 1 ? song.capo : guitar2Capo
   const viewKey = guitar === 1 ? viewKey1 : soundingKey(viewKey2, selectedCapo, settings.notation)
-  const setViewKey = guitar === 1 ? setViewKey1 : setViewKey2
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
   const currentGuitar2Text = song.sections.map((section) => guitar2TextForSection(section, settings.notation, song.capo, selectedCapo)).join('\n')
   const currentGuitar1Text = song.sections.map((section) => section.chordText).join('\n')
   const introText = guitar === 1 ? currentGuitar1Text : currentGuitar2Text
-  const updateKey = (amount: number) => setViewKey((current) => shiftKey(current, amount, settings.notation))
+  const updateKey = (amount: number) => {
+    if (guitar === 1) {
+      setViewKey1((current) => shiftKey(current, amount, settings.notation))
+      return
+    }
+    const nextKey = shiftKey(viewKey2, amount, settings.notation)
+    const option = compatibleGuitar2Options.find((candidate) => candidate.key === nextKey) ?? compatibleGuitar2Options.find((candidate) => candidate.key === normalizeKey(nextKey)) ?? compatibleGuitar2Options[0]
+    if (!option) return
+    setViewKey2(option.key)
+    setGuitar2Capo(option.capo)
+  }
   const enterSheetOnly = async () => {
     setSheetOnly(true)
     if (!sheetRef.current?.requestFullscreen) return
@@ -472,10 +497,18 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
         <strong>{shapeKey}</strong>
         <small>Concert key {viewKey} · Guitar {guitar}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
-        <button onClick={() => setViewKey(guitar === 1 ? song.key : capoShapeKey(song.key, selectedCapo, settings.notation))}>Original</button>
+        <button onClick={() => {
+          if (guitar === 1) setViewKey1(song.key)
+          else {
+            const option = compatibleGuitar2Options.find((candidate) => candidate.key === capoShapeKey(song.key, song.capo, settings.notation)) ?? compatibleGuitar2Options[0]
+            if (!option) return
+            setViewKey2(option.key)
+            setGuitar2Capo(option.capo)
+          }
+        }}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
         <select value={activeDisplayKey} onChange={(event) => handleKeySelect(event.target.value)} aria-label="Select key">
-          {keyOptions.map((key) => <option key={key}>{key}</option>)}
+          {(guitar === 1 ? keyOptions : compatibleGuitar2Options.map((option) => option.key)).map((key) => <option key={key} value={key}>{key}</option>)}
         </select>
         <div className="guitar-switch">
           <button className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>
@@ -1011,15 +1044,27 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [viewKey1, setViewKey1] = useState('C')
   const [viewKey2, setViewKey2] = useState('C')
+  const [guitar2Capo, setGuitar2Capo] = useState(0)
   const songIds = sunday.songIds
   const currentSongId = songIds[index]
   const currentSong = songs.find((song) => song.id === currentSongId) ?? null
 
+  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation), [viewKey1, settings.notation])
+
   useEffect(() => {
     if (!currentSong) return
     setViewKey1(currentSong.key)
-    setViewKey2(capoShapeKey(currentSong.key, currentSong.capo, settings.notation))
+    const defaultOption = compatibleGuitar2Options.find((option) => option.key === capoShapeKey(currentSong.key, currentSong.capo, settings.notation)) ?? compatibleGuitar2Options[0] ?? { key: capoShapeKey(currentSong.key, 0, settings.notation), capo: 0 }
+    setViewKey2(defaultOption.key)
+    setGuitar2Capo(defaultOption.capo)
   }, [currentSong?.id, currentSong?.key, settings.notation])
+
+  useEffect(() => {
+    if (!compatibleGuitar2Options.length) return
+    const currentSelection = compatibleGuitar2Options.find((option) => option.key === viewKey2) ?? compatibleGuitar2Options[0]
+    setViewKey2(currentSelection.key)
+    setGuitar2Capo(currentSelection.capo)
+  }, [viewKey1, settings.notation])
 
   const goTo = (nextIndex: number) => {
     if (nextIndex < 0 || nextIndex >= songIds.length) return
@@ -1054,13 +1099,20 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
 
   const customGuitar2 = hasCustomGuitar2(currentSong)
   const suggestion = songGuitar2Arrangement(currentSong, settings.notation)
-  const selectedCapo = guitar === 1 ? currentSong.capo : (customGuitar2 ? currentSong.guitar2Capo : suggestion.capo)
+  const selectedCapo = guitar === 1 ? currentSong.capo : guitar2Capo
   const activeDisplayKey = guitar === 1 ? viewKey1 : viewKey2
   const displayConcertKey = guitar === 1 ? viewKey1 : soundingKey(viewKey2, selectedCapo, settings.notation)
   const shapeKey = capoShapeKey(displayConcertKey, selectedCapo, settings.notation)
   const updateKey = (amount: number) => {
-    if (guitar === 1) setViewKey1((current) => shiftKey(current, amount, settings.notation))
-    else setViewKey2((current) => shiftKey(current, amount, settings.notation))
+    if (guitar === 1) {
+      setViewKey1((current) => shiftKey(current, amount, settings.notation))
+      return
+    }
+    const nextKey = shiftKey(viewKey2, amount, settings.notation)
+    const option = compatibleGuitar2Options.find((candidate) => candidate.key === nextKey) ?? compatibleGuitar2Options.find((candidate) => candidate.key === normalizeKey(nextKey)) ?? compatibleGuitar2Options[0]
+    if (!option) return
+    setViewKey2(option.key)
+    setGuitar2Capo(option.capo)
   }
 
   const isFirst = index === 0
@@ -1082,14 +1134,24 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => {
           if (guitar === 1) setViewKey1(currentSong.key)
-          else setViewKey2(capoShapeKey(currentSong.key, selectedCapo, settings.notation))
+          else {
+            const option = compatibleGuitar2Options.find((candidate) => candidate.key === capoShapeKey(currentSong.key, currentSong.capo, settings.notation)) ?? compatibleGuitar2Options[0]
+            if (!option) return
+            setViewKey2(option.key)
+            setGuitar2Capo(option.capo)
+          }
         }}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
         <select value={activeDisplayKey} onChange={(event) => {
           if (guitar === 1) setViewKey1(event.target.value)
-          else setViewKey2(event.target.value)
+          else {
+            const option = compatibleGuitar2Options.find((candidate) => candidate.key === event.target.value) ?? compatibleGuitar2Options[0]
+            if (!option) return
+            setViewKey2(option.key)
+            setGuitar2Capo(option.capo)
+          }
         }} aria-label="Select key">
-          {keyOptions.map((key) => <option key={key}>{key}</option>)}
+          {(guitar === 1 ? keyOptions : compatibleGuitar2Options.map((option) => option.key)).map((key) => <option key={key} value={key}>{key}</option>)}
         </select>
         <div className="guitar-switch">
           <button className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>

@@ -241,6 +241,13 @@ export function soundingKey(shapeKey: string, capo: number, notation: Notation) 
   return transposeNote(shapeKey, capo, notation)
 }
 
+export function generateCompatibleGuitar2Options(concertKey: string, notation: Notation = 'auto') {
+  return Array.from({ length: 13 }, (_, capo) => ({
+    key: normalizeKey(capoShapeKey(concertKey, capo, notation)),
+    capo,
+  })).filter((option, index, options) => options.findIndex((candidate) => candidate.key === option.key) === index)
+}
+
 export function shiftKey(key: string, amount: number, notation: Notation = 'auto') {
   return transposeNote(key, amount, notation)
 }
