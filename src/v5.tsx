@@ -63,8 +63,8 @@ type SelectedGuitar2Option = {
 
 const selectCompatibleGuitar2Option = (concertKey: string, options: ReturnType<typeof generateCompatibleGuitar2Options>, requestedShapeKey: string | undefined, guitar1Text: string, guitar1Capo: number, notation: Notation) => {
   const option = options.find((candidate) => candidate.key === requestedShapeKey)
-    ?? options.find((candidate) => normalizeKey(candidate.key) === normalizeKey(requestedShapeKey || ''))
-    ?? chooseBestGuitar2Option(options, guitar1Text, guitar1Capo, notation)
+    ?? (requestedShapeKey ? options.find((candidate) => normalizeKey(candidate.key) === normalizeKey(requestedShapeKey)) : undefined)
+    ?? chooseBestGuitar2Option(options.filter((candidate) => normalizeKey(candidate.key) !== normalizeKey(capoShapeKey(concertKey, guitar1Capo, notation))), guitar1Text, guitar1Capo, notation)
   return option ? { shapeKey: option.key, capo: option.capo, concertKey } : null
 }
 
