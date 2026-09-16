@@ -6,6 +6,8 @@ import { centsFromFrequency, detectPitch, frequencyToNote, GUITAR_STRINGS, neare
 export const IN_TUNE_THRESHOLD = 5
 const HISTORY_LIMIT = 8
 const MIN_CONFIDENCE = 0.6
+const STALE_PITCH_MS = 320
+const REQUIRED_STABLE_FRAMES = 3
 
 type DetectedTuning = {
   frequency: number
@@ -42,6 +44,7 @@ export function TunerPage() {
   const frameRef = useRef<number | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const frequencyHistoryRef = useRef<number[]>([])
+  const lastDetectedAtRef = useRef(0)
   const startRequestRef = useRef(0)
   const startingRef = useRef(false)
 
@@ -57,6 +60,7 @@ export function TunerPage() {
     void audioContextRef.current?.close()
     audioContextRef.current = null
     frequencyHistoryRef.current = []
+    lastDetectedAtRef.current = 0
     setIsRunning(false)
     setPitch(null)
     setMessage('Play a string')
@@ -112,11 +116,22 @@ export function TunerPage() {
 
         if (result && result.confidence >= MIN_CONFIDENCE) {
           const nextHistory = [...frequencyHistoryRef.current, result.frequency].slice(-HISTORY_LIMIT)
+          const previousFrequency = nextHistory.length > 1 ? nextHistory[nextHistory.length - 2] : result.frequency
+          if (nextHistory.length > 1 && Math.abs(Math.log2(result.frequency / previousFrequency)) > 0.35) {
+            frequencyHistoryRef.current = [result.frequency]
+            frameRef.current = requestAnimationFrame(readPitch)
+            return
+          }
           const smoothedFrequency = nextHistory.length >= 3
             ? weightedAverage(nextHistory) * 0.65 + median(nextHistory) * 0.35
             : result.frequency
 
           frequencyHistoryRef.current = nextHistory
+          if (nextHistory.length < REQUIRED_STABLE_FRAMES) {
+            frameRef.current = requestAnimationFrame(readPitch)
+            return
+          }
+          lastDetectedAtRef.current = performance.now()
           const detectedString = nearestString(smoothedFrequency)
           const detectedNote = frequencyToNote(smoothedFrequency)
           const cents = centsFromFrequency(smoothedFrequency, detectedString.frequency)
@@ -129,7 +144,7 @@ export function TunerPage() {
             string: detectedString,
           })
           setMessage('')
-        } else {
+        } else if (performance.now() - lastDetectedAtRef.current > STALE_PITCH_MS) {
           frequencyHistoryRef.current = []
           setPitch(null)
           setMessage('Listening…')

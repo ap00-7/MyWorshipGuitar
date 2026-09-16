@@ -12,10 +12,11 @@ export const GUITAR_STRINGS = [
   { number: 1, note: 'E', octave: 4, frequency: 329.6276 },
 ] as const
 
-const MIN_FREQUENCY = 70
-const MAX_FREQUENCY = 400
+const MIN_FREQUENCY = 65
+const MAX_FREQUENCY = 500
 const MIN_RMS = 0.01
-const YIN_THRESHOLD = 0.18
+const YIN_THRESHOLD = 0.2
+const CANDIDATE_MARGIN = 0.06
 
 export function centsFromFrequency(frequency: number, targetFrequency: number) {
   return 1200 * Math.log2(frequency / targetFrequency)
@@ -71,28 +72,18 @@ export function detectPitch(buffer: Float32Array, sampleRate: number): PitchDete
   const maxTau = Math.min(buffer.length - 2, Math.floor(sampleRate / MIN_FREQUENCY))
   if (maxTau <= minTau) return null
 
-  const difference = new Float32Array(maxTau + 1)
   const yin = new Float32Array(maxTau + 1)
   let running = 0
-  let bestTau = minTau
-  let bestValue = Number.POSITIVE_INFINITY
 
-  for (let tau = minTau; tau <= maxTau; tau += 1) {
+  for (let tau = 1; tau <= maxTau; tau += 1) {
     let sum = 0
     for (let index = 0; index < buffer.length - tau; index += 1) {
       const delta = centered[index] - centered[index + tau]
       sum += delta * delta
     }
 
-    difference[tau] = sum
     running += sum
-    const value = running === 0 ? 1 : (sum / Math.max(running, 1)) * tau
-    yin[tau] = value
-
-    if (value < bestValue) {
-      bestValue = value
-      bestTau = tau
-    }
+    yin[tau] = running === 0 ? 1 : (sum * tau) / running
   }
 
   const candidates: { tau: number; value: number; frequency: number }[] = []
@@ -111,21 +102,12 @@ export function detectPitch(buffer: Float32Array, sampleRate: number): PitchDete
 
   if (!candidates.length) return null
 
-  const scoredCandidates = candidates.map((candidate) => {
-    const target = nearestString(candidate.frequency)
-    const offset = Math.abs(centsFromFrequency(candidate.frequency, target.frequency))
-    const harmonicPenalty = Math.abs(Math.round(Math.log2(candidate.frequency / target.frequency))) > 0 ? 0.35 : 0
-    return { ...candidate, offset, score: candidate.value + harmonicPenalty + offset / 1000 }
-  })
-
-  scoredCandidates.sort((a, b) => a.score - b.score)
-  const preferred = scoredCandidates[0]
-
-  if (preferred.offset > 250) return null
+  const bestValue = Math.min(...candidates.map((candidate) => candidate.value))
+  const preferred = candidates.find((candidate) => candidate.value <= bestValue + CANDIDATE_MARGIN) ?? candidates[0]
 
   const confidence = clamp(1 - preferred.value / YIN_THRESHOLD, 0, 1)
   return {
     frequency: preferred.frequency,
-    confidence: confidence * (preferred.offset < 100 ? 1 : 0.85),
+    confidence,
   }
 }

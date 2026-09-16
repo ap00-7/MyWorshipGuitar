@@ -907,6 +907,66 @@ nav {
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 4px;
 }
+.diagram-position {
+  min-height: 16px;
+  color: var(--muted);
+  font: 600 10px 'DM Mono', monospace;
+  text-align: left;
+}
+
+.diagram-board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(var(--diagram-frets), 24px);
+  position: relative;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+.diagram-fret, .diagram-nut {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+  pointer-events: none;
+}
+
+.diagram-nut { border-top: 3px solid var(--ink); }
+
+.diagram-mark {
+  z-index: 1;
+  justify-self: center;
+  align-self: center;
+  min-width: 18px;
+  min-height: 18px;
+  color: var(--accent);
+  font: 700 16px 'DM Mono', monospace;
+  text-align: center;
+}
+
+.diagram-mark.open, .diagram-mark.muted { transform: none; }
+.diagram-mark.open { color: var(--sage); }
+.diagram-mark.muted { color: var(--muted); }
+.diagram-mark.fretted { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--paper); font-size: 0; }
+.diagram-mark small { display: block; font-size: 8px; line-height: 18px; color: var(--paper); }
+
+.diagram-markers {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  min-height: 20px;
+}
+
+.diagram-board {
+  background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(16.666% - 1px), var(--line) calc(16.666% - 1px), var(--line) 16.666%);
+}
+
+.diagram-fret:first-child { border-top-width: 3px; border-top-color: var(--ink); }
+.diagram-barre {
+  z-index: 2;
+  align-self: center;
+  height: 10px;
+  margin: 0 8px;
+  border-radius: 8px;
+  background: var(--accent);
+}
 
 .diagram-cell {
   display: flex;

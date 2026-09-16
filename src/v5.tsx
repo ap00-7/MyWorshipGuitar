@@ -15,6 +15,7 @@ type ChordDefinition = {
   fingers: string[]
   difficulty: string
   baseFret: number
+  barre?: number
 }
 const rootOptions = ['All', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 const typeOptions = ['All', 'Major', 'Minor', '7', 'Maj7', 'm7', 'Sus2', 'Sus4', 'Add9', 'Dim', 'Aug', '6', '9', '11', '13', '5', 'Slash']
@@ -58,7 +59,6 @@ const sectionChordLines = (section: Section) => {
   if (typeof section.chordText === 'string' && section.chordText.trim()) {
     return section.chordText.split(/\n/).filter(Boolean)
   }
-
   if (Array.isArray(section.chordLines) && section.chordLines.length) {
     return section.chordLines.filter(Boolean)
   }
@@ -674,53 +674,53 @@ export function ChordLibrary() {
 
   const chordDatabase = useMemo<ChordDefinition[]>(() => [
     { name: 'A', root: 'A', type: 'Major', notes: ['A', 'C#', 'E'], strings: [-1, 0, 2, 2, 2, 0], fingers: ['x', '0', '2', '2', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Am', root: 'A', type: 'Minor', notes: ['A', 'C', 'E'], strings: [-1, 0, 1, 2, 2, 0], fingers: ['x', '0', '1', '2', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Am', root: 'A', type: 'Minor', notes: ['A', 'C', 'E'], strings: [-1, 0, 2, 2, 1, 0], fingers: ['x', '0', '2', '3', '1', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'A7', root: 'A', type: '7', notes: ['A', 'C#', 'E', 'G'], strings: [-1, 0, 2, 0, 2, 0], fingers: ['x', '0', '2', '0', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'B7', root: 'B', type: '7', notes: ['B', 'D#', 'F#', 'A'], strings: [-1, 2, 1, 2, 0, 2], fingers: ['x', '2', '1', '2', '0', '2'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'C', root: 'C', type: 'Major', notes: ['C', 'E', 'G'], strings: [-1, 1, 0, 2, 3, 0], fingers: ['x', '1', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'C7', root: 'C', type: '7', notes: ['C', 'E', 'G', 'Bb'], strings: [-1, 1, 3, 2, 3, 1], fingers: ['x', '1', '3', '2', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Cmaj7', root: 'C', type: 'Maj7', notes: ['C', 'E', 'G', 'B'], strings: [-1, 0, 0, 2, 0, 0], fingers: ['x', '0', '0', '2', '0', '0'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Cadd9', root: 'C', type: 'Add9', notes: ['C', 'E', 'G', 'D'], strings: [-1, 3, 0, 2, 3, 0], fingers: ['x', '3', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Csus2', root: 'C', type: 'Sus2', notes: ['C', 'D', 'G'], strings: [-1, 3, 0, 0, 1, 1], fingers: ['x', '3', '0', '0', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Csus4', root: 'C', type: 'Sus4', notes: ['C', 'F', 'G'], strings: [-1, 1, 1, 2, 3, 1], fingers: ['x', '1', '1', '2', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'C', root: 'C', type: 'Major', notes: ['C', 'E', 'G'], strings: [-1, 3, 2, 0, 1, 0], fingers: ['x', '3', '2', '0', '1', '0'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'C7', root: 'C', type: '7', notes: ['C', 'E', 'G', 'Bb'], strings: [-1, 3, 2, 3, 1, 0], fingers: ['x', '3', '2', '4', '1', '0'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Cmaj7', root: 'C', type: 'Maj7', notes: ['C', 'E', 'G', 'B'], strings: [-1, 3, 2, 0, 0, 0], fingers: ['x', '3', '2', '0', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Cadd9', root: 'C', type: 'Add9', notes: ['C', 'D', 'E', 'G'], strings: [-1, 3, 2, 0, 3, 3], fingers: ['x', '3', '2', '0', '3', '4'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Csus2', root: 'C', type: 'Sus2', notes: ['C', 'D', 'G'], strings: [-1, 3, 0, 0, 1, 3], fingers: ['x', '3', '0', '0', '1', '4'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Csus4', root: 'C', type: 'Sus4', notes: ['C', 'F', 'G'], strings: [-1, 3, 3, 0, 1, 1], fingers: ['x', '3', '4', '0', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'D', root: 'D', type: 'Major', notes: ['D', 'F#', 'A'], strings: [-1, -1, 0, 2, 3, 2], fingers: ['x', 'x', '0', '2', '3', '2'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Dm', root: 'D', type: 'Minor', notes: ['D', 'F', 'A'], strings: [-1, -1, 0, 2, 3, 1], fingers: ['x', 'x', '0', '2', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'D7', root: 'D', type: '7', notes: ['D', 'F#', 'A', 'C'], strings: [-1, -1, 0, 2, 1, 2], fingers: ['x', 'x', '0', '2', '1', '2'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Dm7', root: 'D', type: 'm7', notes: ['D', 'F', 'A', 'C'], strings: [-1, -1, 0, 2, 1, 1], fingers: ['x', 'x', '0', '2', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Dmaj7', root: 'D', type: 'Maj7', notes: ['D', 'F#', 'A', 'C#'], strings: [-1, -1, 0, 2, 2, 2], fingers: ['x', 'x', '0', '2', '2', '2'], difficulty: 'Intermediate', baseFret: 1 },
     { name: 'Dsus2', root: 'D', type: 'Sus2', notes: ['D', 'E', 'A'], strings: [-1, -1, 0, 2, 3, 0], fingers: ['x', 'x', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dsus4', root: 'D', type: 'Sus4', notes: ['D', 'G', 'A'], strings: [-1, -1, 0, 3, 3, 1], fingers: ['x', 'x', '0', '3', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Dsus4', root: 'D', type: 'Sus4', notes: ['D', 'G', 'A'], strings: [-1, -1, 0, 2, 3, 3], fingers: ['x', 'x', '0', '1', '2', '3'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'E', root: 'E', type: 'Major', notes: ['E', 'G#', 'B'], strings: [0, 2, 2, 1, 0, 0], fingers: ['0', '2', '2', '1', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Em', root: 'E', type: 'Minor', notes: ['E', 'G', 'B'], strings: [0, 2, 2, 0, 0, 0], fingers: ['0', '2', '2', '0', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'E7', root: 'E', type: '7', notes: ['E', 'G#', 'B', 'D'], strings: [0, 2, 0, 1, 0, 0], fingers: ['0', '2', '0', '1', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Em7', root: 'E', type: 'm7', notes: ['E', 'G', 'B', 'D'], strings: [0, 2, 0, 0, 0, 0], fingers: ['0', '2', '0', '0', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Eadd9', root: 'E', type: 'Add9', notes: ['E', 'G#', 'B', 'F#'], strings: [0, 2, 2, 1, 0, 2], fingers: ['0', '2', '2', '1', '0', '2'], difficulty: 'Intermediate', baseFret: 1 },
     { name: 'Esus4', root: 'E', type: 'Sus4', notes: ['E', 'A', 'B'], strings: [0, 2, 2, 2, 0, 0], fingers: ['0', '2', '2', '2', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'F', root: 'F', type: 'Major', notes: ['F', 'A', 'C'], strings: [1, 1, 2, 3, 3, 1], fingers: ['1', '1', '2', '3', '3', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Fmaj7', root: 'F', type: 'Maj7', notes: ['F', 'A', 'C', 'E'], strings: [-1, 3, 2, 3, 2, 1], fingers: ['x', '3', '2', '3', '2', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Fadd9', root: 'F', type: 'Add9', notes: ['F', 'A', 'C', 'G'], strings: [1, 1, 3, 3, 1, 1], fingers: ['1', '1', '3', '3', '1', '1'], difficulty: 'Intermediate', baseFret: 1 },
+    { name: 'F', root: 'F', type: 'Major', notes: ['F', 'A', 'C'], strings: [1, 3, 3, 2, 1, 1], fingers: ['1', '3', '4', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
+    { name: 'Fmaj7', root: 'F', type: 'Maj7', notes: ['C', 'E', 'F', 'A'], strings: [-1, -1, 3, 2, 1, 0], fingers: ['x', 'x', '3', '2', '1', '0'], difficulty: 'Intermediate', baseFret: 1 },
+    { name: 'Fadd9', root: 'F', type: 'Add9', notes: ['A', 'C', 'F', 'G'], strings: [1, 3, 3, 2, 1, 3], fingers: ['1', '3', '4', '2', '1', '4'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
     { name: 'G', root: 'G', type: 'Major', notes: ['G', 'B', 'D'], strings: [3, 2, 0, 0, 0, 3], fingers: ['3', '2', '0', '0', '0', '3'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'G7', root: 'G', type: '7', notes: ['G', 'B', 'D', 'F'], strings: [3, 2, 0, 0, 0, 1], fingers: ['3', '2', '0', '0', '0', '1'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Gmaj7', root: 'G', type: 'Maj7', notes: ['G', 'B', 'D', 'F#'], strings: [2, 2, 0, 0, 0, 2], fingers: ['2', '2', '0', '0', '0', '2'], difficulty: 'Intermediate', baseFret: 1 },
     { name: 'Gsus2', root: 'G', type: 'Sus2', notes: ['G', 'A', 'D'], strings: [3, 0, 0, 0, 3, 3], fingers: ['3', '0', '0', '0', '3', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Gsus4', root: 'G', type: 'Sus4', notes: ['G', 'C', 'D'], strings: [3, 3, 0, 0, 1, 1], fingers: ['3', '3', '0', '0', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Am7', root: 'A', type: 'm7', notes: ['A', 'C', 'E', 'G'], strings: [-1, 0, 0, 2, 0, 0], fingers: ['x', '0', '0', '2', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Gsus4', root: 'G', type: 'Sus4', notes: ['G', 'C', 'D'], strings: [3, 3, 0, 0, 1, 3], fingers: ['3', '3', '0', '0', '1', '4'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Am7', root: 'A', type: 'm7', notes: ['A', 'C', 'E', 'G'], strings: [-1, 0, 2, 0, 1, 0], fingers: ['x', '0', '2', '0', '1', '0'], difficulty: 'Beginner', baseFret: 1 },
     { name: 'Asus2', root: 'A', type: 'Sus2', notes: ['A', 'B', 'E'], strings: [-1, 0, 2, 2, 0, 0], fingers: ['x', '0', '2', '2', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Asus4', root: 'A', type: 'Sus4', notes: ['A', 'D', 'E'], strings: [-1, 0, 2, 3, 0, 0], fingers: ['x', '0', '2', '3', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dadd9', root: 'D', type: 'Add9', notes: ['D', 'F#', 'A', 'E'], strings: [-1, -1, 0, 2, 3, 0], fingers: ['x', 'x', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Gadd9', root: 'G', type: 'Add9', notes: ['G', 'B', 'D', 'A'], strings: [3, 2, 0, 0, 3, 3], fingers: ['3', '2', '0', '0', '3', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'F#', root: 'F#', type: 'Major', notes: ['F#', 'A#', 'C#'], strings: [2, 4, 4, 3, 2, 2], fingers: ['1', '3', '4', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 2 },
-    { name: 'F#m', root: 'F#', type: 'Minor', notes: ['F#', 'A', 'C#'], strings: [2, 4, 4, 2, 2, 2], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 2 },
+    { name: 'Asus4', root: 'A', type: 'Sus4', notes: ['A', 'D', 'E'], strings: [-1, 0, 2, 2, 3, 0], fingers: ['x', '0', '2', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Dadd9', root: 'D', type: 'Add9', notes: ['D', 'F#', 'A', 'E'], strings: [2, -1, 0, 2, 3, 0], fingers: ['2', 'x', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'Gadd9', root: 'G', type: 'Add9', notes: ['A', 'B', 'D', 'G'], strings: [3, 2, 0, 2, 0, 3], fingers: ['3', '2', '0', '1', '0', '4'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'F#', root: 'F#', type: 'Major', notes: ['A#', 'C#', 'F#'], strings: [2, 4, 4, 3, 2, 2], fingers: ['1', '3', '4', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
+    { name: 'F#m', root: 'F#', type: 'Minor', notes: ['A', 'C#', 'F#'], strings: [2, 4, 4, 2, 2, 2], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
     { name: 'C#m', root: 'C#', type: 'Minor', notes: ['C#', 'E', 'G#'], strings: [-1, 4, 6, 6, 5, 4], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 4 },
     { name: 'G#m', root: 'G#', type: 'Minor', notes: ['G#', 'B', 'D#'], strings: [4, 6, 6, 4, 4, 4], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 4 },
-    { name: 'Bb', root: 'Bb', type: 'Major', notes: ['Bb', 'D', 'F'], strings: [1, 1, 3, 3, 3, 1], fingers: ['1', '1', '3', '3', '3', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Bbm', root: 'Bb', type: 'Minor', notes: ['Bb', 'Db', 'F'], strings: [1, 1, 3, 3, 2, 1], fingers: ['1', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Bm', root: 'B', type: 'Minor', notes: ['B', 'D', 'F#'], strings: [-1, 2, 4, 4, 3, 2], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 2 },
-    { name: 'Cm', root: 'C', type: 'Minor', notes: ['C', 'Eb', 'G'], strings: [-1, 3, 5, 5, 4, 3], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 3 },
-    { name: 'Fm', root: 'F', type: 'Minor', notes: ['F', 'Ab', 'C'], strings: [1, 3, 3, 1, 1, 1], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Gm', root: 'G', type: 'Minor', notes: ['G', 'Bb', 'D'], strings: [3, 5, 5, 3, 3, 3], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 3 },
+    { name: 'Bb', root: 'Bb', type: 'Major', notes: ['Bb', 'D', 'F'], strings: [1, 1, 3, 3, 3, 1], fingers: ['1', '1', '3', '3', '3', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
+    { name: 'Bbm', root: 'Bb', type: 'Minor', notes: ['Bb', 'Db', 'F'], strings: [1, 1, 3, 3, 2, 1], fingers: ['1', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
+    { name: 'Bm', root: 'B', type: 'Minor', notes: ['B', 'D', 'F#'], strings: [-1, 2, 4, 4, 3, 2], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
+    { name: 'Cm', root: 'C', type: 'Minor', notes: ['C', 'Eb', 'G'], strings: [-1, 3, 5, 5, 4, 3], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 3, barre: 3 },
+    { name: 'Fm', root: 'F', type: 'Minor', notes: ['F', 'Ab', 'C'], strings: [1, 3, 3, 1, 1, 1], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
+    { name: 'Gm', root: 'G', type: 'Minor', notes: ['G', 'Bb', 'D'], strings: [3, 5, 5, 3, 3, 3], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 3, barre: 3 },
     { name: 'D/F#', root: 'D', type: 'Slash', notes: ['D', 'F#', 'A'], strings: [2, -1, 0, 2, 3, 2], fingers: ['2', 'x', '0', '1', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'G/B', root: 'G', type: 'Slash', notes: ['G', 'B', 'D'], strings: [0, 2, 0, 0, 0, 3], fingers: ['0', '2', '0', '0', '0', '3'], difficulty: 'Beginner', baseFret: 1 },
+    { name: 'G/B', root: 'G', type: 'Slash', notes: ['G', 'B', 'D'], strings: [-1, 2, 0, 0, 0, 3], fingers: ['x', '2', '0', '0', '0', '3'], difficulty: 'Beginner', baseFret: 1 },
   ], [])
 
   const visible = chordDatabase.filter((chord) => {
@@ -797,37 +797,28 @@ export function ChordLibrary() {
 }
 
 function GuitarChordDiagram({ chord, compact = false }: { chord: ChordDefinition; compact?: boolean }) {
-  const rows = chord.strings.map((value, index) => ({
-    label: ['Low E', 'A', 'D', 'G', 'B', 'High E'][index],
-    value,
-    finger: chord.fingers[index],
-  }))
+  const fretCount = 5
+  const strings = ['Low E', 'A', 'D', 'G', 'B', 'High E']
+  const markers = chord.strings.map((position, index) => ({ position, finger: chord.fingers[index], label: strings[index] }))
 
   return (
-    <div className={compact ? 'diagram compact-diagram' : 'diagram'} aria-label={`${chord.name} guitar chord diagram`}>
+    <div className={compact ? 'diagram compact-diagram' : 'diagram'} aria-label={`${chord.name} guitar chord diagram, low E to high E`}>
       <div className="diagram-row diagram-header">
-        <span>6</span>
-        <span>5</span>
-        <span>4</span>
-        <span>3</span>
-        <span>2</span>
-        <span>1</span>
+        {markers.map((marker, index) => <span key={marker.label} title={marker.label}>{6 - index}</span>)}
       </div>
-      <div className="diagram-grid">
-        {rows.map((row, index) => {
-          const cell = row.value === -1 ? 'X' : row.value === 0 ? 'O' : '●'
-          const className = row.value === -1 ? 'muted' : row.value === 0 ? 'open' : 'fretted'
-          return (
-            <div className="diagram-cell" key={`${row.label}-${index}`}>
-              <span className="string-label">{row.label}</span>
-              <span className={`cell ${className}`}>{cell}</span>
-              {row.value > 0 && <span className="finger-number">{row.finger}</span>}
-            </div>
-          )
+      <div className="diagram-position">{chord.baseFret > 1 ? `${chord.baseFret}fr` : '1fr'}</div>
+      <div className="diagram-markers" aria-hidden="true">
+        {markers.map((marker, index) => {
+          const className = marker.position < 0 ? 'muted' : marker.position === 0 ? 'open' : 'fretted'
+          return <span key={marker.label} className={`diagram-mark ${className}`} style={{ gridColumn: index + 1 }}>{marker.position < 0 ? 'X' : marker.position === 0 ? 'O' : ''}</span>
         })}
       </div>
-      <div className="diagram-frets">
-        {Array.from({ length: 5 }, (_, index) => <span key={index} className="fret-line" />)}
+      <div className="diagram-board" style={{ '--diagram-frets': fretCount } as CSSProperties}>
+        {Array.from({ length: fretCount }, (_, index) => <span key={`fret-${index}`} className="diagram-fret" style={{ gridRow: index + 1 }} />)}
+        {markers.map((marker, index) => marker.position > 0 && marker.position >= chord.baseFret && marker.position < chord.baseFret + fretCount
+          ? <span key={marker.label} className="diagram-mark fretted" style={{ gridColumn: index + 1, gridRow: marker.position - chord.baseFret + 1 }}><small>{marker.finger}</small></span>
+          : null)}
+        {chord.barre && <span className="diagram-barre" style={{ gridColumn: `1 / ${markers.length + 1}`, gridRow: chord.barre - chord.baseFret + 1 }} />}
       </div>
     </div>
   )
