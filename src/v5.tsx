@@ -513,7 +513,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
 
       <div className="song-key-bar">
         <strong>{shapeKey}</strong>
-        <small>Starting chord {viewKey} · Guitar {guitar}</small>
+        <small>Starting chord {activeDisplayKey} · Guitar {guitar}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => {
           if (guitar === 1) setViewKey1(song.key)
@@ -1164,7 +1164,7 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
 
       <div className="song-key-bar worship-flow-key-bar">
         <strong>{shapeKey}</strong>
-        <small>Starting chord {displayConcertKey} · Guitar {guitar}</small>
+        <small>Starting chord {activeDisplayKey} · Guitar {guitar}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => {
           if (guitar === 1) setViewKey1(currentSong.key)
