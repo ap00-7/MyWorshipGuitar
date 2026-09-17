@@ -57,6 +57,14 @@ test('generator respects quality and excludes invalid options', () => {
   }
 })
 
+test('Guitar 2 options exclude the starting chord root by pitch', () => {
+  assert.ok(!generateCompatibleGuitar2Options('Eb', 'auto', 'Eb').some((option) => option.key === 'Eb'))
+  assert.ok(!generateCompatibleGuitar2Options('D#', 'auto', 'Eb').some((option) => option.key === 'D#'))
+  assert.ok(!generateCompatibleGuitar2Options('Em', 'auto', 'Em').some((option) => option.key === 'Em'))
+  assert.ok(!generateCompatibleGuitar2Options('C', 'auto', 'C/E').some((option) => option.key === 'C'))
+  assert.ok(generateCompatibleGuitar2Options('Eb', 'auto', 'Eb').some((option) => option.key === 'Db'))
+})
+
 test('reverse direction examples do not accidentally validate', () => {
   assert.equal(soundingKey('Em', 7, 'auto'), 'Bm')
   assert.equal(soundingKey('Am', 5, 'auto'), 'Dm')

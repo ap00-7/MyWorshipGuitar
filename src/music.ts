@@ -301,9 +301,10 @@ export function isCompatibleGuitar2Option(concertKey: string, shapeKey: string, 
   return isEquivalentKey(soundingKey(shapeKey, capo, notation), concertKey)
 }
 
-export function generateCompatibleGuitar2Options(concertKey: string, notation: Notation = 'auto'): Guitar2Option[] {
+export function generateCompatibleGuitar2Options(concertKey: string, notation: Notation = 'auto', excludedRoot?: string): Guitar2Option[] {
   const { root, quality } = parseKey(concertKey)
   const targetKey = `${root}${quality === 'minor' ? 'm' : ''}`
+  const excludedPitch = excludedRoot ? noteIndex(keyRoot(excludedRoot)) : null
 
   return PRACTICAL_CAPOS
     .map((capo) => {
@@ -315,6 +316,7 @@ export function generateCompatibleGuitar2Options(concertKey: string, notation: N
       }
     })
     .filter((option) => isCompatibleGuitar2Option(concertKey, option.key, option.capo, notation))
+    .filter((option) => excludedPitch === null || noteIndex(keyRoot(option.key)) !== excludedPitch)
     .filter((option, index, options) => options.findIndex((candidate) => candidate.key === option.key && candidate.capo === option.capo) === index)
     .sort((left, right) => {
       if (left.key === targetKey && right.key !== targetKey) return 1

@@ -311,7 +311,7 @@ export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }:
       <div className="v5-search-row">
         <div className="search">
           <Search size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, key, or chord" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, starting chord, or chord" />
         </div>
       </div>
 
@@ -323,7 +323,7 @@ export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }:
               <div>
                 <h2>{song.title}</h2>
                 <div className="song-facts">
-                  Key <b>{song.currentKey}</b> · Capo <b>{song.capo}</b>
+                  Starting Chord <b>{song.currentKey}</b> · Capo <b>{song.capo}</b>
                 </div>
               </div>
             </Link>
@@ -373,8 +373,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
   const nativeFullscreen = useRef(false)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const customGuitar2 = song ? hasCustomGuitar2(song) : false
-  const guitar1ShapeKey = capoShapeKey(viewKey1, song?.capo ?? 0, settings.notation)
-  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation).filter((option) => option.key !== guitar1ShapeKey), [viewKey1, settings.notation, guitar1ShapeKey])
+  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation, song?.key), [viewKey1, settings.notation, song?.key])
   const guitar1Progression = song?.sections.map((section) => section.chordText).join('\n') ?? ''
 
   const selectGuitar2Option = (nextKey: string) => {
@@ -500,7 +499,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
           <div className="eyebrow">Chord sheet</div>
           <h1>{song.title}</h1>
           <div className="song-tags">
-            <span>Concert Key {viewKey}</span>
+            <span>Starting Chord {viewKey}</span>
             <span>{guitar === 2 ? `Guitar 2: ${shapeKey} shapes` : `Guitar 1: ${shapeKey} shapes`}</span>
             <span>Capo {selectedCapo}</span>
             {guitar === 2 && <span>{customGuitar2 ? 'Custom Guitar 2' : 'Dynamic Guitar 2'}</span>}
@@ -514,7 +513,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
 
       <div className="song-key-bar">
         <strong>{shapeKey}</strong>
-        <small>Concert key {viewKey} · Guitar {guitar}</small>
+        <small>Starting chord {viewKey} · Guitar {guitar}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => {
           if (guitar === 1) setViewKey1(song.key)
@@ -524,7 +523,7 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
           }
         }}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
-        <select value={activeDisplayKey} onChange={(event) => handleKeySelect(event.target.value)} aria-label="Select key">
+        <select value={activeDisplayKey} onChange={(event) => handleKeySelect(event.target.value)} aria-label="Select starting chord">
           {(guitar === 1 ? keyOptions : compatibleGuitar2Options.map((option) => option.key)).map((key) => <option key={key} value={key}>{key}</option>)}
         </select>
         <div className="guitar-switch">
@@ -778,7 +777,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
 
         <div className="form-row">
           <label>
-            Key
+            Starting Chord
             <select value={key} onChange={(event) => setKey(event.target.value)}>
               {keyOptions.map((item) => <option key={item}>{item}</option>)}
             </select>
@@ -1078,8 +1077,7 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
   const currentSongId = songIds[index]
   const currentSong = songs.find((song) => song.id === currentSongId) ?? null
 
-  const guitar1ShapeKey = capoShapeKey(viewKey1, currentSong?.capo ?? 0, settings.notation)
-  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation).filter((option) => option.key !== guitar1ShapeKey), [viewKey1, settings.notation, guitar1ShapeKey])
+  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation, currentSong?.key), [viewKey1, settings.notation, currentSong?.key])
   const guitar1Progression = currentSong?.sections.map((section) => section.chordText).join('\n') ?? ''
 
   const selectGuitar2Option = (nextKey: string) => {
@@ -1166,7 +1164,7 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
 
       <div className="song-key-bar worship-flow-key-bar">
         <strong>{shapeKey}</strong>
-        <small>Concert key {displayConcertKey} · Guitar {guitar}</small>
+        <small>Starting chord {displayConcertKey} · Guitar {guitar}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => {
           if (guitar === 1) setViewKey1(currentSong.key)
@@ -1179,7 +1177,7 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
         <select value={activeDisplayKey} onChange={(event) => {
           if (guitar === 1) setViewKey1(event.target.value)
           else selectGuitar2Option(event.target.value)
-        }} aria-label="Select key">
+        }} aria-label="Select starting chord">
           {(guitar === 1 ? keyOptions : compatibleGuitar2Options.map((option) => option.key)).map((key) => <option key={key} value={key}>{key}</option>)}
         </select>
         <div className="guitar-switch">
@@ -1208,7 +1206,7 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
             <h3>{currentSong.title}</h3>
           </div>
           <div className="worship-flow-keys">
-            <span>Concert Key {displayConcertKey}</span>
+            <span>Starting Chord {displayConcertKey}</span>
             <span>{guitar === 2 ? `Guitar 2: ${shapeKey} shapes` : `Guitar 1: ${shapeKey} shapes`}</span>
             <span>Capo {selectedCapo}</span>
           </div>
