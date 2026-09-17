@@ -553,13 +553,16 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
 
       <div className="continuous-sheet" ref={sheetRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
         {sheetOnly && <button className="sheet-exit-button" onClick={() => void exitSheetOnly()}><Minimize2 size={15} />Exit full screen</button>}
-        {song.sections.map((section) => {
+        {song.sections.map((section, sectionIndex) => {
           const lines = guitar === 2
             ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, song.capo, selectedCapo, interval) })
             : sectionChordLines(section)
           return (
             <section className="continuous-section" key={section.id || section.name}>
-              <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · capo ${selectedCapo}` : ''}</div>
+              <div className="continuous-section-header">
+                <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · capo ${selectedCapo}` : ''}</div>
+                {sectionIndex === 0 && <div className="continuous-title">{song.title}</div>}
+              </div>
               {lines.map((line, lineIndex) => (
                 <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
                   <span className="chord-text">{formatTransposedChordLine(line, guitar === 2 ? 0 : interval, settings.notation, settings.simplify)}</span>
@@ -1212,13 +1215,16 @@ function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist
         </div>
 
         <div className="worship-flow-sections">
-          {currentSong.sections.map((section) => {
+          {currentSong.sections.map((section, sectionIndex) => {
             const lines = guitar === 2
               ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, currentSong.capo, selectedCapo, (noteIndex(displayConcertKey) - noteIndex(currentSong.key) + 12) % 12) })
               : sectionChordLines(section)
             return (
               <section className="continuous-section" key={section.id || section.name}>
-                <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · capo ${selectedCapo}` : ''}</div>
+                <div className="continuous-section-header">
+                  <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · capo ${selectedCapo}` : ''}</div>
+                  {sectionIndex === 0 && <div className="continuous-title">{currentSong.title}</div>}
+                </div>
                 {lines.map((line, lineIndex) => (
                   <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
                     <span className="chord-text">{formatTransposedChordLine(line, guitar === 2 ? 0 : (noteIndex(displayConcertKey) - noteIndex(currentSong.key) + 12) % 12, settings.notation, settings.simplify)}</span>
