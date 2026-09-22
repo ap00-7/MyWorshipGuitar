@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { capoShapeKey, chooseBestGuitar2Option, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, noteIndex, parseChordProgression, shiftKey, simplifyChord, soundingKey, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
+import { capoShapeKey, chooseBestGuitar2Option, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
 import type { Section, Settings, Setlist, Song } from './data'
 import { MetronomeEngine } from './metronome'
 import { suggestIntros, type IntroSuggestion } from './intro'
@@ -293,10 +293,10 @@ function SongRow({ song }: { song: Song }) {
 export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }: { songs: Song[]; onCreate: () => void; onDuplicate: (song: Song) => void; onDelete: (song: Song) => void; isOwner: boolean }) {
   const [query, setQuery] = useState('')
 
-  const filtered = songs.filter((song) => {
+  const filtered = sortSongsByTitle(songs.filter((song) => {
     const text = `${song.title} ${song.currentKey} ${song.sections.flatMap((section) => sectionChordLines(section)).join(' ')}`.toLowerCase()
     return text.includes(query.toLowerCase())
-  })
+  }))
 
   return (
     <div className="page">
@@ -779,7 +779,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
           <label>
             Starting Chord
             <select value={key} onChange={(event) => setKey(event.target.value)}>
-              {keyOptions.map((item) => <option key={item}>{item}</option>)}
+              {startingChordOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
           <label>
@@ -1166,177 +1166,78 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
   )
 }
 
-function WorshipFlowMode({ sunday, songs, settings, onClose }: { sunday: Setlist; songs: Song[]; settings: Settings; onClose: () => void }) {
-  const [index, setIndex] = useState(0)
-  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null)
-  const [guitar, setGuitar] = useState<1 | 2>(1)
-  const [guitar2Activated, setGuitar2Activated] = useState(false)
-  const [viewKey1, setViewKey1] = useState('C')
-  const [selectedGuitar2Option, setSelectedGuitar2Option] = useState<SelectedGuitar2Option>({ shapeKey: 'C', capo: 0, concertKey: 'C' })
-  const songIds = sunday.songIds
-  const currentSongId = songIds[index]
-  const currentSong = songs.find((song) => song.id === currentSongId) ?? null
-
-  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation, currentSong?.key), [viewKey1, settings.notation, currentSong?.key])
-  const guitar1Progression = currentSong?.sections.map((section) => section.chordText).join('\n') ?? ''
-
-  const selectGuitar2Option = (nextKey: string) => {
-    const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, nextKey, guitar1Progression, currentSong?.capo ?? 0, settings.notation)
-    if (option) {
-      setSelectedGuitar2Option(option)
-      setGuitar2Activated(true)
-    }
-  }
+export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdate, onDelete }: { songs: Song[]; sessions: { id: string; name: string; date: string; description: string; songIds: string[] }[]; isOwner: boolean; onCreate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onUpdate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onDelete: (sessionId: string) => Promise<void> | void; }) {
+  const [selectedId, setSelectedId] = useState(() => sessions[0]?.id ?? '')
+  const [query, setQuery] = useState('')
+  const sortedSessions = [...sessions].sort((left, right) => (right.date || '').localeCompare(left.date || ''))
+  const session = sortedSessions.find((item) => item.id === selectedId) ?? sortedSessions[0]
 
   useEffect(() => {
-    if (!currentSong) return
-    setViewKey1(currentSong.key)
-  }, [currentSong?.id, currentSong?.key])
-
-  useEffect(() => {
-    if (!compatibleGuitar2Options.length) return
-    const stillValid = selectedGuitar2Option.concertKey === viewKey1
-      && compatibleGuitar2Options.some((option) => option.key === selectedGuitar2Option.shapeKey && option.capo === selectedGuitar2Option.capo)
-    if (stillValid) return
-    const nextOption = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, undefined, guitar1Progression, currentSong?.capo ?? 0, settings.notation)
-    if (!nextOption) return
-    setSelectedGuitar2Option((current) => current.shapeKey === nextOption.shapeKey && current.capo === nextOption.capo && current.concertKey === nextOption.concertKey ? current : nextOption)
-  }, [compatibleGuitar2Options, viewKey1, selectedGuitar2Option, guitar1Progression, currentSong?.capo, settings.notation])
-
-  const goTo = (nextIndex: number) => {
-    if (nextIndex < 0 || nextIndex >= songIds.length) return
-    setIndex(nextIndex)
-  }
-
-  const handleTouchStartEvent = (event: TouchEvent<HTMLDivElement>) => {
-    const touch = event.touches[0]
-    setTouchStart({ x: touch.clientX, y: touch.clientY })
-  }
-
-  const handleTouchEndEvent = (event: TouchEvent<HTMLDivElement>) => {
-    if (!touchStart) return
-    const touch = event.changedTouches[0]
-    const deltaX = touch.clientX - touchStart.x
-    const deltaY = touch.clientY - touchStart.y
-    const isHorizontal = Math.abs(deltaX) > 64 && Math.abs(deltaX) > Math.abs(deltaY)
-    if (!isHorizontal) return
-    if (deltaX < 0) goTo(index + 1)
-    else goTo(index - 1)
-    setTouchStart(null)
-  }
-
-  if (!currentSong) {
-    return (
-      <div className="worship-flow-empty">
-        <p>No songs in this Sunday service.</p>
-        <button className="secondary-button" onClick={onClose}>Back to Sunday</button>
-      </div>
-    )
-  }
-
-  const customGuitar2 = hasCustomGuitar2(currentSong)
-  const selectedCapo = guitar === 1 ? currentSong.capo : selectedGuitar2Option.capo
-  const activeDisplayKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.shapeKey
-  const displayConcertKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.concertKey
-  const shapeKey = capoShapeKey(displayConcertKey, selectedCapo, settings.notation)
-  const updateKey = (amount: number) => {
-    if (guitar === 1) {
-      setViewKey1((current) => shiftKey(current, amount, settings.notation))
+    if (!sortedSessions.length) {
+      setSelectedId('')
       return
     }
-    const nextKey = shiftKey(selectedGuitar2Option.shapeKey, amount, settings.notation)
-    const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, nextKey, guitar1Progression, currentSong.capo, settings.notation)
-    if (option) setSelectedGuitar2Option(option)
+    if (!selectedId || !sortedSessions.some((item) => item.id === selectedId)) setSelectedId(sortedSessions[0].id)
+  }, [selectedId, sortedSessions])
+
+  if (!sortedSessions.length) {
+    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Private Session</h1></div>{isOwner && <button className="primary-button" onClick={() => void onCreate({ id: '', name: 'Private Session', date: new Date().toISOString().slice(0, 10), description: '', songIds: [] })}>Create session</button>}</header><div className="empty private-session-empty"><h2>No private sessions yet</h2>{isOwner ? <p>Create one to plan a rehearsal, personal set, or any non-Sunday date.</p> : <p>There are no private sessions available right now.</p>}</div></div>
   }
 
-  const isFirst = index === 0
-  const isLast = index === songIds.length - 1
+  const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
+
+  const moveSong = (songId: string, direction: -1 | 1) => {
+    const index = session.songIds.indexOf(songId)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= session.songIds.length) return
+    const next = [...session.songIds]
+    ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
+    void onUpdate({ ...session, songIds: next })
+  }
 
   return (
-    <div className="worship-flow-panel" onTouchStart={handleTouchStartEvent} onTouchEnd={handleTouchEndEvent}>
-      <div className="worship-flow-header">
+    <div className="page private-session-page">
+      <header className="private-session-header">
         <div>
-          <div className="eyebrow">Worship Flow Mode</div>
-          <h2>{sunday.name}</h2>
+          <div className="eyebrow">Flexible schedule</div>
+          <h1>Private Session</h1>
+          <select className="private-session-selector" value={session.id} onChange={(event) => setSelectedId(event.target.value)} aria-label="Select private session">{sortedSessions.map((item) => <option key={item.id} value={item.id}>{item.name || 'Private Session'} · {item.date}</option>)}</select>
+          {isOwner && <input className="private-session-date-input" type="date" value={session.date} onChange={(event) => { const nextDate = event.target.value; if (nextDate) void onUpdate({ ...session, date: nextDate }); }} aria-label="Private session date" />}
         </div>
-        <button className="secondary-button" onClick={onClose}>Exit flow</button>
-      </div>
-
-      <div className="song-key-bar worship-flow-key-bar">
-        <strong>{shapeKey}</strong>
-        <small>Starting chord {activeDisplayKey} · Guitar {guitar}</small>
-        <button onClick={() => updateKey(-1)}>−1</button>
-        <button onClick={() => {
-          if (guitar === 1) setViewKey1(currentSong.key)
-          else {
-            const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, undefined, guitar1Progression, currentSong.capo, settings.notation)
-            if (option) setSelectedGuitar2Option(option)
-          }
-        }}>Original</button>
-        <button onClick={() => updateKey(1)}>＋1</button>
-        <select value={activeDisplayKey} onChange={(event) => {
-          if (guitar === 1) setViewKey1(event.target.value)
-          else selectGuitar2Option(event.target.value)
-        }} aria-label="Select starting chord">
-          {(guitar === 1 ? keyOptions : compatibleGuitar2Options.map((option) => option.key)).map((key) => <option key={key} value={key}>{key}</option>)}
-        </select>
-        <div className="guitar-switch">
-          <button className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>
-          <button className={guitar === 2 ? 'active' : ''} onClick={() => {
-            const stillValid = selectedGuitar2Option.concertKey === viewKey1
-              && compatibleGuitar2Options.some((option) => option.key === selectedGuitar2Option.shapeKey && option.capo === selectedGuitar2Option.capo)
-            if (!guitar2Activated || !stillValid) {
-              const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, undefined, guitar1Progression, currentSong.capo, settings.notation)
-              if (option) setSelectedGuitar2Option(option)
-            }
-            setGuitar2Activated(true)
-            setGuitar(2)
-          }}>Guitar 2</button>
+        <div className="private-session-actions">
+          {isOwner && <button className="primary-button" onClick={() => void onCreate({ id: '', name: 'Private Session', date: new Date().toISOString().slice(0, 10), description: '', songIds: [] })}>New session</button>}
+          {isOwner && session && <button className="secondary-button" onClick={() => void onDelete(session.id)} aria-label="Delete private session">Delete</button>}
         </div>
-      </div>
+      </header>
 
-      <div className="worship-flow-status">
-        <span>{isFirst ? 'First song' : isLast ? 'Final song' : `Song ${index + 1} of ${songIds.length}`}</span>
-      </div>
-
-      <article className="worship-flow-song">
-        <div className="worship-flow-song-header">
-          <div>
-            <div className="eyebrow">Song {index + 1}</div>
-            <h3>{currentSong.title}</h3>
-          </div>
-          <div className="worship-flow-keys">
-            <span>Starting Chord {displayConcertKey}</span>
-            <span>{guitar === 2 ? `Guitar 2: ${shapeKey} shapes` : `Guitar 1: ${shapeKey} shapes`}</span>
-            <span>Capo {selectedCapo}</span>
-          </div>
-        </div>
-
-        <div className="worship-flow-sections">
-          {currentSong.sections.map((section, sectionIndex) => {
-            const lines = guitar === 2
-              ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, currentSong.capo, selectedCapo, (noteIndex(displayConcertKey) - noteIndex(currentSong.key) + 12) % 12) })
-              : sectionChordLines(section)
-            return (
-              <section className="continuous-section" key={section.id || section.name}>
-                <div className="continuous-section-header">
-                  <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · capo ${selectedCapo}` : ''}</div>
-                  {sectionIndex === 0 && <div className="continuous-title">{currentSong.title}</div>}
+      <div className="private-session-layout">
+        <main className="private-session-songs">
+          <div className="section-heading"><div><span className="eyebrow">Planned songs</span></div></div>
+          <div className="private-session-list">
+            {session.songIds.map((songId, index) => {
+              const song = songs.find((item) => item.id === songId)
+              if (!song) return null
+              return (
+                <div className="private-session-song" key={song.id}>
+                  <span className="song-order">{index + 1}</span>
+                  <Link to={`/songs/${song.id}`} className="song-summary"><strong>{song.title}</strong></Link>
+                  {isOwner && <div className="private-session-controls">
+                    <button className="icon-button" onClick={() => moveSong(song.id, -1)} disabled={index === 0} aria-label="Move earlier"><ChevronLeft size={15} /></button>
+                    <button className="icon-button" onClick={() => moveSong(song.id, 1)} disabled={index === session.songIds.length - 1} aria-label="Move later"><ChevronRight size={15} /></button>
+                    <button className="icon-button" onClick={() => void onUpdate({ ...session, songIds: session.songIds.filter((item) => item !== song.id) })} aria-label="Remove from private session"><Trash2 size={15} /></button>
+                  </div>}
                 </div>
-                {lines.map((line, lineIndex) => (
-                  <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
-                    <span className="chord-text">{formatTransposedChordLine(line, guitar === 2 ? 0 : (noteIndex(displayConcertKey) - noteIndex(currentSong.key) + 12) % 12, settings.notation, settings.simplify)}</span>
-                  </div>
-                ))}
-              </section>
-            )
-          })}
-        </div>
-      </article>
+              )
+            })}
+            {!session.songIds.length && <p className="muted-text">No songs added yet.</p>}
+          </div>
+        </main>
 
-      <div className="worship-flow-controls">
-        <button className="secondary-button" onClick={() => goTo(index - 1)} disabled={isFirst}>Previous</button>
-        <button className="primary-button" onClick={() => goTo(index + 1)} disabled={isLast}>Next</button>
+        {isOwner && <aside className="add-sunday-panel">
+          <div className="section-heading"><div><span className="eyebrow">Add songs</span><h2>Available songs</h2></div></div>
+          <div className="search compact-search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search songs" /></div>
+          <div className="available-list">{available.length ? available.map((song) => <button key={song.id} className="available-song" onClick={() => void onUpdate({ ...session, songIds: [...session.songIds, song.id] })}><strong>{song.title}</strong></button>) : <p className="muted-text">No songs match.</p>}</div>
+        </aside>}
       </div>
     </div>
   )
@@ -1346,7 +1247,6 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
   const [searchParams] = useSearchParams()
   const [selectedSundayId, setSelectedSundayId] = useState(() => searchParams.get('sunday') || '')
   const [query, setQuery] = useState('')
-  const [flowOpen, setFlowOpen] = useState(false)
   const upcoming = upcomingSundayIso()
   const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
   const defaultSunday = sundaySetlists.find((item) => item.date === upcoming) ?? sundaySetlists.find((item) => item.date >= upcoming) ?? sundaySetlists[0]
@@ -1383,10 +1283,6 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
     const next = [...sunday.songIds]
     ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
     onUpdate({ ...sunday, songIds: next })
-  }
-
-  if (flowOpen) {
-    return <WorshipFlowMode sunday={sunday} songs={songs} settings={settings} onClose={() => setFlowOpen(false)} />
   }
 
   return (
@@ -1437,9 +1333,6 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
             })}
           </div>
 
-          {sunday.songIds.length > 0 && (
-            <button className="worship-flow-button" onClick={() => setFlowOpen(true)}>Worship Flow Mode</button>
-          )}
         </main>
 
         {isOwner && <aside className="add-sunday-panel">

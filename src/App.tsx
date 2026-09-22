@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { BookOpen, CalendarDays, Guitar, Home, LogIn, LogOut, Settings as SettingsIcon } from 'lucide-react'
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { defaultSettings, demoSongs, normalizeSong, type Setlist, type Settings, type Song } from './data'
+import { defaultSettings, demoSongs, normalizeSong, type PrivateSession, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
-import { deleteSharedSong, isUuid, loadSharedSnapshot, upsertSharedSong, upsertSunday } from './sharedRepository'
+import { deletePrivateSession, deleteSharedSong, isUuid, loadSharedSnapshot, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
-import { ChordLibrary, HomePage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
+import { ChordLibrary, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
 import { TunerPage } from './TunerPage'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
@@ -29,6 +29,7 @@ function useLocalState<T>(key: string, initial: T, persist = true) {
 export default function App() {
   const [songs, setSongs] = useLocalState<Song[]>('wg-songs', supabaseConfigured ? [] : demoSongs, !supabaseConfigured)
   const [setlists, setSetlists] = useLocalState<Setlist[]>('wg-setlists', supabaseConfigured ? [] : seedSetlists, !supabaseConfigured)
+  const [privateSessions, setPrivateSessions] = useLocalState<PrivateSession[]>('wg-private-sessions', [], !supabaseConfigured)
   const [settings, setSettings] = useLocalState<Settings>('wg-settings', defaultSettings)
   const [role, setRole] = useState<UserRole>('user')
   const [authLoading, setAuthLoading] = useState(supabaseConfigured)
@@ -86,6 +87,7 @@ export default function App() {
       if (!active) return
       setSongs(snapshot.songs)
       setSetlists(snapshot.setlists)
+      setPrivateSessions(snapshot.privateSessions)
     }).catch((loadError) => {
       if (active) setError(loadError instanceof Error ? loadError.message : 'Unable to load shared content.')
     }).finally(() => {
@@ -98,6 +100,7 @@ export default function App() {
     const snapshot = await loadSharedSnapshot()
     setSongs(snapshot.songs)
     setSetlists(snapshot.setlists)
+    setPrivateSessions(snapshot.privateSessions)
     return snapshot
   }
 
@@ -127,7 +130,7 @@ export default function App() {
       setSongs((current) => {
         const previousId = isUuid(normalized.id) ? normalized.id : saved.id
         const withoutPrevious = current.filter((item) => item.id !== previousId && item.id !== saved.id)
-        return [saved, ...withoutPrevious]
+        return [saved, ...withoutPrevious].sort((left, right) => left.title.trim().localeCompare(right.title.trim(), undefined, { sensitivity: 'base' }))
       })
       setError('')
       return saved
@@ -206,7 +209,7 @@ export default function App() {
 
   if (shouldShowGlobalLoading) return <div className="page"><p>Loading shared worship content...</p></div>
 
-  const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/chords', label: 'Chords', icon: Guitar }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
+  const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/private-session', label: 'Private Session', icon: CalendarDays }, { to: '/chords', label: 'Chords', icon: Guitar }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
   return (
     <div className="app">
       <Sidebar items={publicNav} isOwner={isOwner} onSignOut={signOut} />
@@ -219,6 +222,7 @@ export default function App() {
           <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor key={`${location.pathname}`} songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId" element={<SongPage key={location.pathname} songs={songs} setlists={setlists} settings={settings} isOwner={isOwner} />} />
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} isOwner={isOwner} />} />
+          <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={async (session) => { const next = await (supabaseConfigured ? upsertPrivateSession(session) : { ...session, id: session.id || crypto.randomUUID(), name: session.name || 'Private Session' }); setPrivateSessions((current) => { const index = current.findIndex((item) => item.id === session.id || item.id === next.id); if (index < 0) return [...current, next]; const updated = [...current]; updated[index] = next; return updated; }); return next; }} onUpdate={async (session) => { const next = await (supabaseConfigured ? upsertPrivateSession(session) : { ...session, id: session.id || crypto.randomUUID(), name: session.name || 'Private Session' }); setPrivateSessions((current) => { const index = current.findIndex((item) => item.id === session.id || item.id === next.id); if (index < 0) return [...current, next]; const updated = [...current]; updated[index] = next; return updated; }); return next; }} onDelete={async (sessionId) => { if (supabaseConfigured) await deletePrivateSession(sessionId); setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); }} />} />
           <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/tuner" element={<TunerPage />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />
@@ -242,7 +246,7 @@ function OwnerLogin() {
     if (error) setMessage(error.message)
     else navigate('/')
   }
-  return <div className="page auth-page"><div className="eyebrow">Owner access</div><h1>Sign in</h1><form className="auth-form" onSubmit={submit}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label><button className="primary-button" type="submit"><LogIn size={16} />Sign in</button>{message && <p role="alert">{message}</p>}</form></div>
+  return <div className="page auth-page"><div className="auth-shell"><div className="eyebrow">Owner access</div><h1>Sign in</h1><p className="auth-subtitle">Manage songs, Sunday schedules, and private sessions.</p><form className="auth-form" onSubmit={submit}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label><button className="primary-button" type="submit"><LogIn size={16} />Sign in</button>{message && <p className="auth-error" role="alert">{message}</p>}</form></div></div>
 }
 
 function ReadOnlyPage() { return <div className="page"><h1>Owner access required</h1><p>This management screen is available only to the owner account.</p></div> }

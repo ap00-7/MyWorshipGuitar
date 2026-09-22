@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { chooseBestGuitar2Option, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, soundingKey, transposeKey } from '../src/music.ts'
+import { chooseBestGuitar2Option, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, sortSongsByTitle, soundingKey, transposeKey } from '../src/music.ts'
 
 const expectedMinorPairs = [
   ['Em', 'Am', 7],
@@ -103,4 +103,16 @@ test('Guitar 2 recommendation is deterministic and independent of option order',
   assert.ok(recommended)
   assert.deepEqual(shuffled, recommended)
   assert.equal(soundingKey(recommended.key, recommended.capo, 'auto'), 'Em')
+})
+
+test('song titles sort alphabetically ignoring case and surrounding whitespace', () => {
+  const songs = [
+    { title: '  oceans  ' },
+    { title: 'Amazing Grace' },
+    { title: 'Blessed Assurance' },
+    { title: 'above all' },
+    { title: 'At the Cross' },
+  ]
+
+  assert.deepEqual(sortSongsByTitle(songs).map((song) => song.title.trim()), ['above all', 'Amazing Grace', 'At the Cross', 'Blessed Assurance', 'oceans'])
 })

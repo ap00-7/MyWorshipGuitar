@@ -1,5 +1,14 @@
 export const chromatic = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-export const keyOptions = ['C', 'Cm', 'C#', 'C#m', 'Db', 'D', 'Dm', 'D#', 'D#m', 'Eb', 'E', 'Em', 'F', 'Fm', 'F#', 'F#m', 'Gb', 'G', 'Gm', 'G#', 'G#m', 'Ab', 'A', 'Am', 'A#', 'A#m', 'Bb', 'B', 'Bm']
+export const keyOptions = ['A', 'Am', 'A#', 'A#m', 'B', 'Bm', 'C', 'Cm', 'C#', 'C#m', 'D', 'Dm', 'D#', 'D#m', 'E', 'Em', 'F', 'Fm', 'F#', 'F#m', 'G', 'Gm', 'G#', 'G#m']
+export const startingChordOptions = ['A', 'Am', 'A#', 'A#m', 'B', 'Bm', 'C', 'Cm', 'C#', 'C#m', 'D', 'Dm', 'D#', 'D#m', 'E', 'Em', 'F', 'Fm', 'F#', 'F#m', 'G', 'Gm', 'G#', 'G#m']
+
+export function sortSongsByTitle<T extends { title?: string | null }>(songs: T[]) {
+  return [...songs].sort((left, right) => {
+    const leftTitle = String(left.title ?? '').trim().toLocaleLowerCase()
+    const rightTitle = String(right.title ?? '').trim().toLocaleLowerCase()
+    return leftTitle.localeCompare(rightTitle)
+  })
+}
 
 export type Notation = 'sharps' | 'flats' | 'auto'
 

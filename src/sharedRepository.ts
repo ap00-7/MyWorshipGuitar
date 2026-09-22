@@ -1,9 +1,9 @@
-import type { Setlist, Song } from './data'
+import type { PrivateSession, Setlist, Song } from './data'
 import { normalizeSong } from './data'
-import { isSundayIso, toIsoDate } from './music'
+import { isSundayIso, sortSongsByTitle, toIsoDate } from './music'
 import { supabase } from './supabaseClient'
 
-export type SharedSnapshot = { songs: Song[]; setlists: Setlist[] }
+export type SharedSnapshot = { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[] }
 
 type DbSong = {
   id: string
@@ -28,6 +28,14 @@ type DbSunday = {
   service_date: string
   description: string
   sunday_songs: Array<{ position: number; song_id: string }>
+}
+
+type DbPrivateSession = {
+  id: string
+  name: string
+  session_date: string
+  description: string
+  private_session_songs: Array<{ position: number; song_id: string }>
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -66,6 +74,11 @@ function isMissingGuitar2Column(error: unknown) {
 
 function isMissingYoutubeColumn(error: unknown) {
   return JSON.stringify(error).toLowerCase().includes('youtube_url')
+}
+
+function isMissingTable(error: unknown, tableName: string) {
+  const text = JSON.stringify(error).toLowerCase()
+  return text.includes(tableName.toLowerCase()) || text.includes('pgrst205') || text.includes('does not exist')
 }
 
 function mapDbSong(song: DbSong): Song {
@@ -115,6 +128,24 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   const sundaysResult = await client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position)').order('service_date', { ascending: false })
   throwIfError(sundaysResult.error, 'Unable to load Sunday schedule.')
 
+  let privateSessions: PrivateSession[] = []
+  try {
+    const privateSessionsResult = await client.from('private_sessions').select('id,name,session_date,description,private_session_songs(song_id,position)').order('session_date', { ascending: false })
+    if (!privateSessionsResult.error) {
+      privateSessions = ((privateSessionsResult.data ?? []) as unknown as DbPrivateSession[]).map((session) => ({
+        id: session.id,
+        name: session.name,
+        date: session.session_date,
+        description: session.description,
+        songIds: (session.private_session_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
+      }))
+    } else if (!isMissingTable(privateSessionsResult.error, 'private_sessions')) {
+      throwIfError(privateSessionsResult.error, 'Unable to load private sessions.')
+    }
+  } catch (privateSessionError) {
+    if (!isMissingTable(privateSessionError, 'private_sessions')) throw privateSessionError
+  }
+
   const selections = [SONG_SELECT_WITH_GUITAR2_YOUTUBE, SONG_SELECT_BASE_YOUTUBE, SONG_SELECT_WITH_GUITAR2, SONG_SELECT_BASE]
   let songsResult: { data: unknown; error: unknown } | undefined
   for (const selection of selections) {
@@ -128,7 +159,7 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   if (!songsResult) throw new Error('Unable to load songs.')
   throwIfError(songsResult.error, 'Unable to load songs.')
 
-  const songs = ((songsResult.data ?? []) as unknown as DbSong[]).map(mapDbSong)
+  const songs = sortSongsByTitle(((songsResult.data ?? []) as unknown as DbSong[]).map(mapDbSong))
   const setlists = ((sundaysResult.data ?? []) as unknown as DbSunday[]).map((sunday) => ({
     id: sunday.id,
     name: sunday.name,
@@ -136,8 +167,7 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     description: sunday.description,
     songIds: (sunday.sunday_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
   }))
-
-  return { songs, setlists }
+  return { songs, setlists, privateSessions }
 }
 
 async function saveChordImage(songId: string, dataUrl: string) {
@@ -324,4 +354,66 @@ export async function deleteSunday(setlistId: string) {
   const client = requireSupabase()
   const { error } = await client.from('sundays').delete().eq('id', setlistId)
   throwIfError(error, 'Unable to delete Sunday.')
+}
+
+export async function upsertPrivateSession(session: PrivateSession): Promise<PrivateSession> {
+  const client = requireSupabase()
+  const date = toIsoDate(session.date)
+  if (!date) throw new Error('Private sessions must use a valid date.')
+  const existingId = isUuid(session.id) ? session.id : undefined
+  const privateSessionFields = {
+    name: session.name || 'Private Session',
+    session_date: date,
+    description: session.description || '',
+  }
+
+  try {
+    let savedId: string
+    if (existingId) {
+      const { data: current, error: currentError } = await client.from('private_sessions').select('id').eq('id', existingId).maybeSingle()
+      throwIfError(currentError, 'Unable to load private session before save.')
+      if (current?.id) {
+        const { data, error: sessionError } = await client.from('private_sessions').update(privateSessionFields).eq('id', existingId).select('id').single()
+        throwIfError(sessionError, 'Unable to update private session.')
+        if (!data?.id) throw new Error('Private session update did not return a database id.')
+        savedId = data.id
+      } else {
+        const { data, error: sessionError } = await client.from('private_sessions').insert({ id: existingId, ...privateSessionFields }).select('id').single()
+        throwIfError(sessionError, 'Unable to save private session.')
+        if (!data?.id) throw new Error('Private session save did not return a database id.')
+        savedId = data.id
+      }
+    } else {
+      const { data, error: sessionError } = await client.from('private_sessions').insert(privateSessionFields).select('id').single()
+      throwIfError(sessionError, 'Unable to save private session.')
+      if (!data?.id) throw new Error('Private session save did not return a database id.')
+      savedId = data.id
+    }
+
+    const { error: deleteError } = await client.from('private_session_songs').delete().eq('private_session_id', savedId)
+    throwIfError(deleteError, 'Unable to replace private session songs.')
+
+    if (session.songIds.length) {
+      const { error: songsError } = await client.from('private_session_songs').insert(session.songIds.map((songId, position) => ({ private_session_id: savedId, song_id: songId, position })))
+      throwIfError(songsError, 'Unable to save private session songs.')
+    }
+
+    return { ...session, id: savedId, date: privateSessionFields.session_date }
+  } catch (error) {
+    if (isMissingTable(error, 'private_sessions')) {
+      const id = session.id || crypto.randomUUID()
+      return { ...session, id, date: privateSessionFields.session_date }
+    }
+    throw error
+  }
+}
+
+export async function deletePrivateSession(sessionId: string) {
+  const client = requireSupabase()
+  try {
+    const { error } = await client.from('private_sessions').delete().eq('id', sessionId)
+    throwIfError(error, 'Unable to delete private session.')
+  } catch (error) {
+    if (!isMissingTable(error, 'private_sessions')) throw error
+  }
 }
