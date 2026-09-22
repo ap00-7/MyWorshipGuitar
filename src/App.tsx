@@ -203,6 +203,18 @@ export default function App() {
     const date = nextUnusedSundayIso(setlists.map((item) => item.date), upcomingSundayIso())
     return updateSetlist({ ...previous, id: '', name: formatSundayTitle(date), date })
   }
+  const savePrivateSession = async (session: PrivateSession) => {
+    const normalized = { ...session, name: session.name.trim() || 'Private Session' }
+    const next = supabaseConfigured ? await upsertPrivateSession(normalized) : { ...normalized, id: normalized.id || crypto.randomUUID() }
+    setPrivateSessions((current) => {
+      const index = current.findIndex((item) => item.id === normalized.id || item.id === next.id)
+      if (index < 0) return [...current, next]
+      const updated = [...current]
+      updated[index] = next
+      return updated
+    })
+    return next
+  }
   const signOut = async () => { await supabase?.auth.signOut(); setRole('user'); navigate('/') }
 
   const shouldShowGlobalLoading = (authLoading || dataLoading) && location.pathname !== '/owner'
@@ -220,9 +232,9 @@ export default function App() {
           <Route path="/songs" element={<SongLibrary songs={songs} onCreate={createSong} onDuplicate={duplicateSong} onDelete={deleteSong} isOwner={isOwner} />} />
           <Route path="/songs/new" element={isOwner ? <SongEditor key="new-song" songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor key={`${location.pathname}`} songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
-          <Route path="/songs/:songId" element={<SongPage key={location.pathname} songs={songs} setlists={setlists} settings={settings} isOwner={isOwner} />} />
+          <Route path="/songs/:songId" element={<SongPage key={location.pathname + location.search} songs={songs} setlists={setlists} privateSessions={privateSessions} settings={settings} isOwner={isOwner} />} />
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} isOwner={isOwner} />} />
-          <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={async (session) => { const next = await (supabaseConfigured ? upsertPrivateSession(session) : { ...session, id: session.id || crypto.randomUUID(), name: session.name || 'Private Session' }); setPrivateSessions((current) => { const index = current.findIndex((item) => item.id === session.id || item.id === next.id); if (index < 0) return [...current, next]; const updated = [...current]; updated[index] = next; return updated; }); return next; }} onUpdate={async (session) => { const next = await (supabaseConfigured ? upsertPrivateSession(session) : { ...session, id: session.id || crypto.randomUUID(), name: session.name || 'Private Session' }); setPrivateSessions((current) => { const index = current.findIndex((item) => item.id === session.id || item.id === next.id); if (index < 0) return [...current, next]; const updated = [...current]; updated[index] = next; return updated; }); return next; }} onDelete={async (sessionId) => { if (supabaseConfigured) await deletePrivateSession(sessionId); setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); }} />} />
+          <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) await deletePrivateSession(sessionId); setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); }} />} />
           <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/tuner" element={<TunerPage />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />
@@ -252,5 +264,9 @@ function OwnerLogin() {
 function ReadOnlyPage() { return <div className="page"><h1>Owner access required</h1><p>This management screen is available only to the owner account.</p></div> }
 
 function Sidebar({ items, isOwner, onSignOut }: { items: { to: string; label: string; icon: typeof Home }[]; isOwner: boolean; onSignOut: () => void }) {
-  return <aside className="sidebar"><Link to="/" className="brand"><span className="brand-mark"><Guitar size={19} /></span><span>Worship<b>Guitar</b></span></Link><div className="eyebrow nav-label">Navigation</div><nav aria-label="Primary navigation">{items.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'} aria-label={label}><Icon size={18} />{label}</NavLink>)}</nav><div className="sidebar-account">{isOwner ? <button className="text-button" aria-label="Sign out" onClick={onSignOut}><LogOut size={15} />Sign out</button> : <Link className="text-button" to="/owner" aria-label="Owner sign in"><LogIn size={15} />Owner sign in</Link>}</div></aside>
+  const location = useLocation()
+  const context = new URLSearchParams(location.search).get('context')
+  const contextualRoute = context === 'private-session' ? '/private-session' : context === 'sunday' ? '/sunday' : '/songs'
+  const contextualSong = location.pathname.startsWith('/songs/')
+  return <aside className="sidebar"><Link to="/" className="brand"><span className="brand-mark"><Guitar size={19} /></span><span>Worship<b>Guitar</b></span></Link><div className="eyebrow nav-label">Navigation</div><nav aria-label="Primary navigation">{items.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => ((contextualSong ? to === contextualRoute : isActive) ? 'nav-item active' : 'nav-item')} aria-label={label}><Icon size={18} />{label}</NavLink>)}</nav><div className="sidebar-account">{isOwner ? <button className="text-button" aria-label="Sign out" onClick={onSignOut}><LogOut size={15} />Sign out</button> : <Link className="text-button" to="/owner" aria-label="Owner sign in"><LogIn size={15} />Owner sign in</Link>}</div></aside>
 }

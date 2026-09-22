@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, typ
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { capoShapeKey, chooseBestGuitar2Option, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
-import type { Section, Settings, Setlist, Song } from './data'
+import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { MetronomeEngine } from './metronome'
 import { suggestIntros, type IntroSuggestion } from './intro'
 
@@ -350,15 +350,18 @@ export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }:
   )
 }
 
-export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]; setlists: Setlist[]; settings: Settings; isOwner: boolean }) {
+export function SongPage({ songs, setlists, privateSessions, settings, isOwner }: { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[]; settings: Settings; isOwner: boolean }) {
   const { songId } = useParams()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const song = songs.find((item) => item.id === songId)
+  const context = searchParams.get('context') === 'private-session' || searchParams.get('context') === 'sunday' ? searchParams.get('context') : 'songs'
   const sundayId = searchParams.get('sunday')
   const sunday = setlists.find((item) => item.id === sundayId)
-  const sundaySongIds = sunday?.songIds ?? []
-  const sundayIndex = song ? sundaySongIds.indexOf(song.id) : -1
+  const sessionId = searchParams.get('session')
+  const session = privateSessions.find((item) => item.id === sessionId)
+  const contextSongIds = context === 'private-session' ? (session?.songIds ?? []) : context === 'sunday' ? (sunday?.songIds ?? []) : []
+  const contextIndex = song ? contextSongIds.indexOf(song.id) : -1
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [guitar2Activated, setGuitar2Activated] = useState(false)
   const [viewKey1, setViewKey1] = useState(song?.key ?? 'C')
@@ -472,27 +475,30 @@ export function SongPage({ songs, setlists, settings, isOwner }: { songs: Song[]
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined)
   }
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (!sunday || sundayIndex < 0 || event.touches.length !== 1) return
+    if (context === 'songs' || contextIndex < 0 || event.touches.length !== 1) return
     const touch = event.touches[0]
     touchStart.current = { x: touch.clientX, y: touch.clientY }
   }
   const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
     const start = touchStart.current
     touchStart.current = null
-    if (!start || !sunday || sundayIndex < 0 || event.changedTouches.length !== 1) return
+    if (!start || context === 'songs' || contextIndex < 0 || event.changedTouches.length !== 1) return
     const touch = event.changedTouches[0]
     const deltaX = touch.clientX - start.x
     const deltaY = touch.clientY - start.y
     if (Math.abs(deltaX) < 64 || Math.abs(deltaX) <= Math.abs(deltaY)) return
-    const targetIndex = sundayIndex + (deltaX < 0 ? 1 : -1)
-    const targetId = sundaySongIds[targetIndex]
+    const targetIndex = contextIndex + (deltaX < 0 ? 1 : -1)
+    const targetId = contextSongIds[targetIndex]
     if (!targetId || targetId === song?.id || !songs.some((item) => item.id === targetId)) return
-    navigate(`/songs/${targetId}?sunday=${encodeURIComponent(sunday.id)}`)
+    const contextQuery = context === 'private-session'
+      ? `context=private-session&session=${encodeURIComponent(sessionId ?? '')}`
+      : `context=sunday&sunday=${encodeURIComponent(sundayId ?? '')}`
+    navigate(`/songs/${targetId}?${contextQuery}`)
   }
 
   return (
     <div className={`page continuous-page${sheetOnly ? ' sheet-only-fallback' : ''}`}>
-      <button className="back-button" onClick={() => navigate(sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/songs')}><ChevronLeft size={16} />Songs</button>
+      <button className="back-button" onClick={() => navigate(context === 'private-session' && session ? `/private-session?session=${encodeURIComponent(session.id)}` : context === 'sunday' && sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/songs')}><ChevronLeft size={16} />{context === 'private-session' ? 'Private Session' : context === 'sunday' ? 'Sunday' : 'Songs'}</button>
 
       <header className="v5-song-header">
         <div>
@@ -1168,20 +1174,48 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
 
 export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdate, onDelete }: { songs: Song[]; sessions: { id: string; name: string; date: string; description: string; songIds: string[] }[]; isOwner: boolean; onCreate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onUpdate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onDelete: (sessionId: string) => Promise<void> | void; }) {
   const [selectedId, setSelectedId] = useState(() => sessions[0]?.id ?? '')
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createName, setCreateName] = useState('')
+  const [createDate, setCreateDate] = useState(new Date().toISOString().slice(0, 10))
+  const [sessionName, setSessionName] = useState('')
   const sortedSessions = [...sessions].sort((left, right) => (right.date || '').localeCompare(left.date || ''))
-  const session = sortedSessions.find((item) => item.id === selectedId) ?? sortedSessions[0]
+  const requestedSessionId = searchParams.get('session')
+  const session = sortedSessions.find((item) => item.id === requestedSessionId) ?? sortedSessions.find((item) => item.id === selectedId) ?? sortedSessions[0]
+
+  const formatSessionDate = (value: string) => {
+    const date = new Date(`${value}T00:00:00`)
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  }
+
+  const createSession = async () => {
+    if (!createDate) return
+    const created = await onCreate({ id: '', name: createName, date: createDate, description: '', songIds: [] })
+    setSelectedId(created.id)
+    setCreateName('')
+    setCreateDate(new Date().toISOString().slice(0, 10))
+    setCreateOpen(false)
+    navigate(`/private-session?session=${encodeURIComponent(created.id)}`, { replace: true })
+  }
 
   useEffect(() => {
     if (!sortedSessions.length) {
       setSelectedId('')
       return
     }
-    if (!selectedId || !sortedSessions.some((item) => item.id === selectedId)) setSelectedId(sortedSessions[0].id)
-  }, [selectedId, sortedSessions])
+    const requestedId = searchParams.get('session')
+    if (requestedId && sortedSessions.some((item) => item.id === requestedId) && requestedId !== selectedId) setSelectedId(requestedId)
+    else if (!selectedId || !sortedSessions.some((item) => item.id === selectedId)) setSelectedId(sortedSessions[0].id)
+  }, [searchParams, selectedId, sortedSessions])
+
+  useEffect(() => {
+    setSessionName(session?.name ?? '')
+  }, [session?.id, session?.name])
 
   if (!sortedSessions.length) {
-    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Private Session</h1></div>{isOwner && <button className="primary-button" onClick={() => void onCreate({ id: '', name: 'Private Session', date: new Date().toISOString().slice(0, 10), description: '', songIds: [] })}>Create session</button>}</header><div className="empty private-session-empty"><h2>No private sessions yet</h2>{isOwner ? <p>Create one to plan a rehearsal, personal set, or any non-Sunday date.</p> : <p>There are no private sessions available right now.</p>}</div></div>
+    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Private Session</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create session</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Session Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Private Session" /></label><label>Session Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create session</button></div>}<div className="empty private-session-empty"><h2>No private sessions yet</h2>{isOwner ? <p>Create one to plan a rehearsal, personal set, or any non-Sunday date.</p> : <p>There are no private sessions available right now.</p>}</div></div>
   }
 
   const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
@@ -1201,14 +1235,17 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
         <div>
           <div className="eyebrow">Flexible schedule</div>
           <h1>Private Session</h1>
-          <select className="private-session-selector" value={session.id} onChange={(event) => setSelectedId(event.target.value)} aria-label="Select private session">{sortedSessions.map((item) => <option key={item.id} value={item.id}>{item.name || 'Private Session'} · {item.date}</option>)}</select>
+          <select className="private-session-selector" value={session.id} onChange={(event) => { const nextId = event.target.value; setSelectedId(nextId); navigate(`/private-session?session=${encodeURIComponent(nextId)}`, { replace: true }) }} aria-label="Select private session">{sortedSessions.map((item) => <option key={item.id} value={item.id}>{formatSessionDate(item.date)}</option>)}</select>
+          {isOwner && <label className="private-session-name-field">Session Name<input type="text" value={sessionName} placeholder="Private Session" onChange={(event) => setSessionName(event.target.value)} onBlur={() => { const name = sessionName.trim() || 'Private Session'; if (name !== session.name) void onUpdate({ ...session, name }) }} /></label>}
           {isOwner && <input className="private-session-date-input" type="date" value={session.date} onChange={(event) => { const nextDate = event.target.value; if (nextDate) void onUpdate({ ...session, date: nextDate }); }} aria-label="Private session date" />}
         </div>
         <div className="private-session-actions">
-          {isOwner && <button className="primary-button" onClick={() => void onCreate({ id: '', name: 'Private Session', date: new Date().toISOString().slice(0, 10), description: '', songIds: [] })}>New session</button>}
+          {isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>New session</button>}
           {isOwner && session && <button className="secondary-button" onClick={() => void onDelete(session.id)} aria-label="Delete private session">Delete</button>}
         </div>
       </header>
+
+      {isOwner && createOpen && <div className="private-session-create-form"><label>Session Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Private Session" /></label><label>Session Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create session</button></div>}
 
       <div className="private-session-layout">
         <main className="private-session-songs">
@@ -1220,7 +1257,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
               return (
                 <div className="private-session-song" key={song.id}>
                   <span className="song-order">{index + 1}</span>
-                  <Link to={`/songs/${song.id}`} className="song-summary"><strong>{song.title}</strong></Link>
+                  <Link to={`/songs/${song.id}?context=private-session&session=${encodeURIComponent(session.id)}`} className="song-summary"><strong>{song.title}</strong></Link>
                   {isOwner && <div className="private-session-controls">
                     <button className="icon-button" onClick={() => moveSong(song.id, -1)} disabled={index === 0} aria-label="Move earlier"><ChevronLeft size={15} /></button>
                     <button className="icon-button" onClick={() => moveSong(song.id, 1)} disabled={index === session.songIds.length - 1} aria-label="Move later"><ChevronRight size={15} /></button>
@@ -1320,7 +1357,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
               return (
                 <div className="sunday-song" key={song.id}>
                   <span className="song-order">{index + 1}</span>
-                  <Link to={`/songs/${song.id}?sunday=${encodeURIComponent(sunday.id)}`} className="song-summary">
+                  <Link to={`/songs/${song.id}?context=sunday&sunday=${encodeURIComponent(sunday.id)}`} className="song-summary">
                     <strong>{song.title}</strong>
                   </Link>
                   {isOwner && <div className="sunday-controls">
