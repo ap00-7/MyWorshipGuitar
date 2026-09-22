@@ -62,6 +62,7 @@ export const normalizeSong = (song: Partial<Song> & { id?: string }): Song => ({
 })
 
 export type Setlist = { id: string; name: string; date: string; songIds: string[]; description: string }
+export type PrivateSession = { id: string; name: string; date: string; songIds: string[]; description: string }
 
 export type Settings = {
   theme: 'light' | 'dark'

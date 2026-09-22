@@ -106,6 +106,9 @@ nav {
   border-radius: 8px;
   color: var(--muted);
   font-size: 13px;
+  min-width: 0;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .nav-item:hover, .nav-item.active {
@@ -1628,14 +1631,17 @@ nav {
   .brand { margin-bottom: 16px; }
 
   nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .nav-item {
     justify-content: center;
     text-align: center;
-    padding: 11px 5px;
+    padding: 11px 6px;
     font-size: 12px;
+    line-height: 1.15;
+    white-space: nowrap;
   }
 
   .home-actions {
@@ -1654,7 +1660,7 @@ nav {
   }
 
   .main {
-    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+    padding-bottom: calc(94px + env(safe-area-inset-bottom));
   }
 
   .sidebar {
@@ -1670,7 +1676,9 @@ nav {
     background: var(--paper);
     backdrop-filter: blur(10px);
     box-shadow: var(--nav-shadow);
-    padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+    overflow: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .brand {
@@ -1683,21 +1691,35 @@ nav {
 
   nav {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
     margin: 0;
+    width: 100%;
   }
 
   .nav-item {
     flex-direction: column;
     gap: 4px;
     justify-content: center;
-    min-height: 54px;
+    min-height: 52px;
+    min-width: 0;
+    height: auto;
     padding: 8px 4px;
-    font-size: 10px;
-    line-height: 1.15;
+    font-size: 8.8px;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
     border-radius: 10px;
     color: var(--muted);
+    text-align: center;
+    white-space: normal;
+    word-break: break-word;
+    overflow: hidden;
+  }
+
+  .nav-item svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
   }
 
   .nav-item.active {
@@ -1796,6 +1818,17 @@ nav {
   .page {
     padding-left: 12px;
     padding-right: 12px;
+  }
+
+  .nav-item {
+    min-height: 50px;
+    padding: 7px 2px;
+    font-size: 8.2px;
+  }
+
+  .nav-item svg {
+    width: 15px;
+    height: 15px;
   }
 
   .home-actions {
