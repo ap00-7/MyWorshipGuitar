@@ -4,7 +4,6 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { capoShapeKey, chooseBestGuitar2Option, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { MetronomeEngine } from './metronome'
-import { suggestIntros, type IntroSuggestion } from './intro'
 
 const editorKey = () => crypto.randomUUID()
 
@@ -184,23 +183,6 @@ function Metronome({ initialBpm }: { initialBpm: number }) {
         <button type="button" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); beginHold(1) }} onPointerUp={stopHold} onPointerLeave={stopHold} onPointerCancel={stopHold} onContextMenu={(event) => event.preventDefault()} aria-label="Increase BPM">＋</button>
       </div>
       {error && <small className="metronome-error" role="alert">{error}</small>}
-    </section>
-  )
-}
-
-function IntroSuggestor({ chordText, guitar2Text }: { chordText: string; guitar2Text: string }) {
-  const [open, setOpen] = useState(false)
-  const suggestions = suggestIntros(chordText, guitar2Text)
-  if (!suggestions.length) return null
-  const suggestion: IntroSuggestion = suggestions[0]
-
-  return (
-    <section className={`intro-suggestor${open ? ' open' : ''}`}>
-      <button className="intro-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open}>Suggest Intro</button>
-      {open && <div className="intro-content">
-        <h3>{suggestion.title}</h3>
-        <p className="intro-chords">{suggestion.chords.split('\n').map((line) => <span key={line}>{line}</span>)}</p>
-      </div>}
     </section>
   )
 }
@@ -449,9 +431,6 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
   const viewKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.concertKey
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
-  const currentGuitar2Text = song.sections.map((section) => guitar2TextForSection(section, settings.notation, song.capo, selectedCapo, interval)).join('\n')
-  const currentGuitar1Text = song.sections.map((section) => section.chordText).join('\n')
-  const introText = guitar === 1 ? currentGuitar1Text : currentGuitar2Text
   const updateKey = (amount: number) => {
     if (guitar === 1) {
       setViewKey1((current) => shiftKey(current, amount, settings.notation))
@@ -505,7 +484,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
           <div className="eyebrow">Chord sheet</div>
           <h1>{song.title}</h1>
           <div className="song-tags">
-            <span>Starting Chord {viewKey}</span>
+            <span>Starting Chord {activeDisplayKey}</span>
             <span>{guitar === 2 ? `Guitar 2: ${shapeKey} shapes` : `Guitar 1: ${shapeKey} shapes`}</span>
             <span>Capo {selectedCapo}</span>
             {guitar === 2 && <span>{customGuitar2 ? 'Custom Guitar 2' : 'Dynamic Guitar 2'}</span>}
@@ -550,10 +529,6 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
           <button onClick={() => setChordScale((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))} disabled={chordScale <= 0.7}>A−</button>
           <button onClick={() => setChordScale((current) => Math.min(1.35, Number((current + 0.1).toFixed(2))))} disabled={chordScale >= 1.35}>A+</button>
         </div>
-      </div>
-
-      <div className="song-tools">
-        <IntroSuggestor chordText={introText} guitar2Text={guitar === 1 ? currentGuitar2Text : ''} />
       </div>
 
       <div className="continuous-sheet" ref={sheetRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
