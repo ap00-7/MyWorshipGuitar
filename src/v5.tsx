@@ -191,6 +191,9 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
   const upcoming = upcomingSundayIso()
   const sunday = setlists.find((item) => item.date === upcoming) ?? setlists.find((item) => (item.date || '') >= upcoming)
   const formattedDate = sunday?.date ? formatSundayDate(sunday.date) : null
+  const recentSongs = songs
+    .slice()
+    .sort((left, right) => (Date.parse(right.createdAt ?? '') || 0) - (Date.parse(left.createdAt ?? '') || 0))
 
   return (
     <div className="page v5-home">
@@ -249,7 +252,7 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
         </div>
 
         <div className="song-list">
-          {songs.slice(0, 4).map((song) => (
+          {recentSongs.slice(0, 4).map((song) => (
             <SongRow key={song.id} song={song} />
           ))}
         </div>

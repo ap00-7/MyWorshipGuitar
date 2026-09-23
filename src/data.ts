@@ -26,6 +26,7 @@ export type Song = {
   sections: Section[]
   chordImage?: ChordImage
   lastPlayed?: string
+  createdAt?: string
 }
 
 const numericCapo = (value: unknown) => {
@@ -59,6 +60,7 @@ export const normalizeSong = (song: Partial<Song> & { id?: string }): Song => ({
   sections: Array.isArray(song.sections) && song.sections.length > 0 ? song.sections.map(normalizeSection) : [{ id: '', name: 'Verse 1', chordText: 'C G Am F\nC G C', guitar2ChordText: '' }],
   chordImage: song.chordImage,
   lastPlayed: song.lastPlayed,
+  createdAt: song.createdAt,
 })
 
 export type Setlist = { id: string; name: string; date: string; songIds: string[]; description: string }

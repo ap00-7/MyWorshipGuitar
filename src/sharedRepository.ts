@@ -19,6 +19,7 @@ type DbSong = {
   notes: string
   youtube_url?: string | null
   chord_image_path: string | null
+  created_at: string
   sections: Array<{ id: string; name: string; chord_text: string; guitar2_chord_text?: string; note: string | null; position?: number }>
 }
 
@@ -39,10 +40,10 @@ type DbPrivateSession = {
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const SONG_SELECT_WITH_GUITAR2_YOUTUBE = 'id,title,original_key,current_key,capo,guitar2_capo,guitar2_customized,bpm,favorite,tags,notes,youtube_url,chord_image_path,sections:song_sections(id,name,chord_text,guitar2_chord_text,note,position)'
-const SONG_SELECT_BASE_YOUTUBE = 'id,title,original_key,current_key,capo,bpm,favorite,tags,notes,youtube_url,chord_image_path,sections:song_sections(id,name,chord_text,note,position)'
-const SONG_SELECT_WITH_GUITAR2 = 'id,title,original_key,current_key,capo,guitar2_capo,guitar2_customized,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,guitar2_chord_text,note,position)'
-const SONG_SELECT_BASE = 'id,title,original_key,current_key,capo,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,note,position)'
+const SONG_SELECT_WITH_GUITAR2_YOUTUBE = 'id,title,original_key,current_key,capo,guitar2_capo,guitar2_customized,bpm,favorite,tags,notes,youtube_url,chord_image_path,created_at,sections:song_sections(id,name,chord_text,guitar2_chord_text,note,position)'
+const SONG_SELECT_BASE_YOUTUBE = 'id,title,original_key,current_key,capo,bpm,favorite,tags,notes,youtube_url,chord_image_path,created_at,sections:song_sections(id,name,chord_text,note,position)'
+const SONG_SELECT_WITH_GUITAR2 = 'id,title,original_key,current_key,capo,guitar2_capo,guitar2_customized,bpm,favorite,tags,notes,chord_image_path,created_at,sections:song_sections(id,name,chord_text,guitar2_chord_text,note,position)'
+const SONG_SELECT_BASE = 'id,title,original_key,current_key,capo,bpm,favorite,tags,notes,chord_image_path,created_at,sections:song_sections(id,name,chord_text,note,position)'
 
 export function isUuid(value: string | undefined | null): value is string {
   return Boolean(value && UUID_PATTERN.test(value))
@@ -97,6 +98,7 @@ function mapDbSong(song: DbSong): Song {
     notes: song.notes,
     youtubeUrl: song.youtube_url ?? '',
     chordImage: song.chord_image_path ? { name: song.chord_image_path, dataUrl: client.storage.from('chord-images').getPublicUrl(song.chord_image_path).data.publicUrl } : undefined,
+    createdAt: song.created_at,
     sections: (song.sections ?? [])
       .slice()
       .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))

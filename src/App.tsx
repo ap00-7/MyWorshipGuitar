@@ -96,6 +96,51 @@ export default function App() {
     return () => { active = false }
   }, [setSongs, setSetlists])
 
+  useEffect(() => {
+    const client = supabase
+    if (!client) return
+
+    let active = true
+    let hasConnected = false
+    let refreshInFlight: Promise<void> | null = null
+    let refreshQueued = false
+    const refreshAfterRealtime = () => {
+      if (refreshInFlight) {
+        refreshQueued = true
+        return refreshInFlight
+      }
+      refreshInFlight = refreshShared().then(() => undefined).catch((loadError) => {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Unable to refresh shared content.')
+      }).finally(() => {
+        refreshInFlight = null
+        if (active && refreshQueued) {
+          refreshQueued = false
+          void refreshAfterRealtime()
+        }
+      })
+      return refreshInFlight
+    }
+    const channel = client
+      .channel('shared-data-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'songs' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'song_sections' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sundays' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sunday_songs' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'private_sessions' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'private_session_songs' }, refreshAfterRealtime)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          if (hasConnected) void refreshAfterRealtime()
+          hasConnected = true
+        }
+      })
+
+    return () => {
+      active = false
+      void client.removeChannel(channel)
+    }
+  }, [setSongs, setSetlists, setPrivateSessions])
+
   const refreshShared = async () => {
     const snapshot = await loadSharedSnapshot()
     setSongs(snapshot.songs)
