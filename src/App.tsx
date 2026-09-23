@@ -3,7 +3,7 @@ import { BookOpen, CalendarDays, Guitar, Home, LogIn, LogOut, Settings as Settin
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { defaultSettings, demoSongs, normalizeSong, type PrivateSession, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
-import { deletePrivateSession, deleteSharedSong, isUuid, loadSharedSnapshot, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
+import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadSharedSnapshot, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
 import { ChordLibrary, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
@@ -206,6 +206,13 @@ export default function App() {
   const savePrivateSession = async (session: PrivateSession) => {
     const normalized = { ...session, name: session.name.trim() || 'Private Session' }
     const next = supabaseConfigured ? await upsertPrivateSession(normalized) : { ...normalized, id: normalized.id || crypto.randomUUID() }
+    if (supabaseConfigured) {
+      const snapshot = await refreshShared()
+      const confirmed = snapshot.privateSessions.find((item) => item.id === next.id)
+      if (!confirmed) throw new Error('Private session was saved but could not be loaded from the database.')
+      setError('')
+      return confirmed
+    }
     setPrivateSessions((current) => {
       const index = current.findIndex((item) => item.id === normalized.id || item.id === next.id)
       if (index < 0) return [...current, next]
@@ -233,8 +240,8 @@ export default function App() {
           <Route path="/songs/new" element={isOwner ? <SongEditor key="new-song" songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor key={`${location.pathname}`} songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId" element={<SongPage key={location.pathname + location.search} songs={songs} setlists={setlists} privateSessions={privateSessions} settings={settings} isOwner={isOwner} />} />
-          <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} isOwner={isOwner} />} />
-          <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) await deletePrivateSession(sessionId); setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); }} />} />
+          <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} onDelete={async (setlistId) => { if (supabaseConfigured) { await deleteSunday(setlistId); await refreshShared() } else setSetlists((current) => current.filter((item) => item.id !== setlistId)); }} isOwner={isOwner} />} />
+          <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); }} />} />
           <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/tuner" element={<TunerPage />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />

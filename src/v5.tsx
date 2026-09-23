@@ -189,7 +189,7 @@ function Metronome({ initialBpm }: { initialBpm: number }) {
 
 export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreateSong: () => void; isOwner: boolean }) {
   const upcoming = upcomingSundayIso()
-  const sunday = setlists.find((item) => item.date === upcoming) ?? setlists.find((item) => (item.date || '') >= upcoming) ?? setlists[0]
+  const sunday = setlists.find((item) => item.date === upcoming) ?? setlists.find((item) => (item.date || '') >= upcoming)
   const formattedDate = sunday?.date ? formatSundayDate(sunday.date) : null
 
   return (
@@ -207,8 +207,8 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
       <section className="home-sunday">
         <div>
           <span className="eyebrow">This Sunday</span>
-          <h2>{formattedDate || sunday?.name || 'No Sunday set yet'}</h2>
-          {!sunday && <p>Open Sunday to prepare your set.</p>}
+          <h2>{formattedDate || sunday?.name || 'No Sunday schedule is ready yet.'}</h2>
+          {!sunday && <p>No Sunday schedule is ready yet.</p>}
         </div>
         <Link className="primary-button" to="/sunday">
           Open Sunday <ChevronRight size={15} />
@@ -1190,7 +1190,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
   }, [session?.id, session?.name])
 
   if (!sortedSessions.length) {
-    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Private Session</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create session</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Session Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Private Session" /></label><label>Session Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create session</button></div>}<div className="empty private-session-empty"><h2>No private sessions yet</h2>{isOwner ? <p>Create one to plan a rehearsal, personal set, or any non-Sunday date.</p> : <p>There are no private sessions available right now.</p>}</div></div>
+    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Private Session</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create session</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Session Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Private Session" /></label><label>Session Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create session</button></div>}<div className="empty private-session-empty"><h2>No session is scheduled yet.</h2>{isOwner && <p>Create a session to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
   }
 
   const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
@@ -1216,7 +1216,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
         </div>
         <div className="private-session-actions">
           {isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>New session</button>}
-          {isOwner && session && <button className="secondary-button" onClick={() => void onDelete(session.id)} aria-label="Delete private session">Delete</button>}
+          {isOwner && session && <button className="secondary-button" onClick={() => { if (window.confirm('Delete this private session?')) void onDelete(session.id) }} aria-label="Delete private session">Delete</button>}
         </div>
       </header>
 
@@ -1224,8 +1224,9 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
 
       <div className="private-session-layout">
         <main className="private-session-songs">
-          <div className="section-heading"><div><span className="eyebrow">Planned songs</span></div></div>
-          <div className="private-session-list">
+          {session.songIds.length > 0 ? <>
+            <div className="section-heading"><div><span className="eyebrow">Planned songs</span></div></div>
+            <div className="private-session-list">
             {session.songIds.map((songId, index) => {
               const song = songs.find((item) => item.id === songId)
               if (!song) return null
@@ -1241,8 +1242,8 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
                 </div>
               )
             })}
-            {!session.songIds.length && <p className="muted-text">No songs added yet.</p>}
-          </div>
+            </div>
+          </> : <div className="empty private-session-empty"><h2>No songs are scheduled for this session yet.</h2>{isOwner && <p>Add songs from the available songs list.</p>}</div>}
         </main>
 
         {isOwner && <aside className="add-sunday-panel">
@@ -1255,7 +1256,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
   )
 }
 
-export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, onDuplicate, isOwner }: { songs: Song[]; setlists: Setlist[]; settings: Settings; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void; isOwner: boolean }) {
+export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, onDuplicate, onDelete, isOwner }: { songs: Song[]; setlists: Setlist[]; settings: Settings; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void; onDelete: (setlistId: string) => Promise<void> | void; isOwner: boolean }) {
   const [searchParams] = useSearchParams()
   const [selectedSundayId, setSelectedSundayId] = useState(() => searchParams.get('sunday') || '')
   const [query, setQuery] = useState('')
@@ -1275,12 +1276,13 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
         <header className="sunday-header">
           <div>
             <div className="eyebrow">This week's worship service</div>
-              <h1>Sunday</h1>
+            <h1>Sunday</h1>
           </div>
           <div className="sunday-header-actions">
             {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
           </div>
         </header>
+        <div className="empty private-session-empty"><h2>No schedule is ready yet.</h2>{isOwner && <p>Create a Sunday schedule to plan this week's service.</p>}</div>
       </div>
     )
   }
@@ -1314,18 +1316,16 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
         <div className="sunday-header-actions">
           {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
           {isOwner && previous && <button className="secondary-button" onClick={() => onDuplicate(previous)}>Duplicate previous</button>}
+            {isOwner && <button className="secondary-button" onClick={() => { if (window.confirm('Delete this Sunday schedule?')) void onDelete(sunday.id) }} aria-label="Delete Sunday">Delete Sunday</button>}
         </div>
       </header>
 
       <div className="sunday-layout">
         <main className="sunday-songs">
-          <div className="section-heading">
-            <div>
-                <span className="eyebrow">Songs for this service</span>
+          {sunday.songIds.length > 0 ? <div className="sunday-list">
+            <div className="section-heading">
+              <div><span className="eyebrow">Songs for this service</span></div>
             </div>
-          </div>
-
-          <div className="sunday-list">
             {sunday.songIds.map((songId, index) => {
               const song = songs.find((item) => item.id === songId)
               if (!song) return null
@@ -1343,7 +1343,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
                 </div>
               )
             })}
-          </div>
+          </div> : <div className="empty private-session-empty"><h2>No songs are scheduled for this service yet.</h2>{isOwner && <p>Add songs from the available songs list.</p>}</div>}
 
         </main>
 
