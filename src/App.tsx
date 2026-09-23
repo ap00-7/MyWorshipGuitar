@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { BookOpen, CalendarDays, Guitar, Home, LogIn, LogOut, Settings as SettingsIcon } from 'lucide-react'
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { defaultSettings, demoSongs, normalizeSong, type PrivateSession, type Setlist, type Settings, type Song } from './data'
@@ -9,6 +9,19 @@ import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomin
 import { ChordLibrary, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
+
+function scrollSection(pathname: string, search: string) {
+  const context = new URLSearchParams(search).get('context')
+  if (pathname.startsWith('/songs/') && (context === 'sunday' || context === 'private-session')) return context
+  if (pathname === '/') return 'home'
+  if (pathname.startsWith('/songs')) return 'songs'
+  if (pathname.startsWith('/sunday')) return 'sunday'
+  if (pathname.startsWith('/private-session')) return 'private-session'
+  if (pathname.startsWith('/chords')) return 'chords'
+  if (pathname.startsWith('/settings')) return 'settings'
+  if (pathname.startsWith('/owner')) return 'owner'
+  return 'home'
+}
 
 function useLocalState<T>(key: string, initial: T, persist = true) {
   const [repository] = useState(() => new LocalRepository<T>(key, initial))
@@ -36,7 +49,24 @@ export default function App() {
   const [error, setError] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
+  const mainRef = useRef<HTMLElement | null>(null)
+  const scrollPositionsRef = useRef<Record<string, number>>({})
   const isOwner = role === 'owner'
+  const currentScrollSection = scrollSection(location.pathname, location.search)
+
+  useEffect(() => {
+    const main = mainRef.current
+    if (!main) return
+
+    const usesDocumentScroll = getComputedStyle(main).overflowY !== 'auto'
+    const restoreScroll = scrollPositionsRef.current[currentScrollSection] ?? 0
+    if (usesDocumentScroll) window.scrollTo(0, restoreScroll)
+    else main.scrollTop = restoreScroll
+
+    return () => {
+      scrollPositionsRef.current[currentScrollSection] = usesDocumentScroll ? window.scrollY : main.scrollTop
+    }
+  }, [currentScrollSection])
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme
@@ -276,7 +306,7 @@ export default function App() {
   return (
     <div className="app">
       <Sidebar items={publicNav} isOwner={isOwner} onSignOut={signOut} />
-      <main className="main">
+      <main ref={mainRef} className="main">
         {error && <div className="app-error" role="alert">{error}</div>}
         <Routes>
           <Route path="/" element={<HomePage songs={songs} setlists={setlists} onCreateSong={createSong} isOwner={isOwner} />} />
