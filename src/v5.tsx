@@ -198,7 +198,7 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
         <div>
           <div className="eyebrow">Worship Guitar</div>
           <h1>
-            Your chord sheets,
+            Your chord sheets,{' '}
             <em>always ready.</em>
           </h1>
         </div>
@@ -208,7 +208,6 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
         <div>
           <span className="eyebrow">This Sunday</span>
           <h2>{formattedDate || sunday?.name || 'No Sunday schedule is ready yet.'}</h2>
-          {!sunday && <p>No Sunday schedule is ready yet.</p>}
         </div>
         <Link className="primary-button" to="/sunday">
           Open Sunday <ChevronRight size={15} />
