@@ -140,7 +140,7 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
         songIds: (session.private_session_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
       }))
     } else if (!isMissingTable(privateSessionsResult.error, 'private_sessions')) {
-      throwIfError(privateSessionsResult.error, 'Unable to load private sessions.')
+      throwIfError(privateSessionsResult.error, 'Unable to load Events.')
     }
   } catch (privateSessionError) {
     if (!isMissingTable(privateSessionError, 'private_sessions')) throw privateSessionError
@@ -359,10 +359,10 @@ export async function deleteSunday(setlistId: string) {
 export async function upsertPrivateSession(session: PrivateSession): Promise<PrivateSession> {
   const client = requireSupabase()
   const date = toIsoDate(session.date)
-  if (!date) throw new Error('Private sessions must use a valid date.')
+  if (!date) throw new Error('Events must use a valid date.')
   const existingId = isUuid(session.id) ? session.id : undefined
   const privateSessionFields = {
-    name: session.name || 'Private Session',
+    name: session.name || 'Event',
     session_date: date,
     description: session.description || '',
   }
@@ -371,31 +371,31 @@ export async function upsertPrivateSession(session: PrivateSession): Promise<Pri
     let savedId: string
     if (existingId) {
       const { data: current, error: currentError } = await client.from('private_sessions').select('id').eq('id', existingId).maybeSingle()
-      throwIfError(currentError, 'Unable to load private session before save.')
+      throwIfError(currentError, 'Unable to load event before save.')
       if (current?.id) {
         const { data, error: sessionError } = await client.from('private_sessions').update(privateSessionFields).eq('id', existingId).select('id').single()
-        throwIfError(sessionError, 'Unable to update private session.')
-        if (!data?.id) throw new Error('Private session update did not return a database id.')
+        throwIfError(sessionError, 'Unable to update event.')
+        if (!data?.id) throw new Error('Event update did not return a database id.')
         savedId = data.id
       } else {
         const { data, error: sessionError } = await client.from('private_sessions').insert({ id: existingId, ...privateSessionFields }).select('id').single()
-        throwIfError(sessionError, 'Unable to save private session.')
-        if (!data?.id) throw new Error('Private session save did not return a database id.')
+        throwIfError(sessionError, 'Unable to save event.')
+        if (!data?.id) throw new Error('Event save did not return a database id.')
         savedId = data.id
       }
     } else {
       const { data, error: sessionError } = await client.from('private_sessions').insert(privateSessionFields).select('id').single()
-      throwIfError(sessionError, 'Unable to save private session.')
-      if (!data?.id) throw new Error('Private session save did not return a database id.')
+      throwIfError(sessionError, 'Unable to save event.')
+      if (!data?.id) throw new Error('Event save did not return a database id.')
       savedId = data.id
     }
 
     const { error: deleteError } = await client.from('private_session_songs').delete().eq('private_session_id', savedId)
-    throwIfError(deleteError, 'Unable to replace private session songs.')
+    throwIfError(deleteError, 'Unable to replace event songs.')
 
     if (session.songIds.length) {
       const { error: songsError } = await client.from('private_session_songs').insert(session.songIds.map((songId, position) => ({ private_session_id: savedId, song_id: songId, position })))
-      throwIfError(songsError, 'Unable to save private session songs.')
+      throwIfError(songsError, 'Unable to save event songs.')
     }
 
     return { ...session, id: savedId, date: privateSessionFields.session_date }
@@ -412,7 +412,7 @@ export async function deletePrivateSession(sessionId: string) {
   const client = requireSupabase()
   try {
     const { error } = await client.from('private_sessions').delete().eq('id', sessionId)
-    throwIfError(error, 'Unable to delete private session.')
+    throwIfError(error, 'Unable to delete event.')
   } catch (error) {
     if (!isMissingTable(error, 'private_sessions')) throw error
   }

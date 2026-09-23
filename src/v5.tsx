@@ -477,7 +477,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
 
   return (
     <div className={`page continuous-page${sheetOnly ? ' sheet-only-fallback' : ''}`}>
-      <button className="back-button" onClick={() => navigate(context === 'private-session' && session ? `/private-session?session=${encodeURIComponent(session.id)}` : context === 'sunday' && sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/songs')}><ChevronLeft size={16} />{context === 'private-session' ? 'Private Session' : context === 'sunday' ? 'Sunday' : 'Songs'}</button>
+      <button className="back-button" onClick={() => navigate(context === 'private-session' && session ? `/private-session?session=${encodeURIComponent(session.id)}` : context === 'sunday' && sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/songs')}><ChevronLeft size={16} />{context === 'private-session' ? 'Events' : context === 'sunday' ? 'Sunday' : 'Songs'}</button>
 
       <header className="v5-song-header">
         <div>
@@ -1182,10 +1182,10 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
     setIsSavingSessionName(true)
     setSessionNameError('')
     try {
-      const saved = await onUpdate({ ...session, name: sessionName.trim() || 'Private Session' })
+      const saved = await onUpdate({ ...session, name: sessionName.trim() || 'Event' })
       setSessionName(saved.name)
     } catch (saveError) {
-      setSessionNameError(saveError instanceof Error ? saveError.message : 'Unable to save the session name.')
+      setSessionNameError(saveError instanceof Error ? saveError.message : 'Unable to save the event name.')
     } finally {
       setIsSavingSessionName(false)
     }
@@ -1206,7 +1206,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
   }, [session?.id, session?.name])
 
   if (!sortedSessions.length) {
-    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Private Session</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create session</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Session Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Private Session" /></label><label>Session Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create session</button></div>}<div className="empty private-session-empty"><h2>No session is scheduled yet.</h2>{isOwner && <p>Create a session to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
+    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Events</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create Event</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button></div>}<div className="empty private-session-empty"><h2>No events are scheduled yet.</h2>{isOwner && <p>Create an event to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
   }
 
   const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
@@ -1225,18 +1225,19 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
       <header className="private-session-header">
         <div>
           <div className="eyebrow">Flexible schedule</div>
-          <h1>Private Session</h1>
-          <select className="private-session-selector" value={session.id} onChange={(event) => { const nextId = event.target.value; setSelectedId(nextId); navigate(`/private-session?session=${encodeURIComponent(nextId)}`, { replace: true }) }} aria-label="Select private session">{sortedSessions.map((item) => <option key={item.id} value={item.id}>{item.name || 'Private Session'} · {formatSessionDate(item.date)}</option>)}</select>
-          {isOwner && <label className="private-session-name-field">Session Name<input type="text" value={sessionName} placeholder="Private Session" onChange={(event) => { setSessionName(event.target.value); setSessionNameError('') }} /><button type="button" className="secondary-button" onClick={() => void saveSessionName()} disabled={isSavingSessionName}>{isSavingSessionName ? 'Saving...' : 'Save'}</button>{sessionNameError && <span className="form-error" role="alert">{sessionNameError}</span>}</label>}
-          {isOwner && <input className="private-session-date-input" type="date" value={session.date} onChange={(event) => { const nextDate = event.target.value; if (nextDate) void onUpdate({ ...session, date: nextDate }); }} aria-label="Private session date" />}
+          <h1>Events</h1>
+          <h2 className="private-session-event-name">{session.name || 'Event'}</h2>
+          <select className="private-session-selector" value={session.id} onChange={(event) => { const nextId = event.target.value; setSelectedId(nextId); navigate(`/private-session?session=${encodeURIComponent(nextId)}`, { replace: true }) }} aria-label="Select event date">{sortedSessions.map((item) => <option key={item.id} value={item.id}>{formatSessionDate(item.date)}</option>)}</select>
+          {isOwner && <label className="private-session-name-field">Event Name<input type="text" value={sessionName} placeholder="Event" onChange={(event) => { setSessionName(event.target.value); setSessionNameError('') }} /><button type="button" className="secondary-button" onClick={() => void saveSessionName()} disabled={isSavingSessionName}>{isSavingSessionName ? 'Saving...' : 'Save'}</button>{sessionNameError && <span className="form-error" role="alert">{sessionNameError}</span>}</label>}
+          {isOwner && <label className="private-session-date-field">Date<input className="private-session-date-input" type="date" value={session.date} onChange={(event) => { const nextDate = event.target.value; if (nextDate) void onUpdate({ ...session, date: nextDate }); }} aria-label="Event date" /></label>}
         </div>
         <div className="private-session-actions">
-          {isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>New session</button>}
-          {isOwner && session && <button className="secondary-button" onClick={() => { if (window.confirm('Delete this private session?')) void onDelete(session.id) }} aria-label="Delete private session">Delete</button>}
+          {isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>New Event</button>}
+          {isOwner && session && <button className="secondary-button" onClick={() => { if (window.confirm('Delete this event?')) void onDelete(session.id) }} aria-label="Delete event">Delete</button>}
         </div>
       </header>
 
-      {isOwner && createOpen && <div className="private-session-create-form"><label>Session Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Private Session" /></label><label>Session Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create session</button></div>}
+      {isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button></div>}
 
       <div className="private-session-layout">
         <main className="private-session-songs">
@@ -1253,13 +1254,13 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
                   {isOwner && <div className="private-session-controls">
                     <button className="icon-button" onClick={() => moveSong(song.id, -1)} disabled={index === 0} aria-label="Move earlier"><ChevronLeft size={15} /></button>
                     <button className="icon-button" onClick={() => moveSong(song.id, 1)} disabled={index === session.songIds.length - 1} aria-label="Move later"><ChevronRight size={15} /></button>
-                    <button className="icon-button" onClick={() => void onUpdate({ ...session, songIds: session.songIds.filter((item) => item !== song.id) })} aria-label="Remove from private session"><Trash2 size={15} /></button>
+                    <button className="icon-button" onClick={() => void onUpdate({ ...session, songIds: session.songIds.filter((item) => item !== song.id) })} aria-label="Remove from event"><Trash2 size={15} /></button>
                   </div>}
                 </div>
               )
             })}
             </div>
-          </> : <div className="empty private-session-empty"><h2>No songs are scheduled for this session yet.</h2>{isOwner && <p>Add songs from the available songs list.</p>}</div>}
+          </> : <div className="empty private-session-empty"><h2>No songs are scheduled for this event yet.</h2>{isOwner && <p>Add songs from the available songs list.</p>}</div>}
         </main>
 
         {isOwner && <aside className="add-sunday-panel">

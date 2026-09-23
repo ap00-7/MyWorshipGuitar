@@ -1252,6 +1252,7 @@ nav {
 }
 
 .private-session-name-field,
+.private-session-date-field,
 .private-session-create-form label {
   display: grid;
   gap: 6px;
@@ -1260,6 +1261,11 @@ nav {
   font: 500 10px 'DM Mono', monospace;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.private-session-event-name {
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
 }
 
 .private-session-name-field input,

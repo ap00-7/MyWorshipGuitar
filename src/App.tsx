@@ -204,12 +204,12 @@ export default function App() {
     return updateSetlist({ ...previous, id: '', name: formatSundayTitle(date), date })
   }
   const savePrivateSession = async (session: PrivateSession) => {
-    const normalized = { ...session, name: session.name.trim() || 'Private Session' }
+    const normalized = { ...session, name: session.name.trim() || 'Event' }
     const next = supabaseConfigured ? await upsertPrivateSession(normalized) : { ...normalized, id: normalized.id || crypto.randomUUID() }
     if (supabaseConfigured) {
       const snapshot = await refreshShared()
       const confirmed = snapshot.privateSessions.find((item) => item.id === next.id)
-      if (!confirmed) throw new Error('Private session was saved but could not be loaded from the database.')
+      if (!confirmed) throw new Error('Event was saved but could not be loaded from the database.')
       setError('')
       return confirmed
     }
@@ -228,7 +228,7 @@ export default function App() {
 
   if (shouldShowGlobalLoading) return <div className="page"><p>Loading shared worship content...</p></div>
 
-  const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/private-session', label: 'Private Session', icon: CalendarDays }, { to: '/chords', label: 'Chords', icon: Guitar }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
+  const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/private-session', label: 'Events', icon: CalendarDays }, { to: '/chords', label: 'Chords', icon: Guitar }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
   return (
     <div className="app">
       <Sidebar items={publicNav} isOwner={isOwner} onSignOut={signOut} />
@@ -265,7 +265,7 @@ function OwnerLogin() {
     if (error) setMessage(error.message)
     else navigate('/')
   }
-  return <div className="page auth-page"><div className="auth-shell"><div className="eyebrow">Owner access</div><h1>Sign in</h1><p className="auth-subtitle">Manage songs, Sunday schedules, and private sessions.</p><form className="auth-form" onSubmit={submit}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label><button className="primary-button" type="submit"><LogIn size={16} />Sign in</button>{message && <p className="auth-error" role="alert">{message}</p>}</form></div></div>
+  return <div className="page auth-page"><div className="auth-shell"><div className="eyebrow">Owner access</div><h1>Sign in</h1><p className="auth-subtitle">Manage songs, Sunday schedules, and Events.</p><form className="auth-form" onSubmit={submit}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label><button className="primary-button" type="submit"><LogIn size={16} />Sign in</button>{message && <p className="auth-error" role="alert">{message}</p>}</form></div></div>
 }
 
 function ReadOnlyPage() { return <div className="page"><h1>Owner access required</h1><p>This management screen is available only to the owner account.</p></div> }
