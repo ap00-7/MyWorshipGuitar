@@ -1,32 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Mic, Square } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { centsFromFrequency, detectPitch, frequencyToNote, GUITAR_STRINGS, nearestString } from './tuner'
+import { centsFromFrequency, detectPitch, frequencyToNote, GUITAR_STRINGS, nearestString, TUNER_AUDIO, type GuitarString } from './tuner'
 
 export const IN_TUNE_THRESHOLD = 5
-const HISTORY_LIMIT = 8
-const MIN_CONFIDENCE = 0.6
-const STALE_PITCH_MS = 320
+const CLOSE_THRESHOLD = 15
+const HISTORY_LIMIT = 7
+const STALE_PITCH_MS = 420
 const REQUIRED_STABLE_FRAMES = 3
+const DISPLAY_INTERVAL_MS = 55
 
 type DetectedTuning = {
   frequency: number
   cents: number
   note: string
   octave: number
-  string: typeof GUITAR_STRINGS[number]
+  string: GuitarString
 }
 
 function median(values: number[]) {
   const sorted = [...values].sort((a, b) => a - b)
   return sorted[Math.floor(sorted.length / 2)] ?? 0
-}
-
-function weightedAverage(values: number[]) {
-  if (!values.length) return 0
-  const weights = values.map((_, index) => index + 1)
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
-  return values.reduce((sum, value, index) => sum + value * weights[index], 0) / totalWeight
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -37,7 +31,8 @@ export function TunerPage() {
   const navigate = useNavigate()
   const [isRunning, setIsRunning] = useState(false)
   const [pitch, setPitch] = useState<DetectedTuning | null>(null)
-  const [message, setMessage] = useState('Play a string')
+  const [selectedString, setSelectedString] = useState<GuitarString | null>(null)
+  const [message, setMessage] = useState('Ready to tune')
   const [error, setError] = useState('')
   const audioContextRef = useRef<AudioContext | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -45,8 +40,16 @@ export function TunerPage() {
   const analyserRef = useRef<AnalyserNode | null>(null)
   const frequencyHistoryRef = useRef<number[]>([])
   const lastDetectedAtRef = useRef(0)
+  const lastDisplayAtRef = useRef(0)
+  const stableStringRef = useRef<number | null>(null)
+  const stableFramesRef = useRef(0)
+  const selectedStringRef = useRef<GuitarString | null>(null)
   const startRequestRef = useRef(0)
   const startingRef = useRef(false)
+
+  useEffect(() => {
+    selectedStringRef.current = selectedString
+  }, [selectedString])
 
   const stopTuner = () => {
     startRequestRef.current += 1
@@ -61,9 +64,12 @@ export function TunerPage() {
     audioContextRef.current = null
     frequencyHistoryRef.current = []
     lastDetectedAtRef.current = 0
+    lastDisplayAtRef.current = 0
+    stableStringRef.current = null
+    stableFramesRef.current = 0
     setIsRunning(false)
     setPitch(null)
-    setMessage('Play a string')
+    setMessage('Ready to tune')
   }
 
   const startTuner = async () => {
@@ -76,199 +82,143 @@ export function TunerPage() {
 
     startingRef.current = true
     const requestId = ++startRequestRef.current
-
+    let pendingStream: MediaStream | null = null
+    let pendingContext: AudioContext | null = null
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          autoGainControl: false,
-          noiseSuppression: false,
-          channelCount: 1,
-        },
+        audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false, channelCount: 1 },
       })
-
+      pendingStream = stream
       if (requestId !== startRequestRef.current) {
         stream.getTracks().forEach((track) => track.stop())
         return
       }
 
       const context = new AudioContext()
+      pendingContext = context
+      await context.resume()
       const source = context.createMediaStreamSource(stream)
       const analyser = context.createAnalyser()
       analyser.fftSize = 8192
-      analyser.smoothingTimeConstant = 0.15
+      analyser.smoothingTimeConstant = 0
       source.connect(analyser)
-
       streamRef.current = stream
       audioContextRef.current = context
+      pendingStream = null
+      pendingContext = null
       analyserRef.current = analyser
       startingRef.current = false
       setIsRunning(true)
-      setMessage('Listening…')
+      setMessage('Play a string')
 
       const buffer = new Float32Array(analyser.fftSize)
       const readPitch = () => {
         const currentAnalyser = analyserRef.current
         if (!currentAnalyser) return
-
         currentAnalyser.getFloatTimeDomainData(buffer)
         const result = detectPitch(buffer, context.sampleRate)
+        const now = performance.now()
 
-        if (result && result.confidence >= MIN_CONFIDENCE) {
-          const nextHistory = [...frequencyHistoryRef.current, result.frequency].slice(-HISTORY_LIMIT)
-          const previousFrequency = nextHistory.length > 1 ? nextHistory[nextHistory.length - 2] : result.frequency
-          if (nextHistory.length > 1 && Math.abs(Math.log2(result.frequency / previousFrequency)) > 0.35) {
-            frequencyHistoryRef.current = [result.frequency]
-            frameRef.current = requestAnimationFrame(readPitch)
-            return
+        if (result) {
+          const history = [...frequencyHistoryRef.current, result.frequency].slice(-HISTORY_LIMIT)
+          frequencyHistoryRef.current = history
+          const stableFrequency = median(history)
+          const detectedString = nearestString(stableFrequency)
+          if (stableStringRef.current === detectedString.number) stableFramesRef.current += 1
+          else {
+            stableStringRef.current = detectedString.number
+            stableFramesRef.current = 1
           }
-          const smoothedFrequency = nextHistory.length >= 3
-            ? weightedAverage(nextHistory) * 0.65 + median(nextHistory) * 0.35
-            : result.frequency
-
-          frequencyHistoryRef.current = nextHistory
-          if (nextHistory.length < REQUIRED_STABLE_FRAMES) {
-            frameRef.current = requestAnimationFrame(readPitch)
-            return
+          if (stableFramesRef.current >= REQUIRED_STABLE_FRAMES && now - lastDisplayAtRef.current >= DISPLAY_INTERVAL_MS) {
+            const target = selectedStringRef.current ?? detectedString
+            const targetCents = centsFromFrequency(stableFrequency, target.frequency)
+            if (selectedStringRef.current && Math.abs(targetCents) > TUNER_AUDIO.maxDetuneCents) {
+              frequencyHistoryRef.current = []
+              stableStringRef.current = null
+              stableFramesRef.current = 0
+              setPitch(null)
+              setMessage('Listening for selected string')
+              frameRef.current = requestAnimationFrame(readPitch)
+              return
+            }
+            const detectedNote = frequencyToNote(stableFrequency)
+            setPitch({
+              frequency: stableFrequency,
+              cents: clamp(targetCents, -50, 50),
+              note: detectedNote.name,
+              octave: detectedNote.octave,
+              string: target,
+            })
+            lastDisplayAtRef.current = now
+            lastDetectedAtRef.current = now
+            setMessage('')
           }
-          lastDetectedAtRef.current = performance.now()
-          const detectedString = nearestString(smoothedFrequency)
-          const detectedNote = frequencyToNote(smoothedFrequency)
-          const cents = centsFromFrequency(smoothedFrequency, detectedString.frequency)
-
-          setPitch({
-            frequency: smoothedFrequency,
-            cents: clamp(cents, -50, 50),
-            note: detectedNote.name,
-            octave: detectedNote.octave,
-            string: detectedString,
-          })
-          setMessage('')
-        } else if (performance.now() - lastDetectedAtRef.current > STALE_PITCH_MS) {
+        } else if (now - lastDetectedAtRef.current > STALE_PITCH_MS) {
           frequencyHistoryRef.current = []
+          stableStringRef.current = null
+          stableFramesRef.current = 0
           setPitch(null)
-          setMessage('Listening…')
+          setMessage('Listening...')
         }
-
         frameRef.current = requestAnimationFrame(readPitch)
       }
-
       readPitch()
     } catch (startError) {
       startingRef.current = false
+      pendingStream?.getTracks().forEach((track) => track.stop())
+      void pendingContext?.close()
       streamRef.current?.getTracks().forEach((track) => track.stop())
       streamRef.current = null
       const permissionMessage = startError instanceof DOMException && startError.name === 'NotAllowedError'
-        ? 'Microphone permission is required. Allow access in your browser, then try again.'
+        ? 'Microphone access is required to use the tuner.'
         : 'The microphone could not be started. Check your browser and microphone, then try again.'
       setError(permissionMessage)
       setIsRunning(false)
     }
   }
 
-  useEffect(() => {
-    void startTuner()
-    return stopTuner
-  }, [])
+  useEffect(() => () => stopTuner(), [])
 
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && isRunning && audioContextRef.current?.state === 'suspended') {
-        void audioContextRef.current.resume()
-      }
+      if (document.visibilityState === 'visible' && audioContextRef.current?.state === 'suspended') void audioContextRef.current.resume()
     }
-
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [isRunning])
+  }, [])
 
   const cents = pitch?.cents ?? 0
-  const status = !pitch ? 'LISTENING' : Math.abs(cents) <= IN_TUNE_THRESHOLD ? 'IN TUNE' : cents < 0 ? 'TOO LOW' : 'TOO HIGH'
+  const status = !pitch ? (isRunning ? 'LISTENING' : 'READY') : Math.abs(cents) <= IN_TUNE_THRESHOLD ? 'IN TUNE' : cents < 0 ? 'TOO LOW' : 'TOO HIGH'
   const statusClass = !pitch ? 'waiting' : Math.abs(cents) <= IN_TUNE_THRESHOLD ? 'in-tune' : cents < 0 ? 'too-low' : 'too-high'
-  const indicatorPosition = pitch ? clamp(50 + cents * 1.25, 8, 92) : 50
+  const indicatorPosition = pitch ? clamp(50 + cents, 6, 94) : 50
 
   return (
     <div className="page tuner-page">
       <header className="tuner-header">
-        <button
-          className="icon-button"
-          onClick={() => {
-            stopTuner()
-            navigate(-1)
-          }}
-          aria-label="Go back"
-          title="Go back"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div>
-          <div className="eyebrow">Chromatic instrument tool</div>
-          <h1>Guitar Tuner</h1>
-        </div>
+        <button className="icon-button" onClick={() => { stopTuner(); navigate(-1) }} aria-label="Go back" title="Go back"><ArrowLeft size={18} /></button>
+        <div><div className="eyebrow">Standard tuning</div><h1>Guitar Tuner</h1></div>
       </header>
 
       <section className={`tuner-panel ${statusClass}`} aria-live="polite">
         <div className="tuner-status">{status}</div>
-
         <div className="tuner-note-wrap">
           <div className="tuner-note">{pitch ? pitch.note : '--'}<small>{pitch ? pitch.octave : ''}</small></div>
-          <div className="tuner-meta">
-            <div className="tuner-frequency">{pitch ? `${pitch.frequency.toFixed(2)} Hz` : message}</div>
-            <div className="tuner-cents">{pitch ? `${cents > 0 ? '+' : ''}${Math.round(cents)} cents` : 'Listening for any standard guitar string'}</div>
-          </div>
+          <div className="tuner-meta"><div className="tuner-frequency">{pitch ? `${pitch.frequency.toFixed(2)} Hz` : message}</div><div className="tuner-cents">{pitch ? `${cents > 0 ? '+' : ''}${cents.toFixed(1)} cents` : 'Pluck one string at a time'}</div></div>
         </div>
-
-        <div className="tuner-meter" aria-label={status}>
-          <div className="tuner-meter-track">
-            {[-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50].map((tick) => (
-              <span
-                key={tick}
-                className="tuner-meter-tick"
-                style={{ left: `${((tick + 50) / 100) * 100}%` }}
-              >
-                <small>{tick}</small>
-              </span>
-            ))}
-            <span className="tuner-center-mark" />
-            <span className="tuner-needle" style={{ left: `${indicatorPosition}%` }} />
-          </div>
+        <div className="tuner-meter" aria-label={`${status}, ${pitch ? `${cents.toFixed(1)} cents` : 'no pitch detected'}`}>
+          <div className="tuner-meter-labels"><span>FLAT</span><span>IN TUNE</span><span>SHARP</span></div>
+          <div className="tuner-meter-track"><span className="tuner-center-mark" /><span className="tuner-needle" style={{ left: `${indicatorPosition}%` }} /></div>
+          <div className="tuner-meter-scale"><span>-50</span><span>-25</span><span>0</span><span>+25</span><span>+50</span></div>
         </div>
-
-        <div className="tuner-detected">
-          <span>Closest string</span>
-          <strong>{pitch ? `${pitch.string.number}th string` : '--'}</strong>
-          <small>{pitch ? `${pitch.string.note}${pitch.string.octave}` : 'Play one string'}</small>
-        </div>
-
+        <div className="tuner-detected"><span>{selectedString ? 'Target string' : 'Detected string'}</span><strong>{pitch ? `${pitch.string.number} · ${pitch.string.note}${pitch.string.octave}` : '--'}</strong><small>{selectedString ? `Tune to ${selectedString.note}${selectedString.octave}` : 'Automatic'}</small></div>
         {error && <p className="tuner-error" role="alert">{error}</p>}
-
-        {(!isRunning || error) && (
-          <button className="primary-button tuner-toggle" onClick={isRunning ? stopTuner : startTuner}>
-            {isRunning ? <><Square size={15} />Stop Tuner</> : <><Mic size={15} />Enable Microphone</>}
-          </button>
-        )}
-
-        {isRunning && !error && (
-          <button className="text-button tuner-stop" onClick={stopTuner}>
-            <Square size={14} />Stop listening
-          </button>
-        )}
+        <button className="primary-button tuner-toggle" onClick={() => void (isRunning ? stopTuner() : startTuner())}>{isRunning ? <><Square size={15} />Stop Tuning</> : <><Mic size={15} />Start Tuning</>}</button>
       </section>
 
       <section className="tuner-strings" aria-label="Guitar strings">
-        <div className="eyebrow">Standard tuning · A4 = 440 Hz</div>
-        <div className="string-grid">
-          {GUITAR_STRINGS.map((guitarString) => (
-            <div
-              key={guitarString.number}
-              className={pitch?.string.number === guitarString.number ? 'string-choice active' : 'string-choice'}
-            >
-              <span>{guitarString.number}th</span>
-              <strong>{guitarString.note}{guitarString.octave}</strong>
-              <small>{guitarString.frequency.toFixed(2)} Hz</small>
-            </div>
-          ))}
-        </div>
+        <div className="tuner-string-heading"><div><div className="eyebrow">String target</div><strong>{selectedString ? `${selectedString.number} string selected` : 'Automatic string detection'}</strong></div><button className={`text-button tuner-auto${selectedString ? '' : ' active'}`} onClick={() => setSelectedString(null)}>Auto</button></div>
+        <div className="string-grid">{GUITAR_STRINGS.map((guitarString) => <button type="button" key={guitarString.number} className={`string-choice${selectedString?.number === guitarString.number || (!selectedString && pitch?.string.number === guitarString.number) ? ' active' : ''}`} onClick={() => setSelectedString(guitarString)} aria-label={`Select string ${guitarString.number}, ${guitarString.note}${guitarString.octave}`}><span>{guitarString.number}</span><strong>{guitarString.note}</strong><small>{guitarString.octave}</small></button>)}</div>
+        <p className="tuner-reference">Standard tuning · A4 = 440 Hz · {TUNER_AUDIO.minFrequency}-{TUNER_AUDIO.maxFrequency} Hz detection range</p>
       </section>
     </div>
   )
