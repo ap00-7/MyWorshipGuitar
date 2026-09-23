@@ -49,12 +49,13 @@ button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
 
-.app { display: flex; min-height: 100vh; background: var(--paper); }
-.main { flex: 1; min-width: 0; padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+.app { display: flex; height: 100vh; min-height: 100vh; overflow: hidden; background: var(--paper); }
+.main { flex: 1; min-width: 0; height: 100vh; overflow-x: hidden; overflow-y: auto; padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
 .page { max-width: 1120px; margin: 0 auto; padding: 34px 24px calc(88px + env(safe-area-inset-bottom)); }
 
 .sidebar {
   width: 230px;
+  height: 100vh;
   flex-shrink: 0;
   border-right: 1px solid var(--line);
   background: var(--paper);
@@ -310,7 +311,7 @@ nav {
 .home-actions {
   display: grid;
   width: 100%;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
 }
 
@@ -1395,8 +1396,10 @@ nav {
 .continuous-sheet { touch-action: pan-y; }
 
 @media (max-width: 850px) {
-  .app { flex-direction: column; }
+  .app { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }
+  .main { height: auto; overflow: visible; }
   .sidebar {
+    height: auto;
     width: 100%;
     border-right: 0;
     border-bottom: 1px solid var(--line);
@@ -1445,9 +1448,12 @@ nav {
 @media (max-width: 640px) {
   .app {
     display: block;
+    height: auto;
   }
 
   .main {
+    height: auto;
+    overflow: visible;
     padding-bottom: calc(94px + env(safe-area-inset-bottom));
   }
 
