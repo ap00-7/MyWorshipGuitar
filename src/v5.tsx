@@ -233,11 +233,6 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
           <b>Chord library</b>
           <small>Find a shape</small>
         </Link>
-        <Link to="/tuner">
-          <span className="home-action-symbol">♩</span>
-          <b>Guitar tuner</b>
-          <small>Tune a string</small>
-        </Link>
       </div>
 
       <section className="library-panel">

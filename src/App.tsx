@@ -7,7 +7,6 @@ import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadShare
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
 import { ChordLibrary, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
-import { TunerPage } from './TunerPage'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
 
@@ -288,7 +287,6 @@ export default function App() {
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} onDelete={async (setlistId) => { if (supabaseConfigured) { await deleteSunday(setlistId); await refreshShared() } else setSetlists((current) => current.filter((item) => item.id !== setlistId)); }} isOwner={isOwner} />} />
           <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); }} />} />
           <Route path="/chords" element={<ChordLibrary />} />
-          <Route path="/tuner" element={<TunerPage />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />
           <Route path="/owner" element={<OwnerLogin />} />
           <Route path="*" element={<HomePage songs={songs} setlists={setlists} onCreateSong={createSong} isOwner={isOwner} />} />
