@@ -1156,6 +1156,8 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
   const [createName, setCreateName] = useState('')
   const [createDate, setCreateDate] = useState(new Date().toISOString().slice(0, 10))
   const [sessionName, setSessionName] = useState('')
+  const [sessionNameError, setSessionNameError] = useState('')
+  const [isSavingSessionName, setIsSavingSessionName] = useState(false)
   const sortedSessions = [...sessions].sort((left, right) => (right.date || '').localeCompare(left.date || ''))
   const requestedSessionId = searchParams.get('session')
   const session = sortedSessions.find((item) => item.id === requestedSessionId) ?? sortedSessions.find((item) => item.id === selectedId) ?? sortedSessions[0]
@@ -1173,6 +1175,20 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
     setCreateDate(new Date().toISOString().slice(0, 10))
     setCreateOpen(false)
     navigate(`/private-session?session=${encodeURIComponent(created.id)}`, { replace: true })
+  }
+
+  const saveSessionName = async () => {
+    if (!session || isSavingSessionName) return
+    setIsSavingSessionName(true)
+    setSessionNameError('')
+    try {
+      const saved = await onUpdate({ ...session, name: sessionName.trim() || 'Private Session' })
+      setSessionName(saved.name)
+    } catch (saveError) {
+      setSessionNameError(saveError instanceof Error ? saveError.message : 'Unable to save the session name.')
+    } finally {
+      setIsSavingSessionName(false)
+    }
   }
 
   useEffect(() => {
@@ -1210,8 +1226,8 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
         <div>
           <div className="eyebrow">Flexible schedule</div>
           <h1>Private Session</h1>
-          <select className="private-session-selector" value={session.id} onChange={(event) => { const nextId = event.target.value; setSelectedId(nextId); navigate(`/private-session?session=${encodeURIComponent(nextId)}`, { replace: true }) }} aria-label="Select private session">{sortedSessions.map((item) => <option key={item.id} value={item.id}>{formatSessionDate(item.date)}</option>)}</select>
-          {isOwner && <label className="private-session-name-field">Session Name<input type="text" value={sessionName} placeholder="Private Session" onChange={(event) => setSessionName(event.target.value)} onBlur={() => { const name = sessionName.trim() || 'Private Session'; if (name !== session.name) void onUpdate({ ...session, name }) }} /></label>}
+          <select className="private-session-selector" value={session.id} onChange={(event) => { const nextId = event.target.value; setSelectedId(nextId); navigate(`/private-session?session=${encodeURIComponent(nextId)}`, { replace: true }) }} aria-label="Select private session">{sortedSessions.map((item) => <option key={item.id} value={item.id}>{item.name || 'Private Session'} · {formatSessionDate(item.date)}</option>)}</select>
+          {isOwner && <label className="private-session-name-field">Session Name<input type="text" value={sessionName} placeholder="Private Session" onChange={(event) => { setSessionName(event.target.value); setSessionNameError('') }} /><button type="button" className="secondary-button" onClick={() => void saveSessionName()} disabled={isSavingSessionName}>{isSavingSessionName ? 'Saving...' : 'Save'}</button>{sessionNameError && <span className="form-error" role="alert">{sessionNameError}</span>}</label>}
           {isOwner && <input className="private-session-date-input" type="date" value={session.date} onChange={(event) => { const nextDate = event.target.value; if (nextDate) void onUpdate({ ...session, date: nextDate }); }} aria-label="Private session date" />}
         </div>
         <div className="private-session-actions">
