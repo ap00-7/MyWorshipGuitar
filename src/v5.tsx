@@ -539,7 +539,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
             <section className="continuous-section" key={section.id || section.name}>
               <div className="continuous-section-header">
                 <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · capo ${selectedCapo}` : ''}</div>
-                {sectionIndex === 0 && <div className="continuous-title">{song.title}</div>}
+                {sectionIndex === 0 && <div className={`continuous-title ${sheetOnly ? 'fullscreen-title' : 'normal-section-title'}`}>{song.title}</div>}
               </div>
               {lines.map((line, lineIndex) => (
                 <div className="continuous-line" key={`${section.id}-${lineIndex}`}>

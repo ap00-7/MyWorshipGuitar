@@ -30,7 +30,7 @@ function useLocalState<T>(key: string, initial: T, persist = true) {
     if (!persist) return initial
     const stored = repository.load() as T
     if (key === 'wg-songs' && Array.isArray(stored)) return stored.map(normalizeSong) as T
-    if (key === 'wg-settings' && !localStorage.getItem(key)) return { ...(stored as object), theme: window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } as T
+    if (key === 'wg-settings' && !localStorage.getItem(key)) return { ...(stored as object), theme: 'dark' } as T
     return stored
   })
   useEffect(() => {

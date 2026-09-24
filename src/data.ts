@@ -117,7 +117,7 @@ export const demoSongs: Song[] = [
 ]
 
 export const defaultSettings: Settings = {
-  theme: 'light',
+  theme: 'dark',
   notation: 'auto',
   fontSize: 1,
   simplify: false,
