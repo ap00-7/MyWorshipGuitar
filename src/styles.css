@@ -84,7 +84,7 @@ img { max-width: 100%; display: block; }
 
 :root[data-theme='dark'] .sidebar {
   background: rgba(17, 17, 15, 0.92);
-  border-color: #2f2a24;
+  border-color: var(--gold-line);
 }
 
 :root[data-theme='dark'] .auth-shell,
@@ -117,6 +117,7 @@ img { max-width: 100%; display: block; }
   line-height: 1.05;
   letter-spacing: -0.02em;
   margin: 0 0 32px;
+  color: var(--gold);
 }
 
 .brand-logo { display: inline-flex; align-items: center; gap: 12px; }
@@ -124,7 +125,7 @@ img { max-width: 100%; display: block; }
 .brand-logo b { display: block; font-weight: 700; }
 
 .nav-label {
-  color: var(--muted);
+  color: var(--gold);
   font: 500 10px 'DM Mono', monospace;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -159,7 +160,7 @@ nav {
   position: relative;
   background: transparent;
   box-shadow: none;
-  color: var(--ink);
+  color: var(--gold-light);
 }
 
 .nav-item.active::before {
@@ -179,14 +180,14 @@ nav {
   display: flex;
   align-items: center;
   gap: 10px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--gold-line);
   padding-top: 18px;
 }
 
 .sidebar-account {
   margin-top: auto;
   padding-top: 18px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--gold-line);
 }
 
 .sidebar-account .text-button {
@@ -321,19 +322,6 @@ nav {
   isolation: isolate;
 }
 
-.v5-home-header::before {
-  position: absolute;
-  z-index: -1;
-  inset: -30px -24px 0;
-  background: radial-gradient(ellipse at 28% 18%, var(--gold-wash), transparent 58%);
-  content: '';
-  pointer-events: none;
-}
-
-:root[data-theme='dark'] .v5-home-header::before {
-  background: radial-gradient(ellipse at 28% 18%, rgba(198, 161, 91, 0.075), transparent 58%), radial-gradient(ellipse at 76% 45%, rgba(189, 79, 53, 0.035), transparent 64%);
-}
-
 .v5-home-header::after {
   position: absolute;
   right: 0;
@@ -451,7 +439,7 @@ nav {
 .section-heading {
   align-items: end;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--gold-line);
 }
 
 .section-heading h2 {
@@ -1658,7 +1646,7 @@ nav {
   }
 
   .nav-item.active {
-    color: #f3ead8;
+    color: var(--gold-light);
   }
 
   .sidebar-footer {
