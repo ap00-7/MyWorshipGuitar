@@ -354,6 +354,14 @@ nav {
   overflow-wrap: anywhere;
 }
 
+.v5-home-header > div > .brand-logo {
+  display: none;
+}
+
+.v5-home-header h1 {
+  margin-top: 0;
+}
+
 .v5-song-header h1 { color: var(--ink); }
 
 .v5-home-header em {
@@ -1679,6 +1687,14 @@ nav {
   .v5-home-header, .v5-page-header, .v5-song-header, .sunday-header, .section-heading {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .v5-home-header > div > .brand-logo {
+    display: inline-flex;
+  }
+
+  .v5-home-header h1 {
+    margin-top: 8px;
   }
 
   .home-sunday {
