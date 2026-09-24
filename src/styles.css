@@ -1594,14 +1594,19 @@ nav {
     z-index: 40;
     width: auto;
     border-right: 0;
-    border-top: 1px solid #2f2a24;
+    border-top: 1px solid var(--line);
     border-bottom: 0;
-    background: #0b0b0a;
+    background: var(--paper);
     backdrop-filter: blur(10px);
     box-shadow: var(--nav-shadow);
     padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
     overflow: hidden;
     -webkit-overflow-scrolling: touch;
+  }
+
+  :root[data-theme='dark'] .sidebar {
+    border-top-color: #2f2a24;
+    background: #0b0b0a;
   }
 
   .brand {
