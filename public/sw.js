@@ -1,4 +1,4 @@
-const CACHE = 'worship-guitar-v3'
+const CACHE = 'worship-guitar-v4'
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/branding/worship-guitar-logo.png']
 
 self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())))
