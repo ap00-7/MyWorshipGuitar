@@ -74,16 +74,9 @@ img { max-width: 100%; display: block; }
   margin: 0 0 32px;
 }
 
-.brand b { display: block; font-weight: 700; }
-.brand-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--accent);
-  color: white;
-}
+.brand-logo { display: inline-flex; align-items: center; gap: 12px; }
+.brand-logo img { width: var(--brand-logo-size); height: var(--brand-logo-size); object-fit: contain; }
+.brand-logo b { display: block; font-weight: 700; }
 
 .nav-label {
   color: var(--muted);

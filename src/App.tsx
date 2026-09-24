@@ -7,6 +7,7 @@ import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadShare
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
 import { ChordLibrary, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
+import { BrandLogo } from './components/BrandLogo'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
 
@@ -348,5 +349,5 @@ function Sidebar({ items, isOwner, onSignOut }: { items: { to: string; label: st
   const context = new URLSearchParams(location.search).get('context')
   const contextualRoute = context === 'private-session' ? '/private-session' : context === 'sunday' ? '/sunday' : '/songs'
   const contextualSong = location.pathname.startsWith('/songs/')
-  return <aside className="sidebar"><Link to="/" className="brand"><span className="brand-mark"><Guitar size={19} /></span><span>Worship<b>Guitar</b></span></Link><div className="eyebrow nav-label">Navigation</div><nav aria-label="Primary navigation">{items.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => ((contextualSong ? to === contextualRoute : isActive) ? 'nav-item active' : 'nav-item')} aria-label={label}><Icon size={18} />{label}</NavLink>)}</nav><div className="sidebar-account">{isOwner ? <button className="text-button" aria-label="Sign out" onClick={onSignOut}><LogOut size={15} />Sign out</button> : <Link className="text-button" to="/owner" aria-label="Owner sign in"><LogIn size={15} />Owner sign in</Link>}</div></aside>
+  return <aside className="sidebar"><Link to="/" className="brand"><BrandLogo variant="full" size={36} /></Link><div className="eyebrow nav-label">Navigation</div><nav aria-label="Primary navigation">{items.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => ((contextualSong ? to === contextualRoute : isActive) ? 'nav-item active' : 'nav-item')} aria-label={label}><Icon size={18} />{label}</NavLink>)}</nav><div className="sidebar-account">{isOwner ? <button className="text-button" aria-label="Sign out" onClick={onSignOut}><LogOut size={15} />Sign out</button> : <Link className="text-button" to="/owner" aria-label="Owner sign in"><LogIn size={15} />Owner sign in</Link>}</div></aside>
 }

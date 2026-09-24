@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { capoShapeKey, chooseBestGuitar2Option, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { MetronomeEngine } from './metronome'
+import { BrandLogo } from './components/BrandLogo'
 
 const editorKey = () => crypto.randomUUID()
 
@@ -199,7 +200,7 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
     <div className="page v5-home">
       <header className="v5-home-header">
         <div>
-          <div className="eyebrow">Worship Guitar</div>
+          <BrandLogo variant="full" size={32} />
           <h1>
             Your chord sheets,{' '}
             <em>always ready.</em>
