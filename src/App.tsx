@@ -71,6 +71,8 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme
+    document.documentElement.style.colorScheme = settings.theme
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', settings.theme === 'dark' ? '#0b0b0a' : '#f4f1ea')
   }, [settings.theme])
 
   useEffect(() => {
