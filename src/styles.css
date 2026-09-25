@@ -94,7 +94,6 @@ img { max-width: 100%; display: block; }
 :root[data-theme='dark'] .song-row,
 :root[data-theme='dark'] .v5-song-card,
 :root[data-theme='dark'] .song-key-bar,
-:root[data-theme='dark'] .metronome,
 :root[data-theme='dark'] .section-card,
 :root[data-theme='dark'] .image-preview,
 :root[data-theme='dark'] .library-chord,
@@ -751,40 +750,6 @@ nav {
   display: block;
   margin-bottom: 12px;
 }
-.metronome {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  padding: 10px 12px;
-}
-.metronome {
-  width: min(100%, 320px);
-  margin: 14px 0 0;
-}
-.metronome-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.metronome-heading .eyebrow { margin: 0; }
-.metronome-toggle, .metronome-controls button {
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink);
-  border-radius: 7px;
-  min-width: 34px;
-  min-height: 30px;
-  padding: 0 8px;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
-}
-.metronome-toggle.active { background: var(--accent); color: var(--paper); }
-.metronome-controls { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; }
-.metronome-controls label { display: flex; align-items: center; gap: 4px; color: var(--muted); font: 600 12px 'DM Mono', monospace; }
-.metronome-controls input { width: 54px; border: 0; background: transparent; color: var(--ink); font: 600 16px 'DM Mono', monospace; text-align: right; }
-.metronome-error { display: block; margin-top: 6px; color: var(--accent); font-size: 10px; }
 .chord-size-controls {
   display: flex;
   align-items: center;

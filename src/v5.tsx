@@ -3,7 +3,6 @@ import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDo
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { capoShapeKey, chooseBestGuitar2Option, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
-import { MetronomeEngine } from './metronome'
 import { BrandLogo } from './components/BrandLogo'
 
 const editorKey = () => crypto.randomUUID()
@@ -90,102 +89,6 @@ const displayChord = (chord: string, interval: number, notation: Notation, simpl
 
 const renderChordLine = (line: string, interval: number, notation: Notation, simplifyValue: boolean) => {
   return <span className="chord-token">{formatTransposedChordLine(line, interval, notation, simplifyValue)}</span>
-}
-
-function Metronome({ initialBpm }: { initialBpm: number }) {
-  const [bpm, setBpm] = useState(() => {
-    const stored = Number(localStorage.getItem('wg-metronome-bpm'))
-    return Number.isFinite(stored) ? Math.min(240, Math.max(40, stored)) : Math.min(240, Math.max(40, initialBpm || 80))
-  })
-  const [playing, setPlaying] = useState(false)
-  const [error, setError] = useState('')
-  const engineRef = useRef<MetronomeEngine | null>(null)
-  const holdTimeoutRef = useRef<number | null>(null)
-  const holdIntervalRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    const engine = new MetronomeEngine()
-    engine.setTempo(bpm)
-    engineRef.current = engine
-    return () => {
-      if (holdTimeoutRef.current) window.clearTimeout(holdTimeoutRef.current)
-      if (holdIntervalRef.current) window.clearInterval(holdIntervalRef.current)
-      void engine.dispose()
-      engineRef.current = null
-    }
-  }, [])
-
-  const clampBpm = (value: number) => Math.min(240, Math.max(40, Math.round(value)))
-
-  const updateBpm = (value: number) => {
-    const next = clampBpm(value)
-    setBpm(next)
-    localStorage.setItem('wg-metronome-bpm', String(next))
-    engineRef.current?.setTempo(next)
-  }
-
-  const stopHold = () => {
-    if (holdTimeoutRef.current) {
-      window.clearTimeout(holdTimeoutRef.current)
-      holdTimeoutRef.current = null
-    }
-    if (holdIntervalRef.current) {
-      window.clearInterval(holdIntervalRef.current)
-      holdIntervalRef.current = null
-    }
-  }
-
-  const beginHold = (direction: 1 | -1) => {
-    stopHold()
-
-    const tick = () => {
-      setBpm((current) => {
-        const next = clampBpm(current + direction)
-        if (next !== current) {
-          localStorage.setItem('wg-metronome-bpm', String(next))
-          engineRef.current?.setTempo(next)
-        }
-        return next
-      })
-    }
-
-    tick()
-    holdTimeoutRef.current = window.setTimeout(() => {
-      holdIntervalRef.current = window.setInterval(() => {
-        tick()
-      }, 75)
-    }, 180)
-  }
-
-  const toggle = async () => {
-    setError('')
-    if (playing) {
-      engineRef.current?.stop()
-      setPlaying(false)
-      return
-    }
-    try {
-      await engineRef.current?.start()
-      setPlaying(true)
-    } catch (startError) {
-      setError(startError instanceof Error ? startError.message : 'Unable to start the metronome.')
-    }
-  }
-
-  return (
-    <section className="metronome" aria-label="Metronome">
-      <div className="metronome-heading">
-        <span className="eyebrow">Metronome</span>
-        <button className={`metronome-toggle${playing ? ' active' : ''}`} onClick={() => void toggle()} aria-label={playing ? 'Pause metronome' : 'Play metronome'}>{playing ? '❚❚' : '▶'}</button>
-      </div>
-      <div className="metronome-controls">
-        <button type="button" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); beginHold(-1) }} onPointerUp={stopHold} onPointerLeave={stopHold} onPointerCancel={stopHold} onContextMenu={(event) => event.preventDefault()} aria-label="Decrease BPM">−</button>
-        <label><input type="number" min="40" max="240" value={bpm} onChange={(event) => updateBpm(Number(event.target.value))} /> BPM</label>
-        <button type="button" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); beginHold(1) }} onPointerUp={stopHold} onPointerLeave={stopHold} onPointerCancel={stopHold} onContextMenu={(event) => event.preventDefault()} aria-label="Increase BPM">＋</button>
-      </div>
-      {error && <small className="metronome-error" role="alert">{error}</small>}
-    </section>
-  )
 }
 
 export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreateSong: () => void; isOwner: boolean }) {
@@ -561,8 +464,6 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
           </section>
         )}
       </div>
-
-      {!sheetOnly && <Metronome key={song.id} initialBpm={song.bpm} />}
 
       {!sheetOnly && song.notes.trim() && (
         <section className="song-notes">
