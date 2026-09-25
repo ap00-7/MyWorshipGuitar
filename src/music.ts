@@ -38,43 +38,59 @@ const sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 const flatNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
 
 const chordComponentPattern = String.raw`[A-G](?:#|b)?(?:maj7|maj9|m7|m9|add(?:9|11|13)|sus[24]|dim7?|aug|maj|m6|m|7|9|11|13|6|5|no[35]|\([^)]+\))?`
-const chordTokenPattern = new RegExp(`^${chordComponentPattern}(?:/${chordComponentPattern})?$`)
+const chordComponentAtStartPattern = new RegExp(`^${chordComponentPattern}`)
 const chordTokenPartsPattern = new RegExp(`^(${chordComponentPattern})(?:/(${chordComponentPattern}))?$`)
 
 function splitChordPart(part: string) {
-  const suffixMatch = part.match(/(\/+)?$/)
-  const suffix = suffixMatch?.[1] ?? ''
-  const core = suffix ? part.slice(0, -suffix.length) : part
   const chords: string[] = []
-  let remaining = core
+  const pieces: string[] = []
+  let remaining = part
 
-  while (remaining) {
-    let match = ''
-    for (let length = 1; length <= remaining.length; length += 1) {
-      const candidate = remaining.slice(0, length)
-      if (chordTokenPattern.test(candidate)) match = candidate
-    }
-    if (!match) return { chords: [] as string[], suffix: '' }
-    chords.push(match)
-    remaining = remaining.slice(match.length)
+  const prefixMatch = remaining.match(new RegExp('^/+'))
+  if (prefixMatch) {
+    pieces.push(prefixMatch[0])
+    remaining = remaining.slice(prefixMatch[0].length)
   }
 
-  return { chords, suffix }
+  while (remaining) {
+    const chordMatch = remaining.match(chordComponentAtStartPattern)
+    if (!chordMatch) return { chords: [] as string[], pieces: [] as string[] }
+
+    let chord = chordMatch[0]
+    remaining = remaining.slice(chord.length)
+
+    const slashMatch = remaining.match(new RegExp('^/+'))
+    if (slashMatch?.[0] === '/') {
+      const nextChord = remaining.slice(1).match(chordComponentAtStartPattern)
+      if (nextChord) {
+        chord += `/${nextChord[0]}`
+        remaining = remaining.slice(nextChord[0].length + 1)
+      }
+    }
+
+    chords.push(chord)
+    pieces.push(chord)
+
+    const timingMatch = remaining.match(new RegExp('^/{2,}'))
+    if (timingMatch) {
+      pieces.push(timingMatch[0])
+      remaining = remaining.slice(timingMatch[0].length)
+    }
+  }
+
+  return { chords, pieces }
 }
 
 function parseChordToken(token: string) {
-  const suffixMatch = token.match(/(\/+)?$/)
-  const suffix = suffixMatch?.[1] ?? ''
-  const core = suffix ? token.slice(0, -suffix.length) : token
-  const match = core.match(chordTokenPartsPattern)
+  const match = token.match(chordTokenPartsPattern)
   if (!match) return null
-  return { main: match[1], bass: match[2], suffix }
+  return { main: match[1], bass: match[2], suffix: '' }
 }
 
 function formatChordPart(part: string, transform: (chord: string) => string) {
   const parsed = splitChordPart(part)
   if (!parsed.chords.length) return null
-  return `${parsed.chords.map(transform).join('')}${parsed.suffix}`
+  return parsed.pieces.map((piece) => piece.startsWith('/') ? piece : transform(piece)).join('')
 }
 
 export function noteIndex(note: string) {

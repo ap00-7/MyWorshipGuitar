@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { chooseBestGuitar2Option, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, sortSongsByTitle, soundingKey, transposeKey } from '../src/music.ts'
+import { chooseBestGuitar2Option, collectProgressionChords, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, sortSongsByTitle, soundingKey, transposeChord, transposeKey, transposeProgressionText } from '../src/music.ts'
 
 const expectedMinorPairs = [
   ['Em', 'Am', 7],
@@ -20,6 +20,14 @@ const expectedMajorPairs = [
   ['E', 'D', 2],
   ['E', 'E', 0],
 ]
+
+test('Guitar 2 ignores repeated timing slashes and preserves them in display text', () => {
+  for (const marker of ['//', '///', '////']) {
+    const input = `${marker}A  A${marker}B  E`
+    assert.deepEqual(collectProgressionChords(input), ['A', 'A', 'B', 'E'])
+    assert.equal(transposeProgressionText(input, -2, 'auto'), `${marker}G  G${marker}A  D`)
+  }
+})
 
 test('minor shape keys produce the correct sounding concert key', () => {
   for (const [concertKey, shapeKey, capo] of expectedMinorPairs) {
@@ -92,6 +100,26 @@ test('transposeKey preserves major/minor quality', () => {
   assert.equal(transposeKey('Em', 2, 'auto'), 'F#m')
   assert.equal(transposeKey('Am', -1, 'auto'), 'G#m')
   assert.equal(transposeKey('E', 2, 'auto'), 'F#')
+})
+
+test('Guitar 2 transposition preserves timing markers and slash chords', () => {
+  for (const marker of ['/', '//', '///', '////']) {
+    assert.equal(transposeProgressionText(`${marker}A`, 2), `${marker}B`)
+  }
+
+  for (const marker of ['//', '///', '////']) {
+    assert.equal(transposeProgressionText(`A${marker}B`, 2), `B${marker}C#`)
+  }
+
+  assert.equal(transposeChord('A/B', 2), 'B/C#')
+  assert.equal(transposeChord('E/B', 2), 'F#/C#')
+  assert.equal(transposeChord('D/A', 2), 'E/B')
+  assert.equal(transposeChord('A/F#m', 2), 'B/G#m')
+  assert.equal(transposeChord('A/F#m7', 2), 'B/G#m7')
+  assert.equal(transposeChord('C#/G#m', 2), 'D#/A#m')
+  assert.equal(transposeProgressionText('E/B A/B D/A', 2), 'F#/C# B/C# E/B')
+  assert.equal(transposeProgressionText('A/F#m A/F#m7 C#/G#m', 2), 'B/G#m B/G#m7 D#/A#m')
+  assert.equal(transposeProgressionText('E E E/B C#m', 2), 'F# F# F#/C# D#m')
 })
 
 test('Guitar 2 recommendation is deterministic and independent of option order', () => {
