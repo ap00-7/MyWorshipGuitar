@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { chooseBestGuitar2Option, collectProgressionChords, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, sortSongsByTitle, soundingKey, transposeChord, transposeKey, transposeProgressionText } from '../src/music.ts'
+import { chooseBestGuitar2Option, collectProgressionChords, findSongTitleMatches, formatSundayDate, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, normalizeSongTitle, sortSongsByTitle, soundingKey, transposeChord, transposeKey, transposeProgressionText } from '../src/music.ts'
 
 const expectedMinorPairs = [
   ['Em', 'Am', 7],
@@ -143,4 +143,26 @@ test('song titles sort alphabetically ignoring case and surrounding whitespace',
   ]
 
   assert.deepEqual(sortSongsByTitle(songs).map((song) => song.title.trim()), ['above all', 'Amazing Grace', 'At the Cross', 'Blessed Assurance', 'oceans'])
+})
+
+test('Sunday dates use correct ordinal suffixes including teen exceptions', () => {
+  const expectedSuffixes = new Map([[1, '1ST'], [2, '2ND'], [3, '3RD'], [4, '4TH'], [10, '10TH'], [11, '11TH'], [12, '12TH'], [13, '13TH'], [21, '21ST'], [22, '22ND'], [23, '23RD'], [31, '31ST']])
+  for (const [day, suffix] of expectedSuffixes) {
+    const formatted = formatSundayDate(`2026-01-${String(day).padStart(2, '0')}`)
+    assert.ok(formatted.split(/\s+/).includes(suffix), `${formatted} should include ${suffix}`)
+  }
+})
+
+test('song title suggestions match exact, partial, keyword, case, and whitespace variations', () => {
+  const songs = [{ title: 'Amazing Grace' }, { title: 'Amazing Love' }, { title: 'At the Cross' }, { title: 'Come Holy Spirit' }]
+  assert.deepEqual(findSongTitleMatches(songs, 'Amazing Grace').map((song) => song.title), ['Amazing Grace'])
+  assert.deepEqual(findSongTitleMatches(songs, 'Amazing').map((song) => song.title), ['Amazing Grace', 'Amazing Love'])
+  assert.deepEqual(findSongTitleMatches(songs, 'cross').map((song) => song.title), ['At the Cross'])
+  assert.deepEqual(findSongTitleMatches(songs, 'gRaCe').map((song) => song.title), ['Amazing Grace'])
+  assert.deepEqual(findSongTitleMatches(songs, '  ama   grace  ').map((song) => song.title), ['Amazing Grace'])
+  assert.ok(findSongTitleMatches(songs, 'a').length > 0)
+  assert.deepEqual(findSongTitleMatches(songs, 'nonexistent'), [])
+  const manySongs = Array.from({ length: 10 }, (_, index) => ({ title: `Amazing Song ${index + 1}` }))
+  assert.equal(findSongTitleMatches(manySongs, 'amazing').length, 6)
+  assert.equal(normalizeSongTitle('  Amazing   Grace  '), 'amazing grace')
 })

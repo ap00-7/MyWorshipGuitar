@@ -945,6 +945,8 @@ nav {
   gap: 12px;
 }
 
+.form-row > * { min-width: 0; }
+
 .editor-form label {
   display: grid;
   gap: 8px;
@@ -953,6 +955,59 @@ nav {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+.song-title-field {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.song-title-control { position: relative; min-width: 0; }
+
+.song-title-control input { width: 100%; }
+
+.song-title-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.song-title-suggestions button {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  font: 500 14px 'DM Sans', sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.song-title-suggestions button:last-child { border-bottom: 0; }
+.song-title-suggestions button:hover, .song-title-suggestions button:focus-visible { background: var(--panel); outline: none; }
+
+.song-title-existing {
+  color: var(--accent-dark);
+  font: 500 12px 'DM Sans', sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.song-title-existing a { text-decoration: underline; text-underline-offset: 2px; }
 
 .editor-form input, .editor-form select, .editor-form textarea, .sunday-date-input {
   width: 100%;

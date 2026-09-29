@@ -397,10 +397,55 @@ export function isSundayIso(isoDate: string) {
   return parseLocalIsoDate(isoDate)?.getDay() === 0
 }
 
+export function ordinalSuffix(value: number) {
+  const lastTwoDigits = value % 100
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 13) return 'TH'
+  switch (value % 10) {
+    case 1: return 'ST'
+    case 2: return 'ND'
+    case 3: return 'RD'
+    default: return 'TH'
+  }
+}
+
 export function formatSundayDate(isoDate: string) {
   const date = parseLocalIsoDate(isoDate)
   if (!date) return isoDate
-  return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
+  return new Intl.DateTimeFormat('en-IN', { month: 'short', day: 'numeric' }).formatToParts(date)
+    .map((part) => part.type === 'day' ? `${part.value}${ordinalSuffix(Number(part.value))}` : part.value)
+    .join('')
+}
+
+export function normalizeSongTitle(title: string) {
+  return String(title ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+}
+
+export function findSongTitleMatches<T extends { title?: string | null }>(songs: T[], query: string, limit = 6) {
+  const normalizedQuery = normalizeSongTitle(query)
+  if (!normalizedQuery || limit <= 0) return []
+
+  const queryWords = normalizedQuery.split(' ')
+  return songs
+    .map((song) => {
+      const normalizedTitle = normalizeSongTitle(song.title ?? '')
+      if (!normalizedTitle) return null
+      const titleWords = normalizedTitle.split(' ')
+      const matchedWords = queryWords.map((word) => titleWords.find((titleWord) => titleWord.includes(word)))
+      if (matchedWords.some((word) => !word)) return null
+
+      const score = normalizedTitle === normalizedQuery
+        ? 0
+        : normalizedTitle.startsWith(normalizedQuery)
+          ? 1
+          : normalizedTitle.includes(normalizedQuery)
+            ? 2
+            : matchedWords.reduce((total, word, index) => total + (titleWords.includes(queryWords[index]) ? 0 : word?.startsWith(queryWords[index]) ? 1 : 2), 3)
+      return { song, score, normalizedTitle }
+    })
+    .filter((match): match is { song: T; score: number; normalizedTitle: string } => match !== null)
+    .sort((left, right) => left.score - right.score || left.normalizedTitle.localeCompare(right.normalizedTitle))
+    .slice(0, limit)
+    .map(({ song }) => song)
 }
 
 export function formatSundayTitle(isoDate: string) {

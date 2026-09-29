@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { capoShapeKey, chooseBestGuitar2Option, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
+import { capoShapeKey, chooseBestGuitar2Option, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { BrandLogo } from './components/BrandLogo'
 
@@ -508,6 +508,21 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   const [sections, setSections] = useState<Section[]>(existing?.sections?.length ? existing.sections : [blankSection()])
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const titleFieldRef = useRef<HTMLDivElement | null>(null)
+  const matchingSong = !existing && normalizeSongTitle(title)
+    ? songs.find((song) => normalizeSongTitle(song.title) === normalizeSongTitle(title))
+    : undefined
+  const suggestions = !existing && suggestionsOpen ? findSongTitleMatches(songs, title) : []
+
+  useEffect(() => {
+    if (!suggestionsOpen) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!titleFieldRef.current?.contains(event.target as Node)) setSuggestionsOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer)
+  }, [suggestionsOpen])
 
   useEffect(() => {
     if (!existing) return
@@ -545,6 +560,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
 
   const save = async () => {
     if (isSaving) return
+    if (matchingSong) return
     if (!title.trim()) {
       window.alert('Song title is required.')
       return
@@ -640,15 +656,54 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
           <div className="eyebrow">Song editor</div>
           <h1>{existing ? 'Edit song' : 'Add song'}</h1>
         </div>
-        <button className="primary-button" onClick={() => void save()} disabled={isSaving}><Save size={16} />{isSaving ? 'Saving...' : 'Save song'}</button>
+        <button className="primary-button" onClick={() => void save()} disabled={isSaving || Boolean(matchingSong)}><Save size={16} />{isSaving ? 'Saving...' : 'Save song'}</button>
       </header>
 
       <div className="editor-form">
         <div className="form-row">
-          <label>
-            Song title
-            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Amazing Grace" />
-          </label>
+          <div className="song-title-field">
+            <label htmlFor="song-title">Song title</label>
+            <div className="song-title-control" ref={titleFieldRef}>
+              <input
+                id="song-title"
+                value={title}
+                onFocus={() => setSuggestionsOpen(Boolean(title.trim()))}
+                onChange={(event) => {
+                  setTitle(event.target.value)
+                  setSuggestionsOpen(Boolean(event.target.value.trim()))
+                }}
+                placeholder="Amazing Grace"
+                autoComplete="off"
+                aria-autocomplete="list"
+                aria-expanded={suggestions.length > 0}
+                aria-controls="song-title-suggestions"
+                aria-invalid={Boolean(matchingSong)}
+              />
+              {suggestions.length > 0 && (
+                <div className="song-title-suggestions" id="song-title-suggestions" role="listbox" aria-label="Existing songs">
+                  {suggestions.map((song) => (
+                    <button
+                      key={song.id}
+                      type="button"
+                      role="option"
+                      aria-selected={false}
+                      onClick={() => {
+                        setTitle(song.title)
+                        setSuggestionsOpen(false)
+                      }}
+                    >
+                      {song.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {matchingSong && (
+              <div className="song-title-existing" role="status">
+                This song already exists. <Link to={`/songs/${matchingSong.id}`}>Open song</Link>
+              </div>
+            )}
+          </div>
           <label>
             YouTube reference
             <input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="https://youtu.be/..." />
