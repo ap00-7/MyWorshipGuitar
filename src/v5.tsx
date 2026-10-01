@@ -21,6 +21,81 @@ type ChordDefinition = {
 const rootOptions = ['All', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 const typeOptions = ['All', 'Major', 'Minor', '7', 'Maj7', 'm7', 'Sus2', 'Sus4', 'Add9', 'Dim', 'Aug', '6', '9', '11', '13', '5', 'Slash']
 
+function ConfirmDialog({ open, title, message, confirmLabel = 'Delete', cancelLabel = 'Cancel', onConfirm, onCancel }: { open: boolean; title: string; message: string; confirmLabel?: string; cancelLabel?: string; onConfirm: () => Promise<void> | void; onCancel: () => void }) {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const onCancelRef = useRef(onCancel)
+  const isSubmittingRef = useRef(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  onCancelRef.current = onCancel
+
+  useEffect(() => {
+    if (!open) return
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    isSubmittingRef.current = false
+    setLoading(false)
+    setError('')
+    cancelButtonRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isSubmittingRef.current) {
+        event.preventDefault()
+        onCancelRef.current()
+      }
+      if (event.key !== 'Tab') return
+      const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('.confirm-dialog button:not(:disabled)'))
+      if (!buttons.length) return
+      const firstButton = buttons[0]
+      const lastButton = buttons[buttons.length - 1]
+      if (event.shiftKey && document.activeElement === firstButton) {
+        event.preventDefault()
+        lastButton.focus()
+      } else if (!event.shiftKey && document.activeElement === lastButton) {
+        event.preventDefault()
+        firstButton.focus()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      if (previousFocusRef.current?.isConnected) previousFocusRef.current.focus()
+    }
+  }, [open])
+
+  const handleConfirm = async () => {
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
+    setLoading(true)
+    setError('')
+    try {
+      await onConfirm()
+      onCancel()
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete this item.')
+      isSubmittingRef.current = false
+      setLoading(false)
+    }
+  }
+
+  if (!open) return null
+
+  return (
+    <div className="confirm-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !loading) onCancel() }}>
+      <section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message">
+        <h2 id="confirm-dialog-title">{title}</h2>
+        <p id="confirm-dialog-message">{message}</p>
+        {error && <p className="confirm-dialog-error" role="alert">{error}</p>}
+        <div className="confirm-dialog-actions">
+          <button ref={cancelButtonRef} type="button" className="secondary-button" onClick={onCancel} disabled={loading}>{cancelLabel}</button>
+          <button type="button" className="danger-button" onClick={() => void handleConfirm()} disabled={loading}>{loading ? 'Deleting…' : confirmLabel}</button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function normalizeYouTubeUrl(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return ''
@@ -1112,6 +1187,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
   const [sessionName, setSessionName] = useState('')
   const [sessionNameError, setSessionNameError] = useState('')
   const [isSavingSessionName, setIsSavingSessionName] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const sortedSessions = [...sessions].sort((left, right) => (right.date || '').localeCompare(left.date || ''))
   const requestedSessionId = searchParams.get('session')
   const session = sortedSessions.find((item) => item.id === requestedSessionId) ?? sortedSessions.find((item) => item.id === selectedId) ?? sortedSessions[0]
@@ -1187,7 +1263,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
         </div>
         <div className="private-session-actions">
           {isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>New Event</button>}
-          {isOwner && session && <button className="secondary-button" onClick={() => { if (window.confirm('Delete this event?')) void onDelete(session.id) }} aria-label="Delete event">Delete</button>}
+          {isOwner && session && <button className="secondary-button" onClick={() => setDeleteDialogOpen(true)} aria-label="Delete event">Delete</button>}
         </div>
       </header>
 
@@ -1223,6 +1299,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
           <div className="available-list">{available.length ? available.map((song) => <button key={song.id} className="available-song" onClick={() => void onUpdate({ ...session, songIds: [...session.songIds, song.id] })}><strong>{song.title}</strong></button>) : <p className="muted-text">No songs match.</p>}</div>
         </aside>}
       </div>
+      <ConfirmDialog open={deleteDialogOpen} title="Delete Event?" message={`"${session.name || 'Event'}" will be permanently removed from Events.`} onConfirm={() => onDelete(session.id)} onCancel={() => setDeleteDialogOpen(false)} />
     </div>
   )
 }
@@ -1231,6 +1308,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
   const [searchParams] = useSearchParams()
   const [selectedSundayId, setSelectedSundayId] = useState(() => searchParams.get('sunday') || '')
   const [query, setQuery] = useState('')
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const upcoming = upcomingSundayIso()
   const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
   const defaultSunday = sundaySetlists.find((item) => item.date === upcoming) ?? sundaySetlists.find((item) => item.date >= upcoming) ?? sundaySetlists[0]
@@ -1287,7 +1365,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
         <div className="sunday-header-actions">
           {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
           {isOwner && previous && <button className="secondary-button" onClick={() => onDuplicate(previous)}>Duplicate previous</button>}
-            {isOwner && <button className="secondary-button" onClick={() => { if (window.confirm('Delete this Sunday schedule?')) void onDelete(sunday.id) }} aria-label="Delete Sunday">Delete Sunday</button>}
+          {isOwner && <button className="secondary-button" onClick={() => setDeleteDialogOpen(true)} aria-label="Delete Sunday">Delete Sunday</button>}
         </div>
       </header>
 
@@ -1340,6 +1418,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
           </div>
         </aside>}
       </div>
+      <ConfirmDialog open={deleteDialogOpen} title="Delete Sunday?" message="Are you sure you want to delete this Sunday schedule?" onConfirm={() => onDelete(sunday.id)} onCancel={() => setDeleteDialogOpen(false)} />
     </div>
   )
 }

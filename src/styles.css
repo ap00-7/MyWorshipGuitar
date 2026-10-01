@@ -508,6 +508,63 @@ nav {
   font-weight: 600;
 }
 
+.confirm-dialog-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(0, 0, 0, 0.54);
+}
+
+.confirm-dialog {
+  width: min(100%, 440px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--gold);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.confirm-dialog h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.confirm-dialog p {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.confirm-dialog .confirm-dialog-error {
+  color: var(--accent);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.confirm-dialog-actions button {
+  min-width: 98px;
+  min-height: 44px;
+}
+
+.confirm-dialog-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .primary-button {
   background: var(--accent);
   border-color: var(--accent);
@@ -1385,6 +1442,18 @@ nav {
   margin-bottom: 24px;
 }
 
+.sunday-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sunday-header-actions > button {
+  min-height: 42px;
+}
+
 .private-session-date-input,
 .sunday-date-input {
   margin-top: 12px;
@@ -1592,6 +1661,15 @@ nav {
   .private-session-create-form button {
     width: 100%;
   }
+
+  .sunday-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .sunday-header-actions > button {
+    flex: 1 1 auto;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1697,6 +1775,14 @@ nav {
     padding-right: 16px;
   }
 
+  .confirm-dialog {
+    padding: 20px 18px;
+  }
+
+  .confirm-dialog-actions button {
+    flex: 1;
+  }
+
   .v5-home-header, .v5-page-header, .v5-song-header, .sunday-header, .section-heading {
     flex-direction: column;
     align-items: flex-start;
@@ -1756,6 +1842,17 @@ nav {
     width: min(100%, 420px);
     max-height: 84vh;
     padding: 22px 14px 18px;
+  }
+}
+
+@media (max-width: 380px) {
+  .sunday-header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sunday-header-actions > button {
+    width: 100%;
   }
 }
 
