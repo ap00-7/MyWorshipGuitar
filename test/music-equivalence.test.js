@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { chooseBestGuitar2Option, collectProgressionChords, findSongTitleMatches, formatSundayDate, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, normalizeSongTitle, sortSongsByTitle, soundingKey, transposeChord, transposeKey, transposeProgressionText } from '../src/music.ts'
-
+import { normalizeDetectedChordText, parseImportedChordText } from '../src/chordImport.ts'
 const expectedMinorPairs = [
   ['Em', 'Am', 7],
   ['Em', 'Bm', 5],
@@ -133,6 +133,19 @@ test('Guitar 2 recommendation is deterministic and independent of option order',
   assert.equal(soundingKey(recommended.key, recommended.capo, 'auto'), 'Em')
 })
 
+test('detected chord text preserves slash chords and timing markers without guessing uncertain OCR corrections', () => {
+  const sections = parseImportedChordText('VERSE 1\nE / / / B / C#m / /\nE / A/B / B/E / / /\n\nCHORUS\nA / E / B / C#m / /\nA/B\n//A\nA//B\nA///B\nA////B')
+
+  assert.deepEqual(sections.map((section) => section.name), ['VERSE 1', 'CHORUS'])
+  assert.equal(sections[0].chordText, 'E / / / B / C#m / /\nE / A/B / B/E / / /')
+  assert.equal(sections[1].chordText, 'A / E / B / C#m / /\nA/B\n//A\nA//B\nA///B\nA////B')
+  assert.equal(normalizeDetectedChordText('A/B'), 'A/B')
+  assert.equal(normalizeDetectedChordText('A//B'), 'A//B')
+  assert.equal(normalizeDetectedChordText('//A'), '//A')
+  assert.equal(normalizeDetectedChordText('A///B'), 'A///B')
+  assert.equal(normalizeDetectedChordText('E / / / B / C#m / /'), 'E / / / B / C#m / /')
+})
+
 test('song titles sort alphabetically ignoring case and surrounding whitespace', () => {
   const songs = [
     { title: '  oceans  ' },
@@ -165,4 +178,36 @@ test('song title suggestions match exact, partial, keyword, case, and whitespace
   const manySongs = Array.from({ length: 10 }, (_, index) => ({ title: `Amazing Song ${index + 1}` }))
   assert.equal(findSongTitleMatches(manySongs, 'amazing').length, 6)
   assert.equal(normalizeSongTitle('  Amazing   Grace  '), 'amazing grace')
+})
+
+test('imported chord text preserves slash chords and timing markers without splitting real slash chords', () => {
+  const examples = [
+    'E / / / B / C#m / /',
+    'E / A/B / B/E / / /',
+    'A/B',
+    '//A',
+    'A//B',
+    'A///B',
+    'C/E',
+    'G/B',
+    'D/F#',
+    'A/F#m',
+    'A/F#m7',
+    'C#/G#m',
+  ]
+
+  for (const example of examples) {
+    const normalized = normalizeDetectedChordText(example)
+    assert.ok(normalized.length > 0)
+    if (example.includes('/')) {
+      assert.ok(normalized.includes('A/B') || normalized.includes('C/E') || normalized.includes('G/B') || normalized.includes('D/F#') || normalized.includes('A/F#m') || normalized.includes('A/F#m7') || normalized.includes('C#/G#m') || normalized.includes('//A') || normalized.includes('A//B') || normalized.includes('A///B') || normalized.includes('E / / / B / C#m / /'))
+    }
+  }
+
+  assert.equal(normalizeDetectedChordText('A/B'), 'A/B')
+  assert.equal(normalizeDetectedChordText('//A'), '//A')
+  assert.equal(normalizeDetectedChordText('A//B'), 'A//B')
+  assert.equal(normalizeDetectedChordText('A///B'), 'A///B')
+  assert.equal(normalizeDetectedChordText('E / / / B / C#m / /'), 'E / / / B / C#m / /')
+  assert.equal(normalizeDetectedChordText('E / A/B / B/E / / /'), 'E / A/B / B/E / / /')
 })

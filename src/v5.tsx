@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { parseImportedChordText, readChordSheetImage } from './chordImport'
 import { capoShapeKey, chooseBestGuitar2Option, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { BrandLogo } from './components/BrandLogo'
@@ -579,6 +580,12 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   const [guitar2Customized, setGuitar2Customized] = useState(existing?.guitar2Customized || false)
   const [notes, setNotes] = useState(existing?.notes || '')
   const [image, setImage] = useState(existing?.chordImage)
+  const [imageImport, setImageImport] = useState<{ file: File; dataUrl: string } | null>(null)
+  const [importDraft, setImportDraft] = useState('')
+  const [isReadingImage, setIsReadingImage] = useState(false)
+  const [imageImportError, setImageImportError] = useState('')
+  const [imageImportWarnings, setImageImportWarnings] = useState<string[]>([])
+  const [imageImportProgress, setImageImportProgress] = useState('Ready to read')
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [sections, setSections] = useState<Section[]>(existing?.sections?.length ? existing.sections : [blankSection()])
   const [isSaving, setIsSaving] = useState(false)
@@ -696,15 +703,62 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     setSections((current) => current.map((section) => (section.id === sectionId ? { ...section, [field]: value } : section)))
   }
 
-  const saveImage = (file: File) => {
+  const saveImage = async (file: File) => {
     if (!file.type.match(/^image\/(png|jpeg|webp)$/)) {
-      window.alert('Please choose a PNG, JPG, or WEBP image.')
+      setImageImportError('Please choose a PNG, JPG, or WEBP image.')
       return
     }
 
     const reader = new FileReader()
-    reader.onload = () => setImage({ name: file.name, dataUrl: String(reader.result) })
+    reader.onload = async () => {
+      const dataUrl = String(reader.result)
+      setImage({ name: file.name, dataUrl })
+      setImageImport({ file, dataUrl })
+      setImportDraft('')
+      setImageImportError('')
+      setImageImportWarnings([])
+      setImageImportProgress('Reading chords…')
+      setIsReadingImage(true)
+      try {
+        const preview = await readChordSheetImage(file, (status, progress) => {
+          setImageImportProgress(status || 'Reading chords…')
+          if (progress > 0 && progress < 1) {
+            setImageImportProgress(`${status || 'Reading chords…'} ${Math.round(progress * 100)}%`)
+          }
+        })
+        setImportDraft(preview.text)
+        setImageImportWarnings(preview.warnings)
+      } catch (error) {
+        console.error('Chord image read failed', error)
+        setImageImportError(error instanceof Error ? error.message : "Couldn't read chords from this image.")
+        setImportDraft('')
+      } finally {
+        setIsReadingImage(false)
+      }
+    }
     reader.readAsDataURL(file)
+  }
+
+  const importDetectedSections = () => {
+    const parsed = parseImportedChordText(importDraft)
+    if (!parsed.length) {
+      setImageImportError("Couldn't find any chords in this image.")
+      return
+    }
+
+    const nextSections = parsed.map((section, index) => ({
+      id: editorKey(),
+      name: section.name || `Section ${index + 1}`,
+      chordText: section.chordText.trim(),
+      guitar2ChordText: '',
+    }))
+
+    setSections(nextSections)
+    setImageImport(null)
+    setImportDraft('')
+    setImageImportError('')
+    setImageImportWarnings([])
+    setImageImportProgress('Ready to read')
   }
 
   const removeSong = async () => {
@@ -850,14 +904,24 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
           <button className="secondary-button" onClick={addSection}><Plus size={16} />Add section</button>
           <label className="upload-button">
             <Upload size={16} />
-            {image ? 'Replace image' : 'Upload image'}
+            {image ? 'Replace chord image' : 'Upload chord image'}
             <input hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => {
               const file = event.target.files?.[0]
-              if (file) saveImage(file)
+              if (file) {
+                event.target.value = ''
+                void saveImage(file)
+              }
             }} />
           </label>
           {image && (
-            <button className="danger-button" onClick={() => setImage(undefined)}><Trash2 size={15} />Delete image</button>
+            <button className="danger-button" onClick={() => {
+              setImage(undefined)
+              setImageImport(null)
+              setImportDraft('')
+              setImageImportError('')
+              setImageImportWarnings([])
+              setImageImportProgress('Ready to read')
+            }}><Trash2 size={15} />Delete image</button>
           )}
           {existing && (
             <button className="danger-button" disabled={isDeleting} onClick={() => void removeSong()}><Trash2 size={15} />{isDeleting ? 'Deleting...' : 'Delete song'}</button>
@@ -867,6 +931,61 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
         {image && (
           <div className="image-preview">
             <img src={image.dataUrl} alt="Song chord sheet" />
+          </div>
+        )}
+
+        {imageImport && (
+          <div className="image-import-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) { setImageImport(null); setImportDraft(''); setImageImportError(''); setImageImportWarnings([]); } }}>
+            <div className="image-import-dialog" role="dialog" aria-modal="true" aria-labelledby="image-import-title">
+              <div className="image-import-header">
+                <div>
+                  <div className="eyebrow">Chord import</div>
+                  <h2 id="image-import-title">Detected chords</h2>
+                </div>
+                <button type="button" className="icon-button" aria-label="Close chord import" onClick={() => {
+                  setImageImport(null)
+                  setImportDraft('')
+                  setImageImportError('')
+                  setImageImportWarnings([])
+                }}><X size={15} /></button>
+              </div>
+
+              <div className="image-import-body">
+                <div className="image-import-preview-box">
+                  <img src={imageImport.dataUrl} alt="Imported chord sheet preview" />
+                </div>
+
+                {isReadingImage && (
+                  <div className="image-import-status" role="status">
+                    <span className="loading-spinner" aria-hidden="true" />
+                    <span>{imageImportProgress}</span>
+                  </div>
+                )}
+
+                {imageImportError && <div className="image-import-error" role="alert">{imageImportError}</div>}
+
+                {imageImportWarnings.length > 0 && imageImportWarnings.map((warning) => (
+                  <div key={warning} className="image-import-warning">{warning}</div>
+                ))}
+
+                {importDraft && (
+                  <label className="image-import-editor">
+                    <span>Review and edit</span>
+                    <textarea value={importDraft} onChange={(event) => setImportDraft(event.target.value)} className="textarea-editor" />
+                  </label>
+                )}
+              </div>
+
+              <div className="image-import-actions">
+                <button type="button" className="secondary-button" onClick={() => {
+                  setImageImport(null)
+                  setImportDraft('')
+                  setImageImportError('')
+                  setImageImportWarnings([])
+                }}>Cancel</button>
+                <button type="button" className="primary-button" disabled={isReadingImage || !importDraft.trim()} onClick={() => importDetectedSections()}>Import chords</button>
+              </div>
+            </div>
           </div>
         )}
       </div>
