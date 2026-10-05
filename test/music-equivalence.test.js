@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { chooseBestGuitar2Option, collectProgressionChords, findSongTitleMatches, formatSundayDate, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, normalizeSongTitle, sortSongsByTitle, soundingKey, transposeChord, transposeKey, transposeProgressionText } from '../src/music.ts'
+import { chooseBestGuitar2Option, chooseDisplayedSunday, collectProgressionChords, findSongTitleMatches, formatSundayDate, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, normalizeSongTitle, sortSongsByTitle, soundingKey, transposeChord, transposeKey, transposeProgressionText } from '../src/music.ts'
 import { normalizeDetectedChordText, parseImportedChordText } from '../src/chordImport.ts'
 const expectedMinorPairs = [
   ['Em', 'Am', 7],
@@ -164,6 +164,14 @@ test('Sunday dates use correct ordinal suffixes including teen exceptions', () =
     const formatted = formatSundayDate(`2026-01-${String(day).padStart(2, '0')}`)
     assert.ok(formatted.split(/\s+/).includes(suffix), `${formatted} should include ${suffix}`)
   }
+})
+
+test('Sunday selection keeps a past schedule visible and prefers the next upcoming Sunday when one exists', () => {
+  const pastOnly = [{ id: 'past', date: '2026-10-04' }, { id: 'older', date: '2026-09-27' }]
+  const withFuture = [{ id: 'past', date: '2026-10-04' }, { id: 'future', date: '2026-10-11' }]
+
+  assert.equal(chooseDisplayedSunday(pastOnly, new Date(2026, 9, 5))?.id, 'past')
+  assert.equal(chooseDisplayedSunday(withFuture, new Date(2026, 9, 5))?.id, 'future')
 })
 
 test('song title suggestions match exact, partial, keyword, case, and whitespace variations', () => {

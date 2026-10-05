@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, typ
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { parseImportedChordText, readChordSheetImage } from './chordImport'
-import { capoShapeKey, chooseBestGuitar2Option, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, upcomingSundayIso, type Notation } from './music'
+import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { BrandLogo } from './components/BrandLogo'
 
@@ -168,8 +168,7 @@ const renderChordLine = (line: string, interval: number, notation: Notation, sim
 }
 
 export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreateSong: () => void; isOwner: boolean }) {
-  const upcoming = upcomingSundayIso()
-  const sunday = setlists.find((item) => item.date === upcoming) ?? setlists.find((item) => (item.date || '') >= upcoming)
+  const sunday = chooseDisplayedSunday(setlists) ?? null
   const formattedDate = sunday?.date ? formatSundayDate(sunday.date) : null
   const recentSongs = songs
     .slice()
@@ -1428,9 +1427,8 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
   const [selectedSundayId, setSelectedSundayId] = useState(() => searchParams.get('sunday') || '')
   const [query, setQuery] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const upcoming = upcomingSundayIso()
   const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
-  const defaultSunday = sundaySetlists.find((item) => item.date === upcoming) ?? sundaySetlists.find((item) => item.date >= upcoming) ?? sundaySetlists[0]
+  const defaultSunday = chooseDisplayedSunday(sundaySetlists) ?? sundaySetlists[0]
   const sunday = sundaySetlists.find((item) => item.id === selectedSundayId) ?? defaultSunday
   const previous = sundaySetlists.find((item) => item.id !== sunday?.id)
 

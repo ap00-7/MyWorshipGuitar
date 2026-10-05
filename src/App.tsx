@@ -11,10 +11,11 @@ import { BrandLogo } from './components/BrandLogo'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
 
-function scrollSection(pathname: string, search: string) {
-  const context = new URLSearchParams(search).get('context')
-  if (pathname.startsWith('/songs/') && (context === 'sunday' || context === 'private-session')) return context
+function scrollSection(pathname: string, _search: string) {
   if (pathname === '/') return 'home'
+  if (pathname === '/songs/new') return 'song-new'
+  if (pathname.startsWith('/songs/') && pathname.endsWith('/edit')) return 'song-edit'
+  if (pathname.startsWith('/songs/')) return 'song-view'
   if (pathname.startsWith('/songs')) return 'songs'
   if (pathname.startsWith('/sunday')) return 'sunday'
   if (pathname.startsWith('/private-session')) return 'private-session'

@@ -454,6 +454,21 @@ export function formatSundayTitle(isoDate: string) {
   return date.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+export function chooseDisplayedSunday<T extends { date?: string | null }>(items: T[], from = new Date()) {
+  const sundayItems = items.filter((item) => isSundayIso(item.date ?? ''))
+  if (!sundayItems.length) return null
+
+  const upcoming = upcomingSundayIso(from)
+  const nextUpcoming = [...sundayItems]
+    .filter((item) => (item.date ?? '') >= upcoming)
+    .sort((left, right) => String(left.date ?? '').localeCompare(String(right.date ?? '')))[0]
+
+  if (nextUpcoming) return nextUpcoming
+
+  return [...sundayItems]
+    .sort((left, right) => String(right.date ?? '').localeCompare(String(left.date ?? '')))[0]
+}
+
 export function nextUnusedSundayIso(existingDates: string[], from = upcomingSundayIso()) {
   const taken = new Set(existingDates.map((date) => toIsoDate(date)).filter(Boolean))
   const start = parseLocalIsoDate(from) ?? parseLocalIsoDate(upcomingSundayIso())
