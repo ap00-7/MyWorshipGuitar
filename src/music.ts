@@ -71,7 +71,7 @@ function splitChordPart(part: string) {
     chords.push(chord)
     pieces.push(chord)
 
-    const timingMatch = remaining.match(new RegExp('^/{2,}'))
+    const timingMatch = remaining.match(new RegExp('^/+'))
     if (timingMatch) {
       pieces.push(timingMatch[0])
       remaining = remaining.slice(timingMatch[0].length)

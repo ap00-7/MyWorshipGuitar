@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { chooseBestGuitar2Option, chooseDisplayedSunday, collectProgressionChords, findSongTitleMatches, formatSundayDate, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, normalizeSongTitle, sortSongsByTitle, soundingKey, transposeChord, transposeKey, transposeProgressionText } from '../src/music.ts'
+import { chooseBestGuitar2Option, chooseDisplayedSunday, collectProgressionChords, findSongTitleMatches, formatSundayDate, generateCompatibleGuitar2Options, isCompatibleGuitar2Option, normalizeSongTitle, parseChordProgression, sortSongsByTitle, soundingKey, suggestGuitar2Progression, transposeChord, transposeKey, transposeProgressionText } from '../src/music.ts'
 import { normalizeDetectedChordText, parseImportedChordText } from '../src/chordImport.ts'
 const expectedMinorPairs = [
   ['Em', 'Am', 7],
@@ -120,6 +120,55 @@ test('Guitar 2 transposition preserves timing markers and slash chords', () => {
   assert.equal(transposeProgressionText('E/B A/B D/A', 2), 'F#/C# B/C# E/B')
   assert.equal(transposeProgressionText('A/F#m A/F#m7 C#/G#m', 2), 'B/G#m B/G#m7 D#/A#m')
   assert.equal(transposeProgressionText('E E E/B C#m', 2), 'F# F# F#/C# D#m')
+})
+
+test('compact chord sequences continue through three chords and preserve trailing timing slashes', () => {
+  const compactCases = [
+    ['GmC', ['Gm', 'C']],
+    ['A#C', ['A#', 'C']],
+    ['A#F', ['A#', 'F']],
+    ['A#Gm', ['A#', 'Gm']],
+    ['FC', ['F', 'C']],
+    ['CC7', ['C', 'C7']],
+    ['GCG', ['G', 'C', 'G']],
+    ['FCG', ['F', 'C', 'G']],
+    ['CFC', ['C', 'F', 'C']],
+    ['AmFC', ['Am', 'F', 'C']],
+    ['GmCG', ['Gm', 'C', 'G']],
+    ['A#CG', ['A#', 'C', 'G']],
+    ['A#GmC', ['A#', 'Gm', 'C']],
+    ['CAmF', ['C', 'Am', 'F']],
+    ['FGA', ['F', 'G', 'A']],
+    ['DGA', ['D', 'G', 'A']],
+  ]
+
+  for (const [input, expected] of compactCases) {
+    assert.deepEqual(parseChordProgression(input), expected, input)
+  }
+
+  for (const marker of ['/', '//', '///']) {
+    assert.deepEqual(parseChordProgression(`GCG${marker}`), ['G', 'C', 'G'])
+    assert.equal(transposeProgressionText(`GCG${marker}`, 2), `ADA${marker}`)
+  }
+
+  const slashChordCases = [
+    ['A/B', 'B/C#'],
+    ['D/F#', 'E/G#'],
+    ['C/E', 'D/F#'],
+    ['G/B', 'A/C#'],
+    ['A/F#m', 'B/G#m'],
+    ['A/F#m7', 'B/G#m7'],
+    ['C#/G#m', 'D#/A#m'],
+  ]
+  for (const [input, expected] of slashChordCases) {
+    assert.deepEqual(parseChordProgression(input), [input], input)
+    assert.equal(transposeProgressionText(input, 2), expected, input)
+  }
+
+  const songGuitar2 = suggestGuitar2Progression('C F GmC GCG/')
+  assert.equal(songGuitar2, 'A D EmA EAE/')
+  assert.equal(collectProgressionChords(songGuitar2).length, 7)
+  assert.ok(songGuitar2.endsWith('/'))
 })
 
 test('Guitar 2 recommendation is deterministic and independent of option order', () => {
