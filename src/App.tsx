@@ -47,6 +47,7 @@ export default function App() {
   const [setlists, setSetlists] = useLocalState<Setlist[]>('wg-setlists', supabaseConfigured ? [] : seedSetlists, !supabaseConfigured)
   const [privateSessions, setPrivateSessions] = useLocalState<PrivateSession[]>('wg-private-sessions', [], !supabaseConfigured)
   const [worshipFlows, setWorshipFlows] = useLocalState<Record<string, string[]>>('wg-worship-flows', {}, !supabaseConfigured)
+  const [worshipFlowFontScale, setWorshipFlowFontScale] = useLocalState<number>('wg-worship-flow-font-scale', 1)
   const [settings, setSettings] = useLocalState<Settings>('wg-settings', defaultSettings)
   const [role, setRole] = useState<UserRole>('user')
   const [authLoading, setAuthLoading] = useState(supabaseConfigured)
@@ -366,7 +367,7 @@ export default function App() {
           <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor key={`${location.pathname}`} songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId" element={<SongPage key={location.pathname + location.search} songs={songs} setlists={setlists} privateSessions={privateSessions} settings={settings} isOwner={isOwner} />} />
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} onDelete={removeSunday} isOwner={isOwner} />} />
-          <Route path="/worship-flow" element={<WorshipFlowPage songs={songs} setlists={setlists} worshipFlows={worshipFlows} settings={settings} isOwner={isOwner} onSaveFlow={updateWorshipFlow} />} />
+          <Route path="/worship-flow" element={<WorshipFlowPage songs={songs} setlists={setlists} worshipFlows={worshipFlows} settings={settings} fontScale={worshipFlowFontScale} onFontScale={setWorshipFlowFontScale} isOwner={isOwner} onSaveFlow={updateWorshipFlow} />} />
           <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); }} />} />
           <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />

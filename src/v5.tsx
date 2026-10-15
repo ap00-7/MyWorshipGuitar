@@ -1543,7 +1543,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
   )
 }
 
-export function WorshipFlowPage({ songs, setlists, worshipFlows, settings, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; settings: Settings; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
+export function WorshipFlowPage({ songs, setlists, worshipFlows, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
@@ -1555,6 +1555,7 @@ export function WorshipFlowPage({ songs, setlists, worshipFlows, settings, isOwn
     .filter((song): song is Song => Boolean(song)) ?? []
   const availableIds = availableSongs.map((song) => song.id)
   const savedFlowIds = sunday ? orderedWorshipFlowIds(availableIds, worshipFlows[sunday.id] ?? []) : []
+  const safeFontScale = Number.isFinite(fontScale) ? Math.min(1.3, Math.max(0.8, fontScale)) : 1
   const [editing, setEditing] = useState(false)
   const [draftFlowIds, setDraftFlowIds] = useState<string[] | null>(null)
   const [saving, setSaving] = useState(false)
@@ -1592,18 +1593,26 @@ export function WorshipFlowPage({ songs, setlists, worshipFlows, settings, isOwn
   }
 
   return (
-    <div className="worship-flow-page">
+    <div className="worship-flow-page" style={{ '--worship-flow-font-scale': safeFontScale } as CSSProperties}>
       <header className="worship-flow-toolbar">
-        <Link className="worship-flow-back" to={sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/sunday'}>Sunday Schedule</Link>
-        <h1>Worship Flow</h1>
-        {sundaySetlists.length > 0 && <select className="worship-flow-sunday-select" value={sunday?.id ?? ''} onChange={(event) => selectSunday(event.target.value)} aria-label="Select Sunday for Worship Flow">
-          {sundaySetlists.map((item) => <option key={item.id} value={item.id}>{formatSundayTitle(item.date)}</option>)}
-        </select>}
-        {isOwner && sunday && <button className="worship-flow-manage-toggle" type="button" onClick={() => {
-          setEditing((current) => !current)
-          setDraftFlowIds(null)
-          setSaveError('')
-        }}>{editing ? 'Done' : 'Manage flow'}</button>}
+        <div className="worship-flow-heading">
+          <Link className="worship-flow-back" to={sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/sunday'}>Sunday Schedule</Link>
+          <h1>Worship Flow</h1>
+        </div>
+        <div className="worship-flow-toolbar-actions">
+          {sundaySetlists.length > 0 && <select className="worship-flow-sunday-select" value={sunday?.id ?? ''} onChange={(event) => selectSunday(event.target.value)} aria-label="Select Sunday for Worship Flow">
+            {sundaySetlists.map((item) => <option key={item.id} value={item.id}>{formatSundayTitle(item.date)}</option>)}
+          </select>}
+          <div className="worship-flow-font-controls" aria-label="Chord font size controls">
+            <button type="button" onClick={() => onFontScale(Math.max(0.8, Number((safeFontScale - 0.1).toFixed(1))))} disabled={safeFontScale <= 0.8} aria-label="Decrease chord font size">A−</button>
+            <button type="button" onClick={() => onFontScale(Math.min(1.3, Number((safeFontScale + 0.1).toFixed(1))))} disabled={safeFontScale >= 1.3} aria-label="Increase chord font size">A+</button>
+          </div>
+          {isOwner && sunday && <button className="worship-flow-manage-toggle" type="button" onClick={() => {
+            setEditing((current) => !current)
+            setDraftFlowIds(null)
+            setSaveError('')
+          }}>{editing ? 'Done' : 'Manage flow'}</button>}
+        </div>
       </header>
 
       {!sunday ? <p className="worship-flow-empty">No Sunday schedule is ready yet.</p> : availableSongs.length === 0 ? <p className="worship-flow-empty">No songs are scheduled for this Sunday yet.</p> : <>
@@ -1635,9 +1644,11 @@ export function WorshipFlowPage({ songs, setlists, worshipFlows, settings, isOwn
             <h2>{song.title}</h2>
             {song.sections.map((section, sectionIndex) => <section className="worship-flow-section" key={section.id || `${song.id}-${sectionIndex}`}>
               <h3>{section.name}</h3>
-              {sectionChordLines(section).map((line, lineIndex) => <div className="worship-flow-chords" key={`${section.id || section.name}-${lineIndex}`}>
-                {formatTransposedChordLine(line, 0, settings.notation, settings.simplify)}
-              </div>)}
+              <div className="worship-flow-progressions">
+                {sectionChordLines(section).map((line, lineIndex) => <div className="worship-flow-chords" key={`${section.id || section.name}-${lineIndex}`}>
+                  {formatTransposedChordLine(line, 0, settings.notation, settings.simplify)}
+                </div>)}
+              </div>
             </section>)}
           </article>)}
         </div> : <div className="worship-flow-empty">
