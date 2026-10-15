@@ -1997,6 +1997,233 @@ nav {
   .chord-family-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.app-worship-flow {
+  display: block;
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+.app-worship-flow .sidebar {
+  display: none;
+}
+
+.app-worship-flow .main {
+  width: 100%;
+  height: 100dvh;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.worship-flow-page {
+  width: min(100%, 980px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: max(8px, env(safe-area-inset-top)) clamp(12px, 2.5vw, 24px) max(12px, env(safe-area-inset-bottom));
+}
+
+.worship-flow-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  margin-bottom: 6px;
+}
+
+.worship-flow-toolbar h1 {
+  margin: 0 auto 0 0;
+  font: 600 15px 'DM Sans', sans-serif;
+  letter-spacing: 0;
+}
+
+.worship-flow-back,
+.worship-flow-manager-heading span,
+.worship-flow-save-status {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.worship-flow-sunday-select {
+  max-width: 170px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.worship-flow-manage-toggle {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 9px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.worship-flow-empty {
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.worship-flow-manager {
+  margin: 8px 0 14px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+}
+
+.worship-flow-manager-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.worship-flow-manager-heading h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.worship-flow-manager-heading span {
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.worship-flow-song-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 4px 10px;
+}
+
+.worship-flow-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 2px;
+  font-size: 12px;
+}
+
+.worship-flow-picker-row input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  accent-color: var(--accent);
+}
+
+.worship-flow-picker-row span,
+.worship-flow-order-list li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.worship-flow-order-list {
+  display: grid;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 8px 0 0 28px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.worship-flow-order-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.worship-flow-order-controls {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.worship-flow-order-controls .icon-button {
+  width: 30px;
+  height: 30px;
+}
+
+.worship-flow-save-status {
+  min-height: 0;
+  margin-top: 4px;
+  color: var(--accent-dark);
+  overflow-wrap: anywhere;
+}
+
+.worship-flow-song {
+  padding: 8px 0 9px;
+  border-bottom: 1px solid var(--line);
+}
+
+.worship-flow-song:first-child {
+  padding-top: 2px;
+}
+
+.worship-flow-song:last-child {
+  border-bottom: 0;
+}
+
+.worship-flow-song > h2 {
+  margin: 0 0 4px;
+  color: var(--ink);
+  font: 600 15px/1.25 'DM Sans', sans-serif;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.worship-flow-section {
+  margin: 0 0 5px;
+}
+
+.worship-flow-section:last-child {
+  margin-bottom: 0;
+}
+
+.worship-flow-section > h3 {
+  margin: 0 0 1px;
+  color: var(--gold);
+  font: 600 9px/1.25 'DM Mono', monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.worship-flow-chords {
+  color: var(--ink);
+  font: 500 clamp(15px, 4.2vw, 19px)/1.35 'DM Mono', monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+@media (max-width: 420px) {
+  .worship-flow-toolbar {
+    gap: 7px;
+  }
+
+  .worship-flow-back {
+    font-size: 10px;
+  }
+
+  .worship-flow-sunday-select {
+    max-width: 112px;
+    padding: 6px 5px;
+  }
+
+  .worship-flow-manage-toggle {
+    padding: 5px 7px;
+  }
 
   .song-key-bar {
     gap: 6px;

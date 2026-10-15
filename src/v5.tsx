@@ -5,6 +5,7 @@ import { parseImportedChordText, readChordSheetImage } from './chordImport'
 import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { BrandLogo } from './components/BrandLogo'
+import { moveWorshipFlowSong, orderedWorshipFlowIds, selectWorshipFlowSong } from './worshipFlow'
 
 const editorKey = () => crypto.randomUUID()
 
@@ -1445,6 +1446,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
             <h1>Sunday</h1>
           </div>
           <div className="sunday-header-actions">
+            <Link className="secondary-button" to="/worship-flow">Worship Flow</Link>
             {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
           </div>
         </header>
@@ -1480,6 +1482,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
           }} aria-label="Sunday date" />}
         </div>
         <div className="sunday-header-actions">
+          <Link className="secondary-button" to={`/worship-flow?sunday=${encodeURIComponent(sunday.id)}`}>Worship Flow</Link>
           {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
           {isOwner && previous && <button className="secondary-button" onClick={() => onDuplicate(previous)}>Duplicate previous</button>}
           {isOwner && <button className="secondary-button" onClick={() => setDeleteDialogOpen(true)} aria-label="Delete Sunday">Delete Sunday</button>}
@@ -1536,6 +1539,112 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
         </aside>}
       </div>
       <ConfirmDialog open={deleteDialogOpen} title="Delete Sunday?" message="Are you sure you want to delete this Sunday schedule?" onConfirm={() => onDelete(sunday.id)} onCancel={() => setDeleteDialogOpen(false)} />
+    </div>
+  )
+}
+
+export function WorshipFlowPage({ songs, setlists, worshipFlows, settings, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; settings: Settings; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
+  const defaultSunday = chooseDisplayedSunday(sundaySetlists) ?? sundaySetlists[0]
+  const requestedSundayId = searchParams.get('sunday') || ''
+  const sunday = sundaySetlists.find((item) => item.id === requestedSundayId) ?? defaultSunday
+  const availableSongs = sunday?.songIds
+    .map((songId) => songs.find((song) => song.id === songId))
+    .filter((song): song is Song => Boolean(song)) ?? []
+  const availableIds = availableSongs.map((song) => song.id)
+  const savedFlowIds = sunday ? orderedWorshipFlowIds(availableIds, worshipFlows[sunday.id] ?? []) : []
+  const [editing, setEditing] = useState(false)
+  const [draftFlowIds, setDraftFlowIds] = useState<string[] | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const flowIds = orderedWorshipFlowIds(availableIds, draftFlowIds ?? savedFlowIds)
+  const flowSongs = flowIds.map((songId) => availableSongs.find((song) => song.id === songId)).filter((song): song is Song => Boolean(song))
+
+  useEffect(() => {
+    setEditing(false)
+    setDraftFlowIds(null)
+    setSaveError('')
+    document.querySelector<HTMLElement>('.app-worship-flow .main')?.scrollTo(0, 0)
+  }, [sunday?.id])
+
+  const selectSunday = (sundayId: string) => {
+    setDraftFlowIds(null)
+    setEditing(false)
+    setSaveError('')
+    navigate(`/worship-flow?sunday=${encodeURIComponent(sundayId)}`, { replace: true })
+  }
+
+  const persistFlow = async (nextIds: string[]) => {
+    if (!sunday || saving) return
+    setDraftFlowIds(nextIds)
+    setSaving(true)
+    setSaveError('')
+    try {
+      await onSaveFlow(sunday.id, nextIds)
+      setDraftFlowIds(null)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save Worship Flow.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="worship-flow-page">
+      <header className="worship-flow-toolbar">
+        <Link className="worship-flow-back" to={sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/sunday'}>Sunday Schedule</Link>
+        <h1>Worship Flow</h1>
+        {sundaySetlists.length > 0 && <select className="worship-flow-sunday-select" value={sunday?.id ?? ''} onChange={(event) => selectSunday(event.target.value)} aria-label="Select Sunday for Worship Flow">
+          {sundaySetlists.map((item) => <option key={item.id} value={item.id}>{formatSundayTitle(item.date)}</option>)}
+        </select>}
+        {isOwner && sunday && <button className="worship-flow-manage-toggle" type="button" onClick={() => {
+          setEditing((current) => !current)
+          setDraftFlowIds(null)
+          setSaveError('')
+        }}>{editing ? 'Done' : 'Manage flow'}</button>}
+      </header>
+
+      {!sunday ? <p className="worship-flow-empty">No Sunday schedule is ready yet.</p> : availableSongs.length === 0 ? <p className="worship-flow-empty">No songs are scheduled for this Sunday yet.</p> : <>
+        {editing && <section className="worship-flow-manager" aria-labelledby="worship-flow-manager-title">
+          <div className="worship-flow-manager-heading">
+            <h2 id="worship-flow-manager-title">Choose and order scheduled songs</h2>
+            <span>Changes save automatically</span>
+          </div>
+          <div className="worship-flow-song-picker">
+            {availableSongs.map((song) => <label className="worship-flow-picker-row" key={song.id}>
+              <input type="checkbox" checked={flowIds.includes(song.id)} disabled={saving} onChange={(event) => void persistFlow(selectWorshipFlowSong(flowIds, song.id, event.target.checked))} />
+              <span>{song.title}</span>
+            </label>)}
+          </div>
+          {flowSongs.length > 0 && <ol className="worship-flow-order-list" aria-label="Worship Flow song order">
+            {flowSongs.map((song, index) => <li key={song.id}>
+              <span>{song.title}</span>
+              <div className="worship-flow-order-controls">
+                <button className="icon-button" type="button" aria-label={`Move ${song.title} up`} disabled={saving || index === 0} onClick={() => void persistFlow(moveWorshipFlowSong(flowIds, song.id, -1))}><ArrowUp size={16} /></button>
+                <button className="icon-button" type="button" aria-label={`Move ${song.title} down`} disabled={saving || index === flowSongs.length - 1} onClick={() => void persistFlow(moveWorshipFlowSong(flowIds, song.id, 1))}><ArrowDown size={16} /></button>
+              </div>
+            </li>)}
+          </ol>}
+          <div className="worship-flow-save-status" aria-live="polite">{saving ? 'Saving…' : saveError ? saveError : ''}</div>
+        </section>}
+
+        {flowSongs.length > 0 ? <div className="worship-flow-sheet">
+          {flowSongs.map((song) => <article className="worship-flow-song" key={song.id}>
+            <h2>{song.title}</h2>
+            {song.sections.map((section, sectionIndex) => <section className="worship-flow-section" key={section.id || `${song.id}-${sectionIndex}`}>
+              <h3>{section.name}</h3>
+              {sectionChordLines(section).map((line, lineIndex) => <div className="worship-flow-chords" key={`${section.id || section.name}-${lineIndex}`}>
+                {formatTransposedChordLine(line, 0, settings.notation, settings.simplify)}
+              </div>)}
+            </section>)}
+          </article>)}
+        </div> : <div className="worship-flow-empty">
+          <p>No songs added to Worship Flow yet.</p>
+          {isOwner && !editing && <button className="secondary-button" type="button" onClick={() => setEditing(true)}>Select songs</button>}
+        </div>}
+      </>}
     </div>
   )
 }

@@ -1,0 +1,23 @@
+export function orderedWorshipFlowIds(scheduledIds: string[], flowIds: string[]) {
+  const scheduled = new Set(scheduledIds)
+  const seen = new Set<string>()
+  return flowIds.filter((songId) => {
+    if (!scheduled.has(songId) || seen.has(songId)) return false
+    seen.add(songId)
+    return true
+  })
+}
+
+export function selectWorshipFlowSong(flowIds: string[], songId: string, selected: boolean) {
+  if (selected) return flowIds.includes(songId) ? flowIds : [...flowIds, songId]
+  return flowIds.filter((id) => id !== songId)
+}
+
+export function moveWorshipFlowSong(flowIds: string[], songId: string, direction: -1 | 1) {
+  const index = flowIds.indexOf(songId)
+  const target = index + direction
+  if (index < 0 || target < 0 || target >= flowIds.length) return flowIds
+  const next = [...flowIds]
+  ;[next[index], next[target]] = [next[target], next[index]]
+  return next
+}

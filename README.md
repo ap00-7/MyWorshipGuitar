@@ -15,6 +15,8 @@ Worship Guitar is an owner-managed chord-sheet companion for worship musicians. 
 - Installable PWA with a small offline app-shell cache
 - Continuous chord sheets with no lyric-first performance flow
 - Sunday workspace with date editing, add/remove, drag reorder, and duplicate-previous workflow
+- Per-Sunday Worship Flow with owner-managed song selection and an independent performance order
+- Compact, chord-first, read-only Guitar 1 display with shared Supabase updates
 
 ## Technology stack
 
@@ -42,15 +44,16 @@ The build output is written to `dist` and is ready for static hosting.
 
 1. Create a new Supabase project.
 2. Run `supabase/schema.sql` in the Supabase SQL Editor.
-3. Create the owner account under Authentication > Users using email/password.
-4. Copy the new user's UUID and run this SQL as the project owner in the SQL Editor:
+3. Apply the approved SQL migration in `supabase/migrations/` after the base schema. It creates the Worship Flow relation, schedule-membership constraint, owner-only save functions, RLS policies, and Realtime publication entry.
+4. Create the owner account under Authentication > Users using email/password.
+5. Copy the new user's UUID and run this SQL as the project owner in the SQL Editor:
 
 ```sql
 update public.profiles set role = 'owner' where id = 'OWNER_AUTH_USER_UUID';
 ```
 
-5. Put the Supabase project URL and anon key in `.env.local` using `.env.example` as the template. Never use a service-role key in Vite or Vercel.
-6. Open `/owner`, sign in, and add the shared songs and Sunday schedule.
+6. Put the Supabase project URL and anon key in `.env.local` using `.env.example` as the template. Never use a service-role key in Vite or Vercel.
+7. Open `/owner`, sign in, and add the shared songs and Sunday schedule.
 
 The schema allows anonymous SELECT access only. INSERT, UPDATE, and DELETE policies require the authenticated user's profile role to be `owner`. The browser UI mirrors those permissions, but the database policies are the security boundary.
 
@@ -60,7 +63,7 @@ The schema allows anonymous SELECT access only. INSERT, UPDATE, and DELETE polic
 2. In Vercel, choose **Add New Project** and import the repository.
 3. Vercel detects Vite automatically. The build command is `npm run build` and the output directory is `dist`.
 4. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` under the Vercel project's Environment Variables for Preview and Production.
-5. Deploy. `vercel.json` rewrites client-side routes back to `index.html`, so refreshing `/songs`, `/sunday`, `/chords`, `/settings`, or `/owner` works correctly.
+5. Deploy. `vercel.json` rewrites client-side routes back to `index.html`, so refreshing `/songs`, `/sunday`, `/worship-flow`, `/chords`, `/settings`, or `/owner` works correctly.
 
 The fallback mode uses browser LocalStorage only when Supabase variables are absent and intentionally exposes no management controls. For the real shared installation, configure Supabase before deployment; shared content then loads from Supabase instead of localStorage.
 
@@ -70,6 +73,6 @@ Theme and display preferences remain local to each browser. Shared songs and Sun
 
 ## V4 chord-first workflow
 
-Use **Sunday** to prepare the week's service. The complete chord progression is rendered as one continuous sheet with visual section labels. Opening a song is the complete playing interface; there is no separate performance mode. Existing lyric text remains in the local data model for compatibility but is intentionally not rendered in the primary chord view.
+Use **Sunday** to prepare the week's service. Its **Worship Flow** link opens a compact, read-only performance sheet containing only songs selected for that Sunday, in their independently managed order. Owners can choose from scheduled songs and reorder the flow without changing the Sunday Schedule. The normal song page remains the full chord-sheet and editing experience. Existing lyric text remains in the data model for compatibility but is intentionally not rendered in chord views.
 
 The local fallback does not provide real authentication or authorization. Do not use it as a secure multi-user owner system until the Supabase policies and data adapter are configured.

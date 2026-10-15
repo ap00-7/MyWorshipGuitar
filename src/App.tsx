@@ -3,16 +3,18 @@ import { BookOpen, CalendarDays, Guitar, Home, LogIn, LogOut, Settings as Settin
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { defaultSettings, demoSongs, normalizeSong, type PrivateSession, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
-import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadSharedSnapshot, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
+import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadSharedSnapshot, saveWorshipFlow as persistWorshipFlow, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
-import { ChordLibrary, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
+import { ChordLibrary, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5, WorshipFlowPage } from './v5'
+import { orderedWorshipFlowIds } from './worshipFlow'
 import { BrandLogo } from './components/BrandLogo'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
 
 function scrollSection(pathname: string, _search: string) {
   if (pathname === '/') return 'home'
+  if (pathname.startsWith('/worship-flow')) return 'worship-flow'
   if (pathname === '/songs/new') return 'song-new'
   if (pathname.startsWith('/songs/') && pathname.endsWith('/edit')) return 'song-edit'
   if (pathname.startsWith('/songs/')) return 'song-view'
@@ -44,6 +46,7 @@ export default function App() {
   const [songs, setSongs] = useLocalState<Song[]>('wg-songs', supabaseConfigured ? [] : demoSongs, !supabaseConfigured)
   const [setlists, setSetlists] = useLocalState<Setlist[]>('wg-setlists', supabaseConfigured ? [] : seedSetlists, !supabaseConfigured)
   const [privateSessions, setPrivateSessions] = useLocalState<PrivateSession[]>('wg-private-sessions', [], !supabaseConfigured)
+  const [worshipFlows, setWorshipFlows] = useLocalState<Record<string, string[]>>('wg-worship-flows', {}, !supabaseConfigured)
   const [settings, setSettings] = useLocalState<Settings>('wg-settings', defaultSettings)
   const [role, setRole] = useState<UserRole>('user')
   const [authLoading, setAuthLoading] = useState(supabaseConfigured)
@@ -121,13 +124,14 @@ export default function App() {
       setSongs(snapshot.songs)
       setSetlists(snapshot.setlists)
       setPrivateSessions(snapshot.privateSessions)
+      setWorshipFlows(snapshot.worshipFlows)
     }).catch((loadError) => {
       if (active) setError(loadError instanceof Error ? loadError.message : 'Unable to load shared content.')
     }).finally(() => {
       if (active) setDataLoading(false)
     })
     return () => { active = false }
-  }, [setSongs, setSetlists])
+  }, [setSongs, setSetlists, setPrivateSessions, setWorshipFlows])
 
   useEffect(() => {
     const client = supabase
@@ -159,6 +163,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'song_sections' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sundays' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sunday_songs' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'worship_flow_songs' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'private_sessions' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'private_session_songs' }, refreshAfterRealtime)
       .subscribe((status) => {
@@ -172,13 +177,14 @@ export default function App() {
       active = false
       void client.removeChannel(channel)
     }
-  }, [setSongs, setSetlists, setPrivateSessions])
+  }, [setSongs, setSetlists, setPrivateSessions, setWorshipFlows])
 
   const refreshShared = async () => {
     const snapshot = await loadSharedSnapshot()
     setSongs(snapshot.songs)
     setSetlists(snapshot.setlists)
     setPrivateSessions(snapshot.privateSessions)
+    setWorshipFlows(snapshot.worshipFlows)
     return snapshot
   }
 
@@ -235,6 +241,7 @@ export default function App() {
       } else {
         setSongs((current) => current.filter((item) => item.id !== song.id))
         setSetlists((current) => current.map((setlist) => ({ ...setlist, songIds: setlist.songIds.filter((songId) => songId !== song.id) })))
+        setWorshipFlows((current) => Object.fromEntries(Object.entries(current).map(([sundayId, songIds]) => [sundayId, songIds.filter((songId) => songId !== song.id)])))
       }
       setError('')
     } catch (deleteError) {
@@ -263,6 +270,12 @@ export default function App() {
           next[index] = saved
           return next
         })
+        setWorshipFlows((current) => {
+          const existingFlow = current[saved.id] ?? current[setlist.id] ?? []
+          const next = { ...current, [saved.id]: orderedWorshipFlowIds(saved.songIds, existingFlow) }
+          if (setlist.id && setlist.id !== saved.id) delete next[setlist.id]
+          return next
+        })
       }
       setError('')
       return saved
@@ -271,6 +284,40 @@ export default function App() {
       console.error('Unable to update Sunday', updateError)
       setError(message)
       throw updateError instanceof Error ? updateError : new Error(message)
+    }
+  }
+  const updateWorshipFlow = async (sundayId: string, songIds: string[]) => {
+    try {
+      if (!isOwner) throw new Error('Only the owner can edit Worship Flow.')
+      const sunday = setlists.find((item) => item.id === sundayId)
+      if (!sunday) throw new Error('The selected Sunday schedule is no longer available.')
+      const orderedIds = orderedWorshipFlowIds(sunday.songIds, songIds)
+      if (orderedIds.length !== songIds.length) throw new Error('Worship Flow can only contain songs scheduled for the selected Sunday.')
+      if (supabaseConfigured) {
+        await persistWorshipFlow(sundayId, orderedIds)
+        await refreshShared()
+      } else {
+        setWorshipFlows((current) => ({ ...current, [sundayId]: orderedIds }))
+      }
+      setError('')
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Unable to save Worship Flow.'
+      console.error('Unable to save Worship Flow', { sundayId, error: saveError })
+      setError(message)
+      throw saveError instanceof Error ? saveError : new Error(message)
+    }
+  }
+  const removeSunday = async (sundayId: string) => {
+    if (supabaseConfigured) {
+      await deleteSunday(sundayId)
+      await refreshShared()
+    } else {
+      setSetlists((current) => current.filter((item) => item.id !== sundayId))
+      setWorshipFlows((current) => {
+        const next = { ...current }
+        delete next[sundayId]
+        return next
+      })
     }
   }
   const createSetlist = async () => {
@@ -308,7 +355,7 @@ export default function App() {
 
   const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/private-session', label: 'Events', icon: CalendarDays }, { to: '/chords', label: 'Chords', icon: Guitar }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
   return (
-    <div className="app">
+    <div className={`app${location.pathname === '/worship-flow' ? ' app-worship-flow' : ''}`}>
       <Sidebar items={publicNav} isOwner={isOwner} onSignOut={signOut} />
       <main ref={mainRef} className="main">
         {error && <div className="app-error" role="alert">{error}</div>}
@@ -318,7 +365,8 @@ export default function App() {
           <Route path="/songs/new" element={isOwner ? <SongEditor key="new-song" songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor key={`${location.pathname}`} songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId" element={<SongPage key={location.pathname + location.search} songs={songs} setlists={setlists} privateSessions={privateSessions} settings={settings} isOwner={isOwner} />} />
-          <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} onDelete={async (setlistId) => { if (supabaseConfigured) { await deleteSunday(setlistId); await refreshShared() } else setSetlists((current) => current.filter((item) => item.id !== setlistId)); }} isOwner={isOwner} />} />
+          <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} onDelete={removeSunday} isOwner={isOwner} />} />
+          <Route path="/worship-flow" element={<WorshipFlowPage songs={songs} setlists={setlists} worshipFlows={worshipFlows} settings={settings} isOwner={isOwner} onSaveFlow={updateWorshipFlow} />} />
           <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); }} />} />
           <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />

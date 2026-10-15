@@ -3,7 +3,7 @@ import { normalizeSong } from './data'
 import { isSundayIso, sortSongsByTitle, toIsoDate } from './music'
 import { supabase } from './supabaseClient'
 
-export type SharedSnapshot = { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[] }
+export type SharedSnapshot = { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[]; worshipFlows: Record<string, string[]> }
 
 type DbSong = {
   id: string
@@ -37,6 +37,12 @@ type DbPrivateSession = {
   session_date: string
   description: string
   private_session_songs: Array<{ position: number; song_id: string }>
+}
+
+type DbWorshipFlowSong = {
+  sunday_id: string
+  song_id: string
+  position: number
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -127,8 +133,12 @@ async function selectSongById(songId: string) {
 
 export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   const client = requireSupabase()
-  const sundaysResult = await client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position)').order('service_date', { ascending: false })
+  const [sundaysResult, worshipFlowResult] = await Promise.all([
+    client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position)').order('service_date', { ascending: false }),
+    client.from('worship_flow_songs').select('sunday_id,song_id,position').order('position'),
+  ])
   throwIfError(sundaysResult.error, 'Unable to load Sunday schedule.')
+  throwIfError(worshipFlowResult.error, 'Unable to load Worship Flow. Apply the approved Worship Flow database migration.')
 
   let privateSessions: PrivateSession[] = []
   try {
@@ -169,7 +179,11 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     description: sunday.description,
     songIds: (sunday.sunday_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
   }))
-  return { songs, setlists, privateSessions }
+  const worshipFlows = ((worshipFlowResult.data ?? []) as DbWorshipFlowSong[]).reduce<Record<string, string[]>>((flows, item) => {
+    ;(flows[item.sunday_id] ??= []).push(item.song_id)
+    return flows
+  }, {})
+  return { songs, setlists, privateSessions, worshipFlows }
 }
 
 async function saveChordImage(songId: string, dataUrl: string) {
@@ -341,15 +355,22 @@ export async function upsertSunday(setlist: Setlist): Promise<Setlist> {
     savedId = data.id
   }
 
-  const { error: deleteError } = await client.from('sunday_songs').delete().eq('sunday_id', savedId)
-  throwIfError(deleteError, 'Unable to replace Sunday songs.')
-
-  if (setlist.songIds.length) {
-    const { error: songsError } = await client.from('sunday_songs').insert(setlist.songIds.map((songId, position) => ({ sunday_id: savedId, song_id: songId, position })))
-    throwIfError(songsError, 'Unable to save Sunday songs.')
-  }
+  const { error: songsError } = await client.rpc('save_sunday_songs', {
+    p_sunday_id: savedId,
+    p_song_ids: setlist.songIds,
+  })
+  throwIfError(songsError, 'Unable to save Sunday songs.')
 
   return { ...setlist, id: savedId, date: sundayFields.service_date }
+}
+
+export async function saveWorshipFlow(sundayId: string, songIds: string[]) {
+  const client = requireSupabase()
+  const { error } = await client.rpc('save_worship_flow', {
+    p_sunday_id: sundayId,
+    p_song_ids: songIds,
+  })
+  throwIfError(error, 'Unable to save Worship Flow.')
 }
 
 export async function deleteSunday(setlistId: string) {
