@@ -2310,7 +2310,7 @@ nav {
   border-radius: 4px;
   color: var(--ink);
   font: 500 clamp(13px, calc(16px * var(--worship-flow-font-scale)), 21px)/1.24 'DM Mono', monospace;
-  text-align: left;
+  text-align: center;
   white-space: pre-wrap;
   overflow-wrap: normal;
   word-break: normal;
