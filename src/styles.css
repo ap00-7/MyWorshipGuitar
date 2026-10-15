@@ -2287,15 +2287,32 @@ nav {
   overflow-wrap: anywhere;
 }
 
+.worship-flow-starting-chord-controls {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.worship-flow-original,
 .worship-flow-starting-chord {
   flex: 0 0 auto;
-  min-width: 64px;
   min-height: 36px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  padding: 6px 7px;
   background: var(--panel);
   color: var(--ink);
+}
+
+.worship-flow-original {
+  padding: 6px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.worship-flow-starting-chord {
+  min-width: 64px;
+  padding: 6px 7px;
   font: 500 12px 'DM Mono', monospace;
 }
 

@@ -24,6 +24,15 @@ export function setWorshipFlowStartingChord(preferences: WorshipFlowStartingChor
   }
 }
 
+export function resetWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, sundayId: string, songId: string): WorshipFlowStartingChordPreferences {
+  const sundayPreferences = { ...preferences[sundayId] }
+  delete sundayPreferences[songId]
+  const next = { ...preferences }
+  if (Object.keys(sundayPreferences).length) next[sundayId] = sundayPreferences
+  else delete next[sundayId]
+  return next
+}
+
 export function selectWorshipFlowSong(flowIds: string[], songId: string, selected: boolean) {
   if (selected) return flowIds.includes(songId) ? flowIds : [...flowIds, songId]
   return flowIds.filter((id) => id !== songId)

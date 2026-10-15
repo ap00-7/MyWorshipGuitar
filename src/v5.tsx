@@ -1543,7 +1543,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
   )
 }
 
-export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords, onStartingChordChange, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; startingChords: WorshipFlowStartingChordPreferences; onStartingChordChange: (sundayId: string, songId: string, key: string) => void; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
+export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords, onStartingChordChange, onStartingChordReset, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; startingChords: WorshipFlowStartingChordPreferences; onStartingChordChange: (sundayId: string, songId: string, key: string) => void; onStartingChordReset: (sundayId: string, songId: string) => void; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
@@ -1646,11 +1646,16 @@ export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords,
             return <article className="worship-flow-song" key={song.id}>
               <div className="worship-flow-song-heading">
                 <h2>{song.title}</h2>
-                <select className="worship-flow-starting-chord" value={startingChord} onChange={(event) => {
-                  if (sunday) onStartingChordChange(sunday.id, song.id, event.target.value)
-                }} aria-label={`Starting chord for ${song.title}`}>
-                  {keyOptions.map((key) => <option key={key} value={key}>{key}</option>)}
-                </select>
+                <div className="worship-flow-starting-chord-controls">
+                  <button className="worship-flow-original" type="button" onClick={() => {
+                    if (sunday) onStartingChordReset(sunday.id, song.id)
+                  }} aria-label={`Restore original chords for ${song.title}`}>Original</button>
+                  <select className="worship-flow-starting-chord" value={startingChord} onChange={(event) => {
+                    if (sunday) onStartingChordChange(sunday.id, song.id, event.target.value)
+                  }} aria-label={`Starting chord for ${song.title}`}>
+                    {keyOptions.map((key) => <option key={key} value={key}>{key}</option>)}
+                  </select>
+                </div>
               </div>
               {song.sections.map((section, sectionIndex) => <section className="worship-flow-section" key={section.id || `${song.id}-${sectionIndex}`}>
                 <h3>{section.name}</h3>

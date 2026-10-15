@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { formatTransposedChordLine, noteIndex } from '../src/music.ts'
-import { getWorshipFlowStartingChord, moveWorshipFlowSong, orderedWorshipFlowIds, selectWorshipFlowSong, setWorshipFlowStartingChord } from '../src/worshipFlow.ts'
+import { getWorshipFlowStartingChord, moveWorshipFlowSong, orderedWorshipFlowIds, resetWorshipFlowStartingChord, selectWorshipFlowSong, setWorshipFlowStartingChord } from '../src/worshipFlow.ts'
 
 test('Worship Flow keeps only scheduled songs in its independent saved order', () => {
   assert.deepEqual(
@@ -45,4 +45,23 @@ test('Worship Flow transposes only the selected song display without changing st
   assert.equal(formatTransposedChordLine(songBProgression, songBInterval), 'A E F#m D /')
   assert.equal(songAProgression, 'C G Am F\nC G C')
   assert.equal(songBProgression, 'G D Em C /')
+})
+
+test('Worship Flow Original restores only that song after preference restore and reordering', () => {
+  const original = { 'sunday-1': { 'song-a': 'C', 'song-b': 'G' } }
+  const savedPreference = setWorshipFlowStartingChord(original, 'sunday-1', 'song-b', 'A')
+  const restoredPreferences = JSON.parse(JSON.stringify(savedPreference))
+  const reorderedIds = moveWorshipFlowSong(['song-a', 'song-b', 'song-c'], 'song-b', 1)
+  const originalProgression = 'G D Em C /\nG C'
+
+  assert.deepEqual(reorderedIds, ['song-a', 'song-c', 'song-b'])
+  assert.equal(getWorshipFlowStartingChord(restoredPreferences, 'sunday-1', 'song-b', 'G'), 'A')
+  assert.equal(formatTransposedChordLine(originalProgression.split('\n')[0], (noteIndex('A') - noteIndex('G') + 12) % 12), 'A E F#m D /')
+
+  const resetPreferences = resetWorshipFlowStartingChord(restoredPreferences, 'sunday-1', 'song-b')
+  assert.equal(getWorshipFlowStartingChord(resetPreferences, 'sunday-1', 'song-b', 'G'), 'G')
+  assert.equal(getWorshipFlowStartingChord(resetPreferences, 'sunday-1', 'song-a', 'C'), 'C')
+  assert.equal(formatTransposedChordLine(originalProgression.split('\n')[0], 0), 'G D Em C /')
+  assert.equal(originalProgression, 'G D Em C /\nG C')
+  assert.deepEqual(restoredPreferences, { 'sunday-1': { 'song-a': 'C', 'song-b': 'A' } })
 })
