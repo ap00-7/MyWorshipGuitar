@@ -2063,6 +2063,37 @@ nav {
   font-size: 11px;
 }
 
+.worship-flow-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 36px;
+  padding: 6px 10px 6px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 80ms ease;
+}
+
+.worship-flow-back:hover {
+  border-color: var(--gold-line);
+  background: var(--gold-wash);
+  color: var(--ink);
+}
+
+.worship-flow-back:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.worship-flow-back:active {
+  transform: translateY(1px);
+}
+
 .worship-flow-sunday-select {
   max-width: 170px;
   min-width: 0;

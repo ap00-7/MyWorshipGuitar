@@ -1596,7 +1596,7 @@ export function WorshipFlowPage({ songs, setlists, worshipFlows, settings, fontS
     <div className="worship-flow-page" style={{ '--worship-flow-font-scale': safeFontScale } as CSSProperties}>
       <header className="worship-flow-toolbar">
         <div className="worship-flow-heading">
-          <Link className="worship-flow-back" to={sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/sunday'}>Sunday Schedule</Link>
+          <Link className="worship-flow-back" to={sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/sunday'}><ChevronLeft size={15} aria-hidden="true" />Sunday Schedule</Link>
           <h1>Worship Flow</h1>
         </div>
         <div className="worship-flow-toolbar-actions">
