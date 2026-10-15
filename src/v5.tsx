@@ -5,7 +5,7 @@ import { parseImportedChordText, readChordSheetImage } from './chordImport'
 import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { BrandLogo } from './components/BrandLogo'
-import { moveWorshipFlowSong, orderedWorshipFlowIds, selectWorshipFlowSong } from './worshipFlow'
+import { getWorshipFlowStartingChord, moveWorshipFlowSong, orderedWorshipFlowIds, selectWorshipFlowSong, type WorshipFlowStartingChordPreferences } from './worshipFlow'
 
 const editorKey = () => crypto.randomUUID()
 
@@ -1543,7 +1543,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
   )
 }
 
-export function WorshipFlowPage({ songs, setlists, worshipFlows, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
+export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords, onStartingChordChange, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; startingChords: WorshipFlowStartingChordPreferences; onStartingChordChange: (sundayId: string, songId: string, key: string) => void; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
@@ -1640,17 +1640,28 @@ export function WorshipFlowPage({ songs, setlists, worshipFlows, settings, fontS
         </section>}
 
         {flowSongs.length > 0 ? <div className="worship-flow-sheet">
-          {flowSongs.map((song) => <article className="worship-flow-song" key={song.id}>
-            <h2>{song.title}</h2>
-            {song.sections.map((section, sectionIndex) => <section className="worship-flow-section" key={section.id || `${song.id}-${sectionIndex}`}>
-              <h3>{section.name}</h3>
-              <div className="worship-flow-progressions">
-                {sectionChordLines(section).map((line, lineIndex) => <div className="worship-flow-chords" key={`${section.id || section.name}-${lineIndex}`}>
-                  {formatTransposedChordLine(line, 0, settings.notation, settings.simplify)}
-                </div>)}
+          {flowSongs.map((song) => {
+            const startingChord = getWorshipFlowStartingChord(startingChords, sunday?.id ?? '', song.id, song.key)
+            const interval = (noteIndex(startingChord) - noteIndex(song.key) + 12) % 12
+            return <article className="worship-flow-song" key={song.id}>
+              <div className="worship-flow-song-heading">
+                <h2>{song.title}</h2>
+                <select className="worship-flow-starting-chord" value={startingChord} onChange={(event) => {
+                  if (sunday) onStartingChordChange(sunday.id, song.id, event.target.value)
+                }} aria-label={`Starting chord for ${song.title}`}>
+                  {keyOptions.map((key) => <option key={key} value={key}>{key}</option>)}
+                </select>
               </div>
-            </section>)}
-          </article>)}
+              {song.sections.map((section, sectionIndex) => <section className="worship-flow-section" key={section.id || `${song.id}-${sectionIndex}`}>
+                <h3>{section.name}</h3>
+                <div className="worship-flow-progressions">
+                  {sectionChordLines(section).map((line, lineIndex) => <div className="worship-flow-chords" key={`${section.id || section.name}-${lineIndex}`}>
+                    {formatTransposedChordLine(line, interval, settings.notation, settings.simplify)}
+                  </div>)}
+                </div>
+              </section>)}
+            </article>
+          })}
         </div> : <div className="worship-flow-empty">
           <p>No songs added to Worship Flow yet.</p>
           {isOwner && !editing && <button className="secondary-button" type="button" onClick={() => setEditing(true)}>Select songs</button>}

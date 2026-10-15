@@ -1,3 +1,5 @@
+export type WorshipFlowStartingChordPreferences = Record<string, Record<string, string>>
+
 export function orderedWorshipFlowIds(scheduledIds: string[], flowIds: string[]) {
   const scheduled = new Set(scheduledIds)
   const seen = new Set<string>()
@@ -6,6 +8,20 @@ export function orderedWorshipFlowIds(scheduledIds: string[], flowIds: string[])
     seen.add(songId)
     return true
   })
+}
+
+export function getWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, sundayId: string, songId: string, defaultKey: string) {
+  return preferences[sundayId]?.[songId] ?? defaultKey
+}
+
+export function setWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, sundayId: string, songId: string, key: string): WorshipFlowStartingChordPreferences {
+  return {
+    ...preferences,
+    [sundayId]: {
+      ...preferences[sundayId],
+      [songId]: key,
+    },
+  }
 }
 
 export function selectWorshipFlowSong(flowIds: string[], songId: string, selected: boolean) {
