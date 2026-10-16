@@ -6,7 +6,7 @@ import { LocalRepository } from './repositories'
 import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadSharedSnapshot, saveEventFlow as persistEventFlow, saveWorshipFlow as persistWorshipFlow, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
-import { ChordLibrary, EventFlowPage, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5, WorshipFlowPage } from './v5'
+import { AboutPage, ChordLibrary, EventFlowPage, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5, WorshipFlowPage } from './v5'
 import { orderedEventFlowIds, orderedWorshipFlowIds, resetWorshipFlowStartingChord, setWorshipFlowStartingChord, type WorshipFlowStartingChordPreferences } from './worshipFlow'
 import { BrandLogo } from './components/BrandLogo'
 
@@ -23,6 +23,7 @@ function scrollSection(pathname: string, _search: string) {
   if (pathname.startsWith('/sunday')) return 'sunday'
   if (pathname.startsWith('/private-session')) return 'private-session'
   if (pathname.startsWith('/chords')) return 'chords'
+  if (pathname.startsWith('/about')) return 'about'
   if (pathname.startsWith('/settings')) return 'settings'
   if (pathname.startsWith('/owner')) return 'owner'
   return 'home'
@@ -408,6 +409,7 @@ export default function App() {
           <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else { setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); setEventFlows((current) => { const next = { ...current }; delete next[sessionId]; return next }) } }} />} />
           <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/owner" element={<OwnerLogin />} />
           <Route path="*" element={<HomePage songs={songs} setlists={setlists} onCreateSong={createSong} isOwner={isOwner} />} />
         </Routes>

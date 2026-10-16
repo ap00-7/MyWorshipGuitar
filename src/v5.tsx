@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Info, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { parseImportedChordText, readChordSheetImage } from './chordImport'
 import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
@@ -1140,7 +1140,56 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
             <button className={settings.theme === 'dark' ? 'selected' : ''} onClick={() => onSettings({ ...settings, theme: 'dark' })}><Moon size={15} />Dark</button>
           </div>
         </div>
+        <div className="setting">
+          <div>
+            <h3>About the app</h3>
+            <p>Learn about Worship Guitar and how to use its features.</p>
+          </div>
+          <Link className="about-setting-link" to="/about"><Info size={16} aria-hidden="true" />About the app<ChevronRight size={16} aria-hidden="true" /></Link>
+        </div>
+      </div>
+    </div>
+  )
+}
 
+export function AboutPage() {
+  return (
+    <div className="page about-page">
+      <header className="v5-page-header">
+        <div>
+          <div className="eyebrow">Worship Guitar</div>
+          <h1>About the app</h1>
+        </div>
+        <Link className="secondary-button about-back-link" to="/settings"><ChevronLeft size={16} aria-hidden="true" />Back to Settings</Link>
+      </header>
+
+      <p className="about-intro">Worship Guitar is a guitar chord reference and performance companion for worship services and other events. It brings shared song planning, chord tools, and compact performance views together in one responsive app.</p>
+
+      <div className="about-sections">
+        <section className="about-section">
+          <h2>Plan and perform</h2>
+          <ul>
+            <li><strong>Songs Library:</strong> Browse shared songs; the owner can add, edit, and manage them.</li>
+            <li><strong>Chord Library:</strong> Explore chord diagrams, finger positions, notes, and fingering information.</li>
+            <li><strong>Sunday Schedule:</strong> Organize and order songs for each Sunday.</li>
+            <li><strong>Worship Flow:</strong> Select and reorder songs already assigned to a Sunday, then use the compact performance view.</li>
+            <li><strong>Events:</strong> The owner can create and manage events and their assigned songs.</li>
+            <li><strong>Event Flow:</strong> Select and reorder songs assigned to an individual event for its performance view.</li>
+          </ul>
+        </section>
+
+        <section className="about-section">
+          <h2>Chord and performance tools</h2>
+          <p>Song sheets support Guitar 1 and Guitar 2 views, chord transposition and notation preferences, Starting Chord selection, and capo-aware chord shapes. Guitar 2 chord conversion suggests capo- and key-compatible arrangements that can also be customized. Chord progressions can be transposed and simplified.</p>
+          <p>Worship Flow and Event Flow present selected songs as compact chord sheets with section labels. Their chord font size controls and responsive layouts help keep the sheets readable on different screens.</p>
+        </section>
+
+        <section className="about-section">
+          <h2>Settings and shared access</h2>
+          <p>Settings include a light or dark theme preference. Song and performance views also provide chord notation, simplification, and font-size controls where available. These preferences are stored in your browser.</p>
+          <p>When connected to Supabase, shared songs, schedules, events, and flows synchronize through the shared database, with live refreshes for supported updates. The authenticated owner manages shared content; viewers can browse it without management controls. Database permissions enforce owner-only changes.</p>
+          <p>Without Supabase configuration, the app uses a local demo fallback. That fallback is for local UI use and does not provide secure shared authentication or owner management.</p>
+        </section>
       </div>
     </div>
   )
