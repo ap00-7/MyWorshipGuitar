@@ -1392,7 +1392,7 @@ nav {
 
 .diagram-fret:first-child { border-top-width: 3px; border-top-color: var(--ink); }
 .diagram-barre {
-  z-index: 2;
+  z-index: 0;
   align-self: center;
   height: 10px;
   margin: 0 8px;
