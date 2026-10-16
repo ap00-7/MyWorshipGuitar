@@ -1,27 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-
 import { barreSegments, fretboardRow, guitarStringNames, guitarStringNumbers, guitarStringState, stringIndicator } from '../src/chordDiagram.ts'
-
-const source = readFileSync(resolve('src/v5.tsx'), 'utf8')
-const dataStart = source.indexOf('const chordDatabase = useMemo<ChordDefinition[]>(() => [')
-const dataEnd = source.indexOf('\n  ], [', dataStart)
-const dataSource = source.slice(dataStart, dataEnd)
-const chordDefinitions = [...dataSource.matchAll(
-  /\{ name: '([^']+)', root: '([^']+)', type: '([^']+)', notes: \[([^\]]*)\], strings: \[([^\]]*)\], fingers: \[([^\]]*)\], difficulty: '([^']+)', baseFret: (\d+)(?:, barre: (\d+))? \}/g,
-)].map(([, name, root, type, notes, strings, fingers, difficulty, baseFret, barre]) => ({
-  name,
-  root,
-  type,
-  notes: [...notes.matchAll(/'([^']+)'/g)].map(([, note]) => note),
-  strings: strings.split(',').map((value) => Number(value.trim())),
-  fingers: [...fingers.matchAll(/'([^']+)'/g)].map(([, finger]) => finger),
-  difficulty,
-  baseFret: Number(baseFret),
-  barre: barre ? Number(barre) : undefined,
-}))
+import { chordDefinitions } from '../src/chordDefinitions.ts'
 
 const pitchClasses = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
 const standardTuning = [4, 9, 2, 7, 11, 4]
@@ -79,7 +59,6 @@ function soundingPitchClasses(chord) {
 }
 
 test('the complete 148-chord inventory has unique names and valid six-string state/fingering data', () => {
-  assert.equal(dataStart >= 0 && dataEnd > dataStart, true, 'Chord data source was not found')
   assert.equal(chordDefinitions.length, 148)
   assert.equal(new Set(chordDefinitions.map((chord) => chord.name)).size, chordDefinitions.length)
 

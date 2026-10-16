@@ -40,6 +40,22 @@
   color: var(--ink);
 }
 
+.worship-flow-chord-trigger {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.worship-flow-chord-trigger:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; min-height: 100%; }
 body {
@@ -1497,6 +1513,29 @@ nav {
 
 .detail-meta p { margin: 0; }
 
+.event-flow-chord-detail {
+  text-align: center;
+}
+
+.event-flow-chord-detail h2 {
+  padding-inline: 40px;
+}
+
+.event-flow-chord-detail .diagram {
+  margin-inline: auto;
+}
+
+.event-flow-chord-detail .diagram-position {
+  text-align: center;
+}
+
+.event-flow-chord-detail .detail-meta p {
+  display: flex;
+  justify-content: center;
+  gap: 0.3em;
+  flex-wrap: wrap;
+}
+
 .settings-list {
   display: grid;
   gap: 16px;
@@ -1999,17 +2038,20 @@ nav {
   }
 }
 
-.app-worship-flow {
+.app-worship-flow,
+.app-event-flow {
   display: block;
   height: 100dvh;
   min-height: 100dvh;
 }
 
-.app-worship-flow .sidebar {
+.app-worship-flow .sidebar,
+.app-event-flow .sidebar {
   display: none;
 }
 
-.app-worship-flow .main {
+.app-worship-flow .main,
+.app-event-flow .main {
   width: 100%;
   height: 100dvh;
   padding: 0;
@@ -2042,6 +2084,22 @@ nav {
 
 .worship-flow-heading {
   gap: 12px;
+}
+
+.event-flow-title {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.event-flow-title strong {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .worship-flow-toolbar-actions {

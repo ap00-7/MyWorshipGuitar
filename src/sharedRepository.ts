@@ -3,7 +3,7 @@ import { normalizeSong } from './data'
 import { isSundayIso, sortSongsByTitle, toIsoDate } from './music'
 import { supabase } from './supabaseClient'
 
-export type SharedSnapshot = { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[]; worshipFlows: Record<string, string[]> }
+export type SharedSnapshot = { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[]; worshipFlows: Record<string, string[]>; eventFlows: Record<string, string[]> }
 
 type DbSong = {
   id: string
@@ -41,6 +41,12 @@ type DbPrivateSession = {
 
 type DbWorshipFlowSong = {
   sunday_id: string
+  song_id: string
+  position: number
+}
+
+type DbEventFlowSong = {
+  private_session_id: string
   song_id: string
   position: number
 }
@@ -133,12 +139,14 @@ async function selectSongById(songId: string) {
 
 export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   const client = requireSupabase()
-  const [sundaysResult, worshipFlowResult] = await Promise.all([
+  const [sundaysResult, worshipFlowResult, eventFlowResult] = await Promise.all([
     client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position)').order('service_date', { ascending: false }),
     client.from('worship_flow_songs').select('sunday_id,song_id,position').order('position'),
+    client.from('event_flow_songs').select('private_session_id,song_id,position').order('position'),
   ])
   throwIfError(sundaysResult.error, 'Unable to load Sunday schedule.')
   throwIfError(worshipFlowResult.error, 'Unable to load Worship Flow. Apply the approved Worship Flow database migration.')
+  throwIfError(eventFlowResult.error, 'Unable to load Event Flow. Apply the approved Event Flow database migration.')
 
   let privateSessions: PrivateSession[] = []
   try {
@@ -183,7 +191,11 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     ;(flows[item.sunday_id] ??= []).push(item.song_id)
     return flows
   }, {})
-  return { songs, setlists, privateSessions, worshipFlows }
+  const eventFlows = ((eventFlowResult.data ?? []) as DbEventFlowSong[]).reduce<Record<string, string[]>>((flows, item) => {
+    ;(flows[item.private_session_id] ??= []).push(item.song_id)
+    return flows
+  }, {})
+  return { songs, setlists, privateSessions, worshipFlows, eventFlows }
 }
 
 async function saveChordImage(songId: string, dataUrl: string) {
@@ -373,6 +385,24 @@ export async function saveWorshipFlow(sundayId: string, songIds: string[]) {
   throwIfError(error, 'Unable to save Worship Flow.')
 }
 
+export async function saveEventFlow(privateSessionId: string, songIds: string[]) {
+  const client = requireSupabase()
+  const { error } = await client.rpc('save_event_flow', {
+    p_private_session_id: privateSessionId,
+    p_song_ids: songIds,
+  })
+  throwIfError(error, 'Unable to save Event Flow.')
+}
+
+export async function savePrivateSessionSongs(privateSessionId: string, songIds: string[]) {
+  const client = requireSupabase()
+  const { error } = await client.rpc('save_private_session_songs', {
+    p_private_session_id: privateSessionId,
+    p_song_ids: songIds,
+  })
+  throwIfError(error, 'Unable to save event songs.')
+}
+
 export async function deleteSunday(setlistId: string) {
   const client = requireSupabase()
   const { error } = await client.from('sundays').delete().eq('id', setlistId)
@@ -413,13 +443,7 @@ export async function upsertPrivateSession(session: PrivateSession): Promise<Pri
       savedId = data.id
     }
 
-    const { error: deleteError } = await client.from('private_session_songs').delete().eq('private_session_id', savedId)
-    throwIfError(deleteError, 'Unable to replace event songs.')
-
-    if (session.songIds.length) {
-      const { error: songsError } = await client.from('private_session_songs').insert(session.songIds.map((songId, position) => ({ private_session_id: savedId, song_id: songId, position })))
-      throwIfError(songsError, 'Unable to save event songs.')
-    }
+    await savePrivateSessionSongs(savedId, session.songIds)
 
     return { ...session, id: savedId, date: privateSessionFields.session_date }
   } catch (error) {

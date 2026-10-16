@@ -10,6 +10,8 @@ export function orderedWorshipFlowIds(scheduledIds: string[], flowIds: string[])
   })
 }
 
+export const orderedEventFlowIds = orderedWorshipFlowIds
+
 export function getWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, sundayId: string, songId: string, defaultKey: string) {
   return preferences[sundayId]?.[songId] ?? defaultKey
 }
@@ -38,6 +40,8 @@ export function selectWorshipFlowSong(flowIds: string[], songId: string, selecte
   return flowIds.filter((id) => id !== songId)
 }
 
+export const selectEventFlowSong = selectWorshipFlowSong
+
 export function moveWorshipFlowSong(flowIds: string[], songId: string, direction: -1 | 1) {
   const index = flowIds.indexOf(songId)
   const target = index + direction
@@ -46,3 +50,5 @@ export function moveWorshipFlowSong(flowIds: string[], songId: string, direction
   ;[next[index], next[target]] = [next[target], next[index]]
   return next
 }
+
+export const moveEventFlowSong = moveWorshipFlowSong

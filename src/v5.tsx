@@ -5,22 +5,13 @@ import { parseImportedChordText, readChordSheetImage } from './chordImport'
 import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { BrandLogo } from './components/BrandLogo'
-import { getWorshipFlowStartingChord, moveWorshipFlowSong, orderedWorshipFlowIds, selectWorshipFlowSong, type WorshipFlowStartingChordPreferences } from './worshipFlow'
+import { getWorshipFlowStartingChord, moveEventFlowSong, moveWorshipFlowSong, orderedEventFlowIds, orderedWorshipFlowIds, selectEventFlowSong, selectWorshipFlowSong, type WorshipFlowStartingChordPreferences } from './worshipFlow'
 import { barreSegments, fretboardRow, guitarStringNames, guitarStringNumbers, stringIndicator } from './chordDiagram'
+import { chordDefinitions } from './chordDefinitions'
+import type { ChordDefinition } from './chordDefinitions'
 
 const editorKey = () => crypto.randomUUID()
 
-type ChordDefinition = {
-  name: string
-  root: string
-  type: string
-  notes: string[]
-  strings: number[]
-  fingers: string[]
-  difficulty: string
-  baseFret: number
-  barre?: number
-}
 const rootOptions = ['All', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 const typeOptions = ['All', 'Major', 'Minor', '7', 'Maj7', 'm7', 'Sus2', 'Sus4', 'Add9', 'Dim', 'Aug', '6', '9', '11', '13', '5', 'Slash']
 
@@ -1000,156 +991,7 @@ export function ChordLibrary() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [selectedChord, setSelectedChord] = useState<ChordDefinition | null>(null)
 
-  const chordDatabase = useMemo<ChordDefinition[]>(() => [
-    { name: 'A', root: 'A', type: 'Major', notes: ['A', 'C#', 'E'], strings: [-1, 0, 2, 2, 2, 0], fingers: ['x', '0', '2', '2', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Am', root: 'A', type: 'Minor', notes: ['A', 'C', 'E'], strings: [-1, 0, 2, 2, 1, 0], fingers: ['x', '0', '2', '3', '1', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'A7', root: 'A', type: '7', notes: ['A', 'C#', 'E', 'G'], strings: [-1, 0, 2, 0, 2, 0], fingers: ['x', '0', '1', '0', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'B7', root: 'B', type: '7', notes: ['B', 'D#', 'F#', 'A'], strings: [-1, 2, 1, 2, 0, 2], fingers: ['x', '2', '1', '3', '0', '4'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'C', root: 'C', type: 'Major', notes: ['C', 'E', 'G'], strings: [-1, 3, 2, 0, 1, 0], fingers: ['x', '3', '2', '0', '1', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'C7', root: 'C', type: '7', notes: ['C', 'E', 'G', 'Bb'], strings: [-1, 3, 2, 3, 1, 0], fingers: ['x', '3', '2', '4', '1', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Cmaj7', root: 'C', type: 'Maj7', notes: ['C', 'E', 'G', 'B'], strings: [-1, 3, 2, 0, 0, 0], fingers: ['x', '3', '2', '0', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Cadd9', root: 'C', type: 'Add9', notes: ['C', 'D', 'E', 'G'], strings: [-1, 3, 2, 0, 3, 3], fingers: ['x', '3', '2', '0', '4', '4'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Csus2', root: 'C', type: 'Sus2', notes: ['C', 'D', 'G'], strings: [-1, 3, 0, 0, 1, 3], fingers: ['x', '3', '0', '0', '1', '4'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Csus4', root: 'C', type: 'Sus4', notes: ['C', 'F', 'G'], strings: [-1, 3, 3, 0, 1, 1], fingers: ['x', '3', '4', '0', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'D', root: 'D', type: 'Major', notes: ['D', 'F#', 'A'], strings: [-1, -1, 0, 2, 3, 2], fingers: ['x', 'x', '0', '1', '3', '2'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dm', root: 'D', type: 'Minor', notes: ['D', 'F', 'A'], strings: [-1, -1, 0, 2, 3, 1], fingers: ['x', 'x', '0', '2', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'D7', root: 'D', type: '7', notes: ['D', 'F#', 'A', 'C'], strings: [-1, -1, 0, 2, 1, 2], fingers: ['x', 'x', '0', '3', '1', '2'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dm7', root: 'D', type: 'm7', notes: ['D', 'F', 'A', 'C'], strings: [-1, -1, 0, 2, 1, 1], fingers: ['x', 'x', '0', '2', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dmaj7', root: 'D', type: 'Maj7', notes: ['D', 'F#', 'A', 'C#'], strings: [-1, -1, 0, 2, 2, 2], fingers: ['x', 'x', '0', '2', '2', '2'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Dsus2', root: 'D', type: 'Sus2', notes: ['D', 'E', 'A'], strings: [-1, -1, 0, 2, 3, 0], fingers: ['x', 'x', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dsus4', root: 'D', type: 'Sus4', notes: ['D', 'G', 'A'], strings: [-1, -1, 0, 2, 3, 3], fingers: ['x', 'x', '0', '1', '2', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'E', root: 'E', type: 'Major', notes: ['E', 'G#', 'B'], strings: [0, 2, 2, 1, 0, 0], fingers: ['0', '2', '2', '1', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Em', root: 'E', type: 'Minor', notes: ['E', 'G', 'B'], strings: [0, 2, 2, 0, 0, 0], fingers: ['0', '2', '2', '0', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'E7', root: 'E', type: '7', notes: ['E', 'G#', 'B', 'D'], strings: [0, 2, 0, 1, 0, 0], fingers: ['0', '2', '0', '1', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Em7', root: 'E', type: 'm7', notes: ['E', 'G', 'B', 'D'], strings: [0, 2, 0, 0, 0, 0], fingers: ['0', '2', '0', '0', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Eadd9', root: 'E', type: 'Add9', notes: ['E', 'G#', 'B', 'F#'], strings: [0, 2, 2, 1, 0, 2], fingers: ['0', '2', '3', '1', '0', '4'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Esus4', root: 'E', type: 'Sus4', notes: ['E', 'A', 'B'], strings: [0, 2, 2, 2, 0, 0], fingers: ['0', '2', '2', '2', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'F', root: 'F', type: 'Major', notes: ['F', 'A', 'C'], strings: [1, 3, 3, 2, 1, 1], fingers: ['1', '3', '4', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Fmaj7', root: 'F', type: 'Maj7', notes: ['C', 'E', 'F', 'A'], strings: [-1, -1, 3, 2, 1, 0], fingers: ['x', 'x', '3', '2', '1', '0'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Fadd9', root: 'F', type: 'Add9', notes: ['A', 'C', 'F', 'G'], strings: [-1, -1, 3, 2, 1, 3], fingers: ['x', 'x', '3', '2', '1', '4'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'G', root: 'G', type: 'Major', notes: ['G', 'B', 'D'], strings: [3, 2, 0, 0, 0, 3], fingers: ['3', '2', '0', '0', '0', '4'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'G7', root: 'G', type: '7', notes: ['G', 'B', 'D', 'F'], strings: [3, 2, 0, 0, 0, 1], fingers: ['3', '2', '0', '0', '0', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Gmaj7', root: 'G', type: 'Maj7', notes: ['G', 'B', 'D', 'F#'], strings: [3, -1, 0, 0, 0, 2], fingers: ['2', 'x', '0', '0', '0', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Gsus2', root: 'G', type: 'Sus2', notes: ['G', 'A', 'D'], strings: [3, 0, 0, 0, 3, 3], fingers: ['3', '0', '0', '0', '4', '4'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Gsus4', root: 'G', type: 'Sus4', notes: ['G', 'C', 'D'], strings: [3, 3, 0, 0, 1, 3], fingers: ['3', '3', '0', '0', '1', '4'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Am7', root: 'A', type: 'm7', notes: ['A', 'C', 'E', 'G'], strings: [-1, 0, 2, 0, 1, 0], fingers: ['x', '0', '2', '0', '1', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Asus2', root: 'A', type: 'Sus2', notes: ['A', 'B', 'E'], strings: [-1, 0, 2, 2, 0, 0], fingers: ['x', '0', '2', '2', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Asus4', root: 'A', type: 'Sus4', notes: ['A', 'D', 'E'], strings: [-1, 0, 2, 2, 3, 0], fingers: ['x', '0', '2', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dadd9', root: 'D', type: 'Add9', notes: ['D', 'F#', 'A', 'E'], strings: [2, -1, 0, 2, 3, 0], fingers: ['1', 'x', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Gadd9', root: 'G', type: 'Add9', notes: ['A', 'B', 'D', 'G'], strings: [3, 2, 0, 2, 0, 3], fingers: ['3', '2', '0', '1', '0', '4'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'F#', root: 'F#', type: 'Major', notes: ['A#', 'C#', 'F#'], strings: [2, 4, 4, 3, 2, 2], fingers: ['1', '3', '4', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'F#m', root: 'F#', type: 'Minor', notes: ['A', 'C#', 'F#'], strings: [2, 4, 4, 2, 2, 2], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'C#m', root: 'C#', type: 'Minor', notes: ['C#', 'E', 'G#'], strings: [-1, 4, 6, 6, 5, 4], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'G#m', root: 'G#', type: 'Minor', notes: ['G#', 'B', 'D#'], strings: [4, 6, 6, 4, 4, 4], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'Bb', root: 'Bb', type: 'Major', notes: ['Bb', 'D', 'F'], strings: [1, 1, 3, 3, 3, 1], fingers: ['1', '1', '3', '3', '3', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Bbm', root: 'Bb', type: 'Minor', notes: ['Bb', 'Db', 'F'], strings: [1, 1, 3, 3, 2, 1], fingers: ['1', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Bm', root: 'B', type: 'Minor', notes: ['B', 'D', 'F#'], strings: [-1, 2, 4, 4, 3, 2], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'Cm', root: 'C', type: 'Minor', notes: ['C', 'Eb', 'G'], strings: [-1, 3, 5, 5, 4, 3], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 3, barre: 3 },
-    { name: 'Fm', root: 'F', type: 'Minor', notes: ['F', 'Ab', 'C'], strings: [1, 3, 3, 1, 1, 1], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Gm', root: 'G', type: 'Minor', notes: ['G', 'Bb', 'D'], strings: [3, 5, 5, 3, 3, 3], fingers: ['1', '3', '4', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 3, barre: 3 },
-    { name: 'D/F#', root: 'D', type: 'Slash', notes: ['D', 'F#', 'A'], strings: [2, -1, 0, 2, 3, 2], fingers: ['2', 'x', '0', '1', '3', '4'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'G/B', root: 'G', type: 'Slash', notes: ['G', 'B', 'D'], strings: [-1, 2, 0, 0, 0, 3], fingers: ['x', '2', '0', '0', '0', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Ab', root: 'Ab', type: 'Major', notes: ['Ab', 'C', 'Eb'], strings: [4, 6, 6, 5, 4, 4], fingers: ['1', '3', '4', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'Ab6', root: 'Ab', type: '6', notes: ['Ab', 'C', 'Eb', 'F'], strings: [4, 3, 3, 5, 4, 4], fingers: ['2', '1', '1', '3', '2', '2'], difficulty: 'Intermediate', baseFret: 3 },
-    { name: 'Ab7', root: 'Ab', type: '7', notes: ['Ab', 'C', 'Eb', 'Gb'], strings: [4, 3, 4, 5, 4, 4], fingers: ['2', '1', '2', '3', '2', '2'], difficulty: 'Intermediate', baseFret: 3 },
-    { name: 'Ab9', root: 'Ab', type: '9', notes: ['Ab', 'C', 'Eb', 'Gb', 'Bb'], strings: [4, 3, 4, 3, 4, 4], fingers: ['2', '1', '3', '1', '4', '4'], difficulty: 'Intermediate', baseFret: 3 },
-    { name: 'G#m6', root: 'G#', type: '6', notes: ['G#', 'B', 'D#', 'F'], strings: [4, 6, 6, 4, 6, 4], fingers: ['1', '3', '4', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'G#m7', root: 'G#', type: 'm7', notes: ['G#', 'B', 'D#', 'F#'], strings: [4, 6, 4, 4, 4, 4], fingers: ['1', '3', '1', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'Abmaj7', root: 'Ab', type: 'Maj7', notes: ['Ab', 'C', 'Eb', 'G'], strings: [4, 6, 5, 5, 4, 4], fingers: ['1', '3', '2', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'G#dim', root: 'G#', type: 'Dim', notes: ['G#', 'B', 'D', 'F'], strings: [4, 5, 6, 4, 6, 4], fingers: ['1', '2', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'Ab+', root: 'Ab', type: 'Aug', notes: ['Ab', 'C', 'E'], strings: [4, 3, 2, 1, 1, 0], fingers: ['4', '3', '2', '1', '1', '0'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Absus', root: 'Ab', type: 'Sus4', notes: ['Ab', 'Db', 'Eb'], strings: [4, 6, 6, 6, 4, 4], fingers: ['1', '3', '4', '4', '1', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'A6', root: 'A', type: '6', notes: ['A', 'C#', 'E', 'F#'], strings: [-1, 0, 2, 2, 2, 2], fingers: ['x', '0', '1', '1', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'A9', root: 'A', type: '9', notes: ['A', 'C#', 'E', 'G', 'B'], strings: [-1, 0, 2, 4, 2, 3], fingers: ['x', '0', '1', '3', '2', '4'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Am6', root: 'A', type: '6', notes: ['A', 'C', 'E', 'F#'], strings: [-1, 0, 2, 2, 1, 2], fingers: ['x', '0', '2', '3', '1', '4'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Amaj7', root: 'A', type: 'Maj7', notes: ['A', 'C#', 'E', 'G#'], strings: [-1, 0, 2, 1, 2, 0], fingers: ['x', '0', '2', '1', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Adim', root: 'A', type: 'Dim', notes: ['A', 'C', 'Eb', 'Gb'], strings: [-1, 0, 1, 2, 1, -1], fingers: ['x', '0', '1', '3', '2', 'x'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'A+', root: 'A', type: 'Aug', notes: ['A', 'C#', 'F'], strings: [-1, 0, 3, 2, 2, 1], fingers: ['x', '0', '4', '3', '2', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Asus', root: 'A', type: 'Sus4', notes: ['A', 'D', 'E'], strings: [-1, 0, 2, 2, 3, 0], fingers: ['x', '0', '1', '1', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Bb6', root: 'Bb', type: '6', notes: ['Bb', 'D', 'F', 'G'], strings: [1, 1, 3, 3, 3, 3], fingers: ['1', '1', '2', '3', '3', '3'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Bb7', root: 'Bb', type: '7', notes: ['Bb', 'D', 'F', 'Ab'], strings: [1, 1, 3, 1, 3, 1], fingers: ['1', '1', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Bb9', root: 'Bb', type: '9', notes: ['Bb', 'D', 'F', 'Ab', 'C'], strings: [-1, 1, 0, 1, 1, 1], fingers: ['x', '1', '0', '2', '3', '4'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Bbm6', root: 'Bb', type: '6', notes: ['Bb', 'Db', 'F', 'G'], strings: [1, 1, 3, 3, 2, 3], fingers: ['1', '1', '3', '4', '2', '4'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Bbm7', root: 'Bb', type: 'm7', notes: ['Bb', 'Db', 'F', 'Ab'], strings: [1, 1, 3, 1, 2, 1], fingers: ['1', '1', '3', '1', '2', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Bbmaj7', root: 'Bb', type: 'Maj7', notes: ['Bb', 'D', 'F', 'A'], strings: [1, 1, 3, 2, 3, 1], fingers: ['1', '1', '3', '2', '4', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Bbdim', root: 'Bb', type: 'Dim', notes: ['Bb', 'Db', 'E', 'G'], strings: [-1, 1, 2, 0, 2, 3], fingers: ['x', '1', '2', '0', '3', '4'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Bb+', root: 'Bb', type: 'Aug', notes: ['Bb', 'D', 'F#'], strings: [-1, 1, 0, 3, 3, 2], fingers: ['x', '1', '0', '3', '4', '2'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Bbsus', root: 'Bb', type: 'Sus4', notes: ['Bb', 'Eb', 'F'], strings: [1, 1, 3, 3, 4, 1], fingers: ['1', '1', '2', '3', '4', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'B', root: 'B', type: 'Major', notes: ['B', 'D#', 'F#'], strings: [-1, 2, 4, 4, 4, 2], fingers: ['x', '1', '3', '4', '4', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'B6', root: 'B', type: '6', notes: ['B', 'D#', 'F#', 'G#'], strings: [2, 2, 4, 4, 4, 4], fingers: ['1', '1', '3', '3', '3', '3'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'B9', root: 'B', type: '9', notes: ['B', 'D#', 'F#', 'A', 'C#'], strings: [2, 2, 1, 2, 2, 2], fingers: ['2', '3', '1', '4', '4', '4'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Bm6', root: 'B', type: '6', notes: ['B', 'D', 'F#', 'G#'], strings: [-1, 2, 4, 4, 3, 4], fingers: ['x', '1', '3', '4', '2', '4'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'Bm7', root: 'B', type: 'm7', notes: ['B', 'D', 'F#', 'A'], strings: [-1, 2, 4, 2, 3, 2], fingers: ['x', '1', '3', '1', '2', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'Bmaj7', root: 'B', type: 'Maj7', notes: ['B', 'D#', 'F#', 'A#'], strings: [-1, 2, 4, 3, 4, 2], fingers: ['x', '1', '3', '2', '4', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'Bdim', root: 'B', type: 'Dim', notes: ['B', 'D', 'F', 'Ab'], strings: [-1, 2, 3, 4, 3, -1], fingers: ['x', '1', '2', '4', '3', 'x'], difficulty: 'Intermediate', baseFret: 2 },
-    { name: 'B+', root: 'B', type: 'Aug', notes: ['B', 'D#', 'G'], strings: [-1, 2, 1, 0, 0, 3], fingers: ['x', '2', '1', '0', '0', '3'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Bsus', root: 'B', type: 'Sus4', notes: ['B', 'E', 'F#'], strings: [-1, 2, 4, 4, 5, 2], fingers: ['x', '1', '3', '3', '4', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'C6', root: 'C', type: '6', notes: ['C', 'E', 'G', 'A'], strings: [-1, 3, 2, 2, 1, 0], fingers: ['x', '3', '2', '2', '1', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'C9', root: 'C', type: '9', notes: ['C', 'E', 'G', 'Bb', 'D'], strings: [-1, 3, 2, 3, 3, 3], fingers: ['x', '2', '1', '3', '4', '4'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Cm6', root: 'C', type: '6', notes: ['C', 'Eb', 'G', 'A'], strings: [-1, 3, 1, 2, 1, 3], fingers: ['x', '3', '1', '2', '1', '4'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Cm7', root: 'C', type: 'm7', notes: ['C', 'Eb', 'G', 'Bb'], strings: [-1, 3, 5, 3, 4, 3], fingers: ['x', '1', '3', '1', '2', '1'], difficulty: 'Intermediate', baseFret: 3, barre: 3 },
-    { name: 'Cdim', root: 'C', type: 'Dim', notes: ['C', 'Eb', 'Gb', 'A'], strings: [-1, 3, 4, 2, 4, 2], fingers: ['x', '2', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'C+', root: 'C', type: 'Aug', notes: ['C', 'E', 'G#'], strings: [-1, 3, 2, 1, 1, 0], fingers: ['x', '3', '2', '1', '1', '0'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Csus', root: 'C', type: 'Sus4', notes: ['C', 'F', 'G'], strings: [-1, 3, 3, 0, 1, 1], fingers: ['x', '3', '4', '0', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Db', root: 'Db', type: 'Major', notes: ['Db', 'F', 'Ab'], strings: [-1, 4, 6, 6, 6, 4], fingers: ['x', '1', '3', '4', '4', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'Db6', root: 'Db', type: '6', notes: ['Db', 'F', 'Ab', 'Bb'], strings: [4, 4, 6, 6, 6, 6], fingers: ['1', '1', '3', '3', '3', '3'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'Db7', root: 'Db', type: '7', notes: ['Db', 'F', 'Ab', 'Cb'], strings: [-1, 4, 6, 4, 6, 4], fingers: ['x', '1', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'Db9', root: 'Db', type: '9', notes: ['Db', 'F', 'Ab', 'Cb', 'Eb'], strings: [4, 4, 3, 4, 4, 4], fingers: ['2', '3', '1', '4', '4', '4'], difficulty: 'Intermediate', baseFret: 3 },
-    { name: 'C#m6', root: 'C#', type: '6', notes: ['C#', 'E', 'G#', 'A#'], strings: [-1, 4, 6, 6, 5, 6], fingers: ['x', '1', '3', '4', '2', '4'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'C#m7', root: 'C#', type: 'm7', notes: ['C#', 'E', 'G#', 'B'], strings: [-1, 4, 6, 4, 5, 4], fingers: ['x', '1', '3', '1', '2', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'Dbmaj7', root: 'Db', type: 'Maj7', notes: ['Db', 'F', 'Ab', 'C'], strings: [-1, 4, 6, 5, 6, 4], fingers: ['x', '1', '3', '2', '4', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'C#dim', root: 'C#', type: 'Dim', notes: ['C#', 'E', 'G', 'Bb'], strings: [-1, 4, 5, 3, 5, 3], fingers: ['x', '2', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 3, barre: 3 },
-    { name: 'Db+', root: 'Db', type: 'Aug', notes: ['Db', 'F', 'A'], strings: [-1, -1, 3, 2, 2, 1], fingers: ['x', 'x', '4', '3', '2', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Dbsus', root: 'Db', type: 'Sus4', notes: ['Db', 'Gb', 'Ab'], strings: [-1, 4, 6, 6, 7, 4], fingers: ['x', '1', '3', '3', '4', '1'], difficulty: 'Intermediate', baseFret: 4, barre: 4 },
-    { name: 'D6', root: 'D', type: '6', notes: ['D', 'F#', 'A', 'B'], strings: [-1, -1, 0, 2, 0, 2], fingers: ['x', 'x', '0', '1', '0', '2'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'D9', root: 'D', type: '9', notes: ['D', 'F#', 'A', 'C', 'E'], strings: [-1, 5, 4, 5, 5, 5], fingers: ['x', '2', '1', '3', '4', '4'], difficulty: 'Intermediate', baseFret: 4 },
-    { name: 'Dm6', root: 'D', type: '6', notes: ['D', 'F', 'A', 'B'], strings: [-1, -1, 0, 2, 0, 1], fingers: ['x', 'x', '0', '2', '0', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Ddim', root: 'D', type: 'Dim', notes: ['D', 'F', 'Ab', 'B'], strings: [-1, -1, 0, 1, 0, 1], fingers: ['x', 'x', '0', '1', '0', '2'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'D+', root: 'D', type: 'Aug', notes: ['D', 'F#', 'A#'], strings: [-1, -1, 0, 3, 3, 2], fingers: ['x', 'x', '0', '2', '3', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Dsus', root: 'D', type: 'Sus4', notes: ['D', 'G', 'A'], strings: [-1, -1, 0, 2, 3, 3], fingers: ['x', 'x', '0', '1', '2', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Eb', root: 'Eb', type: 'Major', notes: ['Eb', 'G', 'Bb'], strings: [-1, 6, 8, 8, 8, 6], fingers: ['x', '1', '3', '4', '4', '1'], difficulty: 'Intermediate', baseFret: 6, barre: 6 },
-    { name: 'Ebm', root: 'Eb', type: 'Minor', notes: ['Eb', 'Gb', 'Bb'], strings: [-1, 6, 8, 8, 7, 6], fingers: ['x', '1', '3', '4', '2', '1'], difficulty: 'Intermediate', baseFret: 6, barre: 6 },
-    { name: 'Eb6', root: 'Eb', type: '6', notes: ['Eb', 'G', 'Bb', 'C'], strings: [6, 6, 8, 8, 8, 8], fingers: ['1', '1', '3', '3', '3', '3'], difficulty: 'Intermediate', baseFret: 6, barre: 6 },
-    { name: 'Eb7', root: 'Eb', type: '7', notes: ['Eb', 'G', 'Bb', 'Db'], strings: [-1, 6, 8, 6, 8, 6], fingers: ['x', '1', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 6, barre: 6 },
-    { name: 'Eb9', root: 'Eb', type: '9', notes: ['Eb', 'G', 'Bb', 'Db', 'F'], strings: [6, 6, 5, 6, 6, 6], fingers: ['2', '3', '1', '4', '4', '4'], difficulty: 'Intermediate', baseFret: 5 },
-    { name: 'Ebm6', root: 'Eb', type: '6', notes: ['Eb', 'Gb', 'Bb', 'C'], strings: [-1, 6, 8, 8, 7, 8], fingers: ['x', '1', '3', '4', '2', '4'], difficulty: 'Intermediate', baseFret: 6, barre: 6 },
-    { name: 'Ebm7', root: 'Eb', type: 'm7', notes: ['Eb', 'Gb', 'Bb', 'Db'], strings: [-1, 6, 8, 6, 7, 6], fingers: ['x', '1', '3', '1', '2', '1'], difficulty: 'Intermediate', baseFret: 6, barre: 6 },
-    { name: 'Ebmaj7', root: 'Eb', type: 'Maj7', notes: ['Eb', 'G', 'Bb', 'D'], strings: [-1, 6, 8, 7, 8, 6], fingers: ['x', '1', '3', '2', '4', '1'], difficulty: 'Intermediate', baseFret: 6, barre: 6 },
-    { name: 'Ebdim', root: 'Eb', type: 'Dim', notes: ['Eb', 'Gb', 'A', 'C'], strings: [-1, 6, 7, 5, 7, 5], fingers: ['x', '2', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 5, barre: 5 },
-    { name: 'Eb+', root: 'Eb', type: 'Aug', notes: ['Eb', 'G', 'B'], strings: [-1, -1, 5, 4, 4, 3], fingers: ['x', 'x', '4', '3', '2', '1'], difficulty: 'Intermediate', baseFret: 3 },
-    { name: 'Ebsus', root: 'Eb', type: 'Sus4', notes: ['Eb', 'Ab', 'Bb'], strings: [-1, 6, 8, 8, 9, 6], fingers: ['x', '1', '3', '3', '4', '1'], difficulty: 'Intermediate', baseFret: 6, barre: 6 },
-    { name: 'E6', root: 'E', type: '6', notes: ['E', 'G#', 'B', 'C#'], strings: [0, 2, 2, 1, 2, 0], fingers: ['0', '2', '2', '1', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'E9', root: 'E', type: '9', notes: ['E', 'G#', 'B', 'D', 'F#'], strings: [0, 2, 0, 1, 0, 2], fingers: ['0', '2', '0', '1', '0', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Em6', root: 'E', type: '6', notes: ['E', 'G', 'B', 'C#'], strings: [0, 2, 2, 0, 2, 0], fingers: ['0', '2', '3', '0', '4', '0'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Emaj7', root: 'E', type: 'Maj7', notes: ['E', 'G#', 'B', 'D#'], strings: [0, 2, 1, 1, 0, 0], fingers: ['0', '3', '1', '2', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Edim', root: 'E', type: 'Dim', notes: ['E', 'G', 'Bb', 'Db'], strings: [0, 1, 2, 0, 2, 0], fingers: ['0', '1', '2', '0', '3', '0'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'E+', root: 'E', type: 'Aug', notes: ['E', 'G#', 'C'], strings: [0, 3, 2, 1, 1, 0], fingers: ['0', '3', '2', '1', '1', '0'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Esus', root: 'E', type: 'Sus4', notes: ['E', 'A', 'B'], strings: [0, 2, 2, 2, 0, 0], fingers: ['0', '1', '1', '1', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'F6', root: 'F', type: '6', notes: ['F', 'A', 'C', 'D'], strings: [1, 3, 3, 2, 3, 1], fingers: ['1', '3', '4', '2', '4', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'F7', root: 'F', type: '7', notes: ['F', 'A', 'C', 'Eb'], strings: [1, 3, 1, 2, 1, 1], fingers: ['1', '3', '1', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'F9', root: 'F', type: '9', notes: ['F', 'A', 'C', 'Eb', 'G'], strings: [1, 3, 1, 2, 1, 3], fingers: ['1', '3', '1', '2', '1', '4'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Fm6', root: 'F', type: '6', notes: ['F', 'Ab', 'C', 'D'], strings: [1, 3, 3, 1, 3, 1], fingers: ['1', '3', '4', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Fm7', root: 'F', type: 'm7', notes: ['F', 'Ab', 'C', 'Eb'], strings: [1, 3, 1, 1, 1, 1], fingers: ['1', '3', '1', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Fdim', root: 'F', type: 'Dim', notes: ['F', 'Ab', 'B', 'D'], strings: [1, 2, 3, 1, 3, 1], fingers: ['1', '2', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'F+', root: 'F', type: 'Aug', notes: ['F', 'A', 'C#'], strings: [-1, -1, 3, 2, 2, 1], fingers: ['x', 'x', '4', '3', '2', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Fsus', root: 'F', type: 'Sus4', notes: ['F', 'Bb', 'C'], strings: [1, 3, 3, 3, 1, 1], fingers: ['1', '3', '4', '4', '1', '1'], difficulty: 'Intermediate', baseFret: 1, barre: 1 },
-    { name: 'Gb6', root: 'Gb', type: '6', notes: ['Gb', 'Bb', 'Db', 'Eb'], strings: [-1, -1, 4, 3, 4, 2], fingers: ['x', 'x', '3', '2', '4', '1'], difficulty: 'Intermediate', baseFret: 2 },
-    { name: 'F#7', root: 'F#', type: '7', notes: ['F#', 'A#', 'C#', 'E'], strings: [2, 4, 2, 3, 2, 2], fingers: ['1', '3', '1', '2', '1', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'F#9', root: 'F#', type: '9', notes: ['F#', 'A#', 'C#', 'E', 'G#'], strings: [2, 4, 2, 3, 2, 4], fingers: ['1', '3', '1', '2', '1', '4'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'F#m6', root: 'F#', type: '6', notes: ['F#', 'A', 'C#', 'D#'], strings: [2, 4, 4, 2, 4, 2], fingers: ['1', '3', '4', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'F#m7', root: 'F#', type: 'm7', notes: ['F#', 'A', 'C#', 'E'], strings: [2, 4, 2, 2, 2, 2], fingers: ['1', '3', '1', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'Gbmaj7', root: 'Gb', type: 'Maj7', notes: ['Gb', 'Bb', 'Db', 'F'], strings: [-1, -1, 4, 3, 2, 1], fingers: ['x', 'x', '4', '3', '2', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'F#dim', root: 'F#', type: 'Dim', notes: ['F#', 'A', 'C', 'Eb'], strings: [2, 3, 4, 2, 4, 2], fingers: ['1', '2', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'Gb+', root: 'Gb', type: 'Aug', notes: ['Gb', 'Bb', 'D'], strings: [-1, -1, 4, 3, 3, 2], fingers: ['x', 'x', '4', '3', '2', '1'], difficulty: 'Intermediate', baseFret: 2 },
-    { name: 'Gbsus', root: 'Gb', type: 'Sus4', notes: ['Gb', 'Cb', 'Db'], strings: [-1, -1, 4, 4, 2, 2], fingers: ['x', 'x', '3', '4', '1', '1'], difficulty: 'Intermediate', baseFret: 2, barre: 2 },
-    { name: 'G6', root: 'G', type: '6', notes: ['G', 'B', 'D', 'E'], strings: [3, 2, 0, 0, 0, 0], fingers: ['3', '2', '0', '0', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'G9', root: 'G', type: '9', notes: ['G', 'B', 'D', 'F', 'A'], strings: [3, -1, 3, 2, 0, 1], fingers: ['2', 'x', '3', '1', '0', '4'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Gm6', root: 'G', type: '6', notes: ['G', 'Bb', 'D', 'E'], strings: [3, -1, 0, 3, 3, 0], fingers: ['2', 'x', '0', '1', '3', '0'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Gm7', root: 'G', type: 'm7', notes: ['G', 'Bb', 'D', 'F'], strings: [3, 5, 3, 3, 3, 3], fingers: ['1', '3', '1', '1', '1', '1'], difficulty: 'Intermediate', baseFret: 3, barre: 3 },
-    { name: 'Gdim', root: 'G', type: 'Dim', notes: ['G', 'Bb', 'Db', 'E'], strings: [3, 4, 5, 3, 5, 3], fingers: ['1', '2', '3', '1', '4', '1'], difficulty: 'Intermediate', baseFret: 3, barre: 3 },
-    { name: 'G+', root: 'G', type: 'Aug', notes: ['G', 'B', 'D#'], strings: [3, 2, 1, 0, 0, 3], fingers: ['3', '2', '1', '0', '0', '4'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Gsus', root: 'G', type: 'Sus4', notes: ['G', 'C', 'D'], strings: [3, 3, 0, 0, 1, 3], fingers: ['3', '4', '0', '0', '1', '2'], difficulty: 'Beginner', baseFret: 1 },
-  ], [])
+  const chordDatabase = chordDefinitions
 
   const visible = chordDatabase.filter((chord) => {
     const queryText = `${chord.name} ${chord.root} ${chord.type}`.toLowerCase()
@@ -1261,9 +1103,9 @@ function GuitarChordDiagram({ chord, compact = false }: { chord: ChordDefinition
   )
 }
 
-function ChordDetail({ chord, onClose }: { chord: ChordDefinition; onClose: () => void }) {
+function ChordDetail({ chord, onClose, centered = false }: { chord: ChordDefinition; onClose: () => void; centered?: boolean }) {
   return (
-    <section className="chord-detail" role="dialog" aria-modal="true" aria-label={`${chord.name} detail`}>
+    <section className={`chord-detail${centered ? ' event-flow-chord-detail' : ''}`} role="dialog" aria-modal="true" aria-label={`${chord.name} detail`}>
       <button type="button" className="close-button" onClick={onClose} aria-label="Close chord details"><X size={18} /></button>
       <div className="eyebrow">Chord detail</div>
       <h2>{chord.name}</h2>
@@ -1364,7 +1206,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
   }, [session?.id, session?.name])
 
   if (!sortedSessions.length) {
-    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Events</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create Event</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button></div>}<div className="empty private-session-empty"><h2>No events are scheduled yet.</h2>{isOwner && <p>Create an event to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
+    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Events</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create Event</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button></div>}<div className="empty private-session-empty"><h2>No events available yet.</h2>{isOwner && <p>Create an event to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
   }
 
   const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
@@ -1390,6 +1232,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
           {isOwner && <label className="private-session-date-field">Date<input className="private-session-date-input" type="date" value={session.date} onChange={(event) => { const nextDate = event.target.value; if (nextDate) void onUpdate({ ...session, date: nextDate }); }} aria-label="Event date" /></label>}
         </div>
         <div className="private-session-actions">
+          <Link className="secondary-button" to={`/event-flow?session=${encodeURIComponent(session.id)}`}>Event Flow</Link>
           {isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>New Event</button>}
           {isOwner && session && <button className="secondary-button" onClick={() => setDeleteDialogOpen(true)} aria-label="Delete event">Delete</button>}
         </div>
@@ -1418,7 +1261,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
               )
             })}
             </div>
-          </> : <div className="empty private-session-empty"><h2>No songs are scheduled for this event yet.</h2>{isOwner && <p>Add songs from the available songs list.</p>}</div>}
+          </> : <div className="empty private-session-empty"><h2>No songs are assigned to this event yet.</h2>{isOwner && <p>Add songs from the available songs list.</p>}</div>}
         </main>
 
         {isOwner && <aside className="add-sunday-panel">
@@ -1648,39 +1491,216 @@ export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords,
           <div className="worship-flow-save-status" aria-live="polite">{saving ? 'Saving…' : saveError ? saveError : ''}</div>
         </section>}
 
-        {flowSongs.length > 0 ? <div className="worship-flow-sheet">
-          {flowSongs.map((song) => {
-            const startingChord = getWorshipFlowStartingChord(startingChords, sunday?.id ?? '', song.id, song.key)
-            const interval = (noteIndex(startingChord) - noteIndex(song.key) + 12) % 12
-            return <article className="worship-flow-song" key={song.id}>
-              <div className="worship-flow-song-heading">
-                <h2>{song.title}</h2>
-                <div className="worship-flow-starting-chord-controls">
-                  <button className="worship-flow-original" type="button" onClick={() => {
-                    if (sunday) onStartingChordReset(sunday.id, song.id)
-                  }} aria-label={`Restore original chords for ${song.title}`}>Original</button>
-                  <select className="worship-flow-starting-chord" value={startingChord} onChange={(event) => {
-                    if (sunday) onStartingChordChange(sunday.id, song.id, event.target.value)
-                  }} aria-label={`Starting chord for ${song.title}`}>
-                    {keyOptions.map((key) => <option key={key} value={key}>{key}</option>)}
-                  </select>
-                </div>
-              </div>
-              {song.sections.map((section, sectionIndex) => <section className="worship-flow-section" key={section.id || `${song.id}-${sectionIndex}`}>
-                <h3>{section.name}</h3>
-                <div className="worship-flow-progressions">
-                  {sectionChordLines(section).map((line, lineIndex) => <div className="worship-flow-chords" key={`${section.id || section.name}-${lineIndex}`}>
-                    {formatTransposedChordLine(line, interval, settings.notation, settings.simplify)}
-                  </div>)}
-                </div>
-              </section>)}
-            </article>
-          })}
-        </div> : <div className="worship-flow-empty">
+        {flowSongs.length > 0 ? <WorshipFlowPerformance songs={flowSongs} flowId={sunday?.id ?? ''} startingChords={startingChords} onStartingChordChange={onStartingChordChange} onStartingChordReset={onStartingChordReset} settings={settings} /> : <div className="worship-flow-empty">
           <p>No songs added to Worship Flow yet.</p>
           {isOwner && !editing && <button className="secondary-button" type="button" onClick={() => setEditing(true)}>Select songs</button>}
         </div>}
       </>}
+    </div>
+  )
+}
+
+function renderFlowChordLine(line: string, interval: number, settings: Settings, onChordDetail?: (chord: ChordDefinition) => void) {
+  const formatted = formatTransposedChordLine(line, interval, settings.notation, settings.simplify)
+  if (!onChordDetail) return formatted
+
+  return formatted.split(/(\s+)/).map((part, index) => {
+    if (!part.trim()) return part
+    const [chordName] = parseChordProgression(part)
+    if (!chordName || !/^\/*$/.test(part.slice(chordName.length))) return part
+    const chord = chordDefinitions.find((item) => item.name === chordName)
+    if (!chord) return part
+    return <button key={`${part}-${index}`} className="worship-flow-chord-trigger" type="button" aria-label={`Show ${chord.name} guitar chord details`} onClick={() => onChordDetail(chord)}>{part}</button>
+  })
+}
+
+function WorshipFlowPerformance({ songs, flowId, startingChords, onStartingChordChange, onStartingChordReset, settings, onChordDetail }: {
+  songs: Song[]
+  flowId: string
+  startingChords: WorshipFlowStartingChordPreferences
+  onStartingChordChange: (flowId: string, songId: string, key: string) => void
+  onStartingChordReset: (flowId: string, songId: string) => void
+  settings: Settings
+  onChordDetail?: (chord: ChordDefinition) => void
+}) {
+  return (
+    <div className="worship-flow-sheet">
+      {songs.map((song) => {
+        const startingChord = getWorshipFlowStartingChord(startingChords, flowId, song.id, song.key)
+        const interval = (noteIndex(startingChord) - noteIndex(song.key) + 12) % 12
+        return <article className="worship-flow-song" key={song.id}>
+          <div className="worship-flow-song-heading">
+            <h2>{song.title}</h2>
+            <div className="worship-flow-starting-chord-controls">
+              <button className="worship-flow-original" type="button" onClick={() => onStartingChordReset(flowId, song.id)} aria-label={`Restore original chords for ${song.title}`}>Original</button>
+              <select className="worship-flow-starting-chord" value={startingChord} onChange={(event) => onStartingChordChange(flowId, song.id, event.target.value)} aria-label={`Starting chord for ${song.title}`}>
+                {keyOptions.map((key) => <option key={key} value={key}>{key}</option>)}
+              </select>
+            </div>
+          </div>
+          {song.sections.map((section, sectionIndex) => <section className="worship-flow-section" key={section.id || `${song.id}-${sectionIndex}`}>
+            <h3>{section.name}</h3>
+            <div className="worship-flow-progressions">
+              {sectionChordLines(section).map((line, lineIndex) => <div className="worship-flow-chords" key={`${section.id || section.name}-${lineIndex}`}>
+                {renderFlowChordLine(line, interval, settings, onChordDetail)}
+              </div>)}
+            </div>
+          </section>)}
+        </article>
+      })}
+    </div>
+  )
+}
+
+export function EventFlowPage({ songs, sessions, eventFlows, startingChords, onStartingChordChange, onStartingChordReset, settings, fontScale, onFontScale, isOwner, onSaveFlow }: {
+  songs: Song[]
+  sessions: PrivateSession[]
+  eventFlows: Record<string, string[]>
+  startingChords: WorshipFlowStartingChordPreferences
+  onStartingChordChange: (sessionId: string, songId: string, key: string) => void
+  onStartingChordReset: (sessionId: string, songId: string) => void
+  settings: Settings
+  fontScale: number
+  onFontScale: (fontScale: number) => void
+  isOwner: boolean
+  onSaveFlow: (sessionId: string, songIds: string[]) => Promise<void>
+}) {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const sortedSessions = [...sessions].sort((left, right) => (right.date || '').localeCompare(left.date || ''))
+  const requestedSessionId = searchParams.get('session') || ''
+  const session = sortedSessions.find((item) => item.id === requestedSessionId) ?? sortedSessions[0]
+  const availableSongs = session?.songIds
+    .map((songId) => songs.find((song) => song.id === songId))
+    .filter((song): song is Song => Boolean(song)) ?? []
+  const availableIds = availableSongs.map((song) => song.id)
+  const savedFlowIds = session ? orderedEventFlowIds(availableIds, eventFlows[session.id] ?? []) : []
+  const safeFontScale = Number.isFinite(fontScale) ? Math.min(1.3, Math.max(0.8, fontScale)) : 1
+  const [editing, setEditing] = useState(false)
+  const [draftFlowIds, setDraftFlowIds] = useState<string[] | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [selectedChord, setSelectedChord] = useState<ChordDefinition | null>(null)
+  const flowIds = orderedEventFlowIds(availableIds, draftFlowIds ?? savedFlowIds)
+  const flowSongs = flowIds.map((songId) => availableSongs.find((song) => song.id === songId)).filter((song): song is Song => Boolean(song))
+
+  useEffect(() => {
+    setEditing(false)
+    setDraftFlowIds(null)
+    setSaveError('')
+    setSelectedChord(null)
+    document.querySelector<HTMLElement>('.app-event-flow .main')?.scrollTo(0, 0)
+  }, [session?.id])
+
+  useEffect(() => {
+    if (!selectedChord) {
+      document.body.style.overflow = ''
+      return
+    }
+    document.body.style.overflow = 'hidden'
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedChord(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedChord])
+
+  const selectSession = (sessionId: string) => {
+    setDraftFlowIds(null)
+    setEditing(false)
+    setSaveError('')
+    setSelectedChord(null)
+    navigate(`/event-flow?session=${encodeURIComponent(sessionId)}`, { replace: true })
+  }
+
+  const persistFlow = async (nextIds: string[]) => {
+    if (!session || saving) return
+    setDraftFlowIds(nextIds)
+    setSaving(true)
+    setSaveError('')
+    try {
+      await onSaveFlow(session.id, nextIds)
+      setDraftFlowIds(null)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save Event Flow.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!session) {
+    return <div className="worship-flow-page"><header className="worship-flow-toolbar"><div className="worship-flow-heading"><Link className="worship-flow-back" to="/private-session"><ChevronLeft size={15} aria-hidden="true" />Events</Link><h1>Event Flow</h1></div></header><p className="worship-flow-empty">No events available yet.</p></div>
+  }
+
+  const formatSessionDate = (value: string) => {
+    const date = new Date(`${value}T00:00:00`)
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  }
+
+  return (
+    <div className="worship-flow-page" style={{ '--worship-flow-font-scale': safeFontScale } as CSSProperties}>
+      <header className="worship-flow-toolbar">
+        <div className="worship-flow-heading">
+          <Link className="worship-flow-back" to={`/private-session?session=${encodeURIComponent(session.id)}`}><ChevronLeft size={15} aria-hidden="true" />Events</Link>
+          <div className="event-flow-title"><h1>Event Flow</h1><strong>{session.name || 'Event'}</strong></div>
+        </div>
+        <div className="worship-flow-toolbar-actions">
+          {sortedSessions.length > 1 && <select className="worship-flow-sunday-select" value={session.id} onChange={(event) => selectSession(event.target.value)} aria-label="Select event for Event Flow">
+            {sortedSessions.map((item) => <option key={item.id} value={item.id}>{item.name || 'Event'} · {formatSessionDate(item.date)}</option>)}
+          </select>}
+          <div className="worship-flow-font-controls" aria-label="Chord font size controls">
+            <button type="button" onClick={() => onFontScale(Math.max(0.8, Number((safeFontScale - 0.1).toFixed(1))))} disabled={safeFontScale <= 0.8} aria-label="Decrease chord font size">A−</button>
+            <button type="button" onClick={() => onFontScale(Math.min(1.3, Number((safeFontScale + 0.1).toFixed(1))))} disabled={safeFontScale >= 1.3} aria-label="Increase chord font size">A+</button>
+          </div>
+          {isOwner && availableSongs.length > 0 && <button className="worship-flow-manage-toggle" type="button" onClick={() => {
+            setEditing((current) => !current)
+            setDraftFlowIds(null)
+            setSaveError('')
+          }}>{editing ? 'Done' : 'Manage flow'}</button>}
+        </div>
+      </header>
+
+      {availableSongs.length === 0 ? <div className="worship-flow-empty">
+        <p>No songs are assigned to this event yet.</p>
+        {isOwner && <Link className="secondary-button" to={`/private-session?session=${encodeURIComponent(session.id)}`}>Assign songs to this event</Link>}
+      </div> : <>
+        {editing && <section className="worship-flow-manager" aria-labelledby="event-flow-manager-title">
+          <div className="worship-flow-manager-heading">
+            <h2 id="event-flow-manager-title">Choose and order songs for {session.name || 'this event'}</h2>
+            <span>Changes save automatically</span>
+          </div>
+          <div className="worship-flow-song-picker">
+            {availableSongs.map((song) => <label className="worship-flow-picker-row" key={song.id}>
+              <input type="checkbox" checked={flowIds.includes(song.id)} disabled={saving} onChange={(event) => void persistFlow(selectEventFlowSong(flowIds, song.id, event.target.checked))} />
+              <span>{song.title}</span>
+            </label>)}
+          </div>
+          {flowSongs.length > 0 && <ol className="worship-flow-order-list" aria-label="Event Flow song order">
+            {flowSongs.map((song, index) => <li key={song.id}>
+              <span>{song.title}</span>
+              <div className="worship-flow-order-controls">
+                <button className="icon-button" type="button" aria-label={`Move ${song.title} up`} disabled={saving || index === 0} onClick={() => void persistFlow(moveEventFlowSong(flowIds, song.id, -1))}><ArrowUp size={16} /></button>
+                <button className="icon-button" type="button" aria-label={`Move ${song.title} down`} disabled={saving || index === flowSongs.length - 1} onClick={() => void persistFlow(moveEventFlowSong(flowIds, song.id, 1))}><ArrowDown size={16} /></button>
+              </div>
+            </li>)}
+          </ol>}
+          <div className="worship-flow-save-status" aria-live="polite">{saving ? 'Saving…' : saveError}</div>
+        </section>}
+
+        {flowSongs.length > 0 ? <WorshipFlowPerformance songs={flowSongs} flowId={session.id} startingChords={startingChords} onStartingChordChange={onStartingChordChange} onStartingChordReset={onStartingChordReset} settings={settings} onChordDetail={setSelectedChord} /> : <div className="worship-flow-empty">
+          <p>No songs added to Event Flow yet.</p>
+          {isOwner && !editing && <button className="secondary-button" type="button" onClick={() => setEditing(true)}>Select songs</button>}
+        </div>}
+      </>}
+
+      {selectedChord && <div className="chord-detail-backdrop" role="presentation" onClick={(event) => {
+        if (event.target === event.currentTarget) setSelectedChord(null)
+      }}>
+        <ChordDetail chord={selectedChord} onClose={() => setSelectedChord(null)} centered />
+      </div>}
     </div>
   )
 }
