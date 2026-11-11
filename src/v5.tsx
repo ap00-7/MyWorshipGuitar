@@ -373,16 +373,6 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
     setSelectedGuitar2Option((current) => current.shapeKey === nextOption.shapeKey && current.capo === nextOption.capo && current.concertKey === nextOption.concertKey ? current : nextOption)
   }, [compatibleGuitar2Options, viewKey1, selectedGuitar2Option, guitar1Progression, effectiveGuitar1Capo, settings.notation])
 
-  const guitar2UsesStartingChordSelector = guitar === 2 && savedCapo !== undefined
-  const activeDisplayKey = guitar === 1 || guitar2UsesStartingChordSelector ? viewKey1 : selectedGuitar2Option.shapeKey
-  const handleKeySelect = (nextKey: string) => {
-    if (guitar === 1 || guitar2UsesStartingChordSelector) {
-      setViewKey1(nextKey)
-      return
-    }
-    selectGuitar2Option(nextKey)
-  }
-
   useEffect(() => {
     type WakeLock = { release: () => Promise<void> }
     if (!song?.id) return
@@ -416,6 +406,15 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   const capoAdjustedShapeLabel = guitar === 1
     ? soundingKey(viewKey1, effectiveGuitar1Capo, settings.notation)
     : guitar2SoundingKey
+  const activeDisplayKey = guitar === 1 ? viewKey1 : shapeKey
+  const guitar2SelectorKeys = [...new Set([shapeKey, ...compatibleGuitar2Options.map((option) => option.key)])]
+  const handleKeySelect = (nextKey: string) => {
+    if (guitar === 1) {
+      setViewKey1(nextKey)
+      return
+    }
+    selectGuitar2Option(nextKey)
+  }
   const updateKey = (amount: number) => {
     if (guitar === 1) {
       setViewKey1((current) => shiftKey(current, amount, settings.notation))
@@ -560,7 +559,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
         }}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
         <select value={activeDisplayKey} onChange={(event) => handleKeySelect(event.target.value)} aria-label="Select starting chord">
-          {(guitar === 1 || guitar2UsesStartingChordSelector ? keyOptions : compatibleGuitar2Options.map((option) => option.key)).map((key) => <option key={key} value={key}>{key}</option>)}
+          {(guitar === 1 ? keyOptions : guitar2SelectorKeys).map((key) => <option key={key} value={key}>{key}</option>)}
         </select>
         <div className="guitar-switch">
           <button className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>
