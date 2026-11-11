@@ -1,23 +1,10 @@
-﻿import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { CalendarDays, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, Moon, Plus, Save, Search, Sun, Trash2, Upload } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { capoShapeKey, chromatic, parseChordProgression, simplifyChord, transposeChord, type Notation } from './music'
-import type { Section, Settings, Setlist, Song } from './data'
+import type { Section, Settings, Setlist, Song, WorshipEvent } from './data'
 
 const id = () => Math.random().toString(36).slice(2, 9)
-
-type ChordDefinition = {
-  name: string
-  root: string
-  type: string
-  notes: string[]
-  strings: number[]
-  fingers: string[]
-  difficulty: string
-  baseFret: number
-}
-const rootOptions = ['All', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
-const typeOptions = ['All', 'Major', 'Minor', '7', 'Maj7', 'm7', 'Sus2', 'Sus4', 'Add9', 'Dim', 'Aug', '6', '9', '11', '13', '5', 'Slash']
 
 const keyIndex = (key: string) => Math.max(0, chromatic.indexOf(key.replace('b', '#')))
 const shiftKey = (key: string, amount: number) => chromatic[(keyIndex(key) + amount + 24) % 12]
@@ -86,11 +73,6 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
           <b>Song library</b>
           <small>Find a song</small>
         </Link>
-        <Link to="/chords">
-          <span className="home-action-symbol">♬</span>
-          <b>Chord library</b>
-          <small>Find a shape</small>
-        </Link>
       </div>
 
       <section className="library-panel">
@@ -111,6 +93,148 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
         </div>
       </section>
     </div>
+  )
+}
+
+export function EventPage({ songs, events, onCreate, onUpdate, onDelete, isOwner }: {
+  songs: Song[]
+  events: WorshipEvent[]
+  onCreate: () => void
+  onUpdate: (event: WorshipEvent) => void
+  onDelete: (eventId: string) => void
+  isOwner: boolean
+}) {
+  const { eventId } = useParams()
+  const navigate = useNavigate()
+  const event = events.find((item) => item.id === eventId)
+  const [query, setQuery] = useState('')
+  const [name, setName] = useState(event?.name ?? '')
+  const [date, setDate] = useState(event?.date ?? '')
+  const [description, setDescription] = useState(event?.description ?? '')
+
+  useEffect(() => {
+    setName(event?.name ?? '')
+    setDate(event?.date ?? '')
+    setDescription(event?.description ?? '')
+  }, [event?.id, event?.name, event?.date, event?.description])
+
+  if (!eventId) {
+    return (
+      <div className="page">
+        <header className="v5-page-header">
+          <div><div className="eyebrow">Special services and gatherings</div><h1>Events</h1></div>
+          {isOwner && <button className="primary-button" onClick={onCreate}><CalendarDays size={16} />New event</button>}
+        </header>
+        <div className="event-list">
+          {events.map((item) => (
+            <Link className="event-card" to={`/events/${item.id}`} key={item.id}>
+              <span><strong>{item.name}</strong><small>{item.date} · {item.songIds.length} songs</small></span>
+              <ChevronRight size={17} />
+            </Link>
+          ))}
+          {!events.length && <div className="empty"><h2>No events yet</h2><p>{isOwner ? 'Create an event to prepare its song list.' : 'Events added by the owner will appear here.'}</p></div>}
+        </div>
+      </div>
+    )
+  }
+
+  if (!event) return <Empty title="Event not found" />
+
+  const available = songs.filter((song) => !event.songIds.includes(song.id) && `${song.title} ${song.artist}`.toLowerCase().includes(query.toLowerCase()))
+  const moveSong = (songId: string, direction: -1 | 1) => {
+    const index = event.songIds.indexOf(songId)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= event.songIds.length) return
+    const next = [...event.songIds]
+    ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
+    onUpdate({ ...event, songIds: next })
+  }
+
+  return (
+    <div className="page sunday-page">
+      <button className="back-button" onClick={() => navigate('/events')}><ChevronLeft size={16} />Events</button>
+      <header className="sunday-header">
+        <div>
+          <div className="eyebrow">Event song list</div>
+          {isOwner ? <input className="event-title-input" value={name} onChange={(inputEvent) => setName(inputEvent.target.value)} aria-label="Event name" /> : <h1>{event.name}</h1>}
+          {isOwner ? <input className="sunday-date-input" type="date" value={date} onChange={(inputEvent) => setDate(inputEvent.target.value)} aria-label="Event date" /> : <p>{event.date}</p>}
+        </div>
+        <div className="sunday-header-actions">
+          {event.songIds.length > 0 && <Link className="primary-button" to={`/events/${event.id}/flow/${event.songIds[0]}`}><ChevronRight size={16} />Event Flow</Link>}
+          {isOwner && <button className="secondary-button" onClick={() => onUpdate({ ...event, name: name.trim() || event.name, date, description })}><Save size={16} />Save details</button>}
+          {isOwner && <button className="danger-button" onClick={() => {
+            if (window.confirm(`Delete “${event.name}”?`)) onDelete(event.id)
+          }}><Trash2 size={15} />Delete event</button>}
+        </div>
+      </header>
+
+      {isOwner && <label className="event-description-label">Description<textarea value={description} onChange={(inputEvent) => setDescription(inputEvent.target.value)} placeholder="Notes for this event." /></label>}
+
+      <div className="sunday-layout">
+        <main className="sunday-songs">
+          <div className="section-heading"><div><span className="eyebrow">Songs</span><h2>{event.name}</h2></div></div>
+          <div className="sunday-list">
+            {event.songIds.map((songId, index) => {
+              const song = songs.find((item) => item.id === songId)
+              if (!song) return null
+              return (
+                <div className="sunday-song" key={song.id}>
+                  <span className="song-order">{index + 1}</span>
+                  <Link to={`/events/${event.id}/songs/${song.id}`} className="song-summary">
+                    <strong>{song.title}</strong><small>{song.artist} · Starting chord {event.startingChordOverrides?.[song.id] ?? song.currentKey}</small>
+                  </Link>
+                  {isOwner && <div className="sunday-controls">
+                    <button className="icon-button" onClick={() => moveSong(song.id, -1)} aria-label="Move earlier"><ChevronLeft size={15} /></button>
+                    <button className="icon-button" onClick={() => moveSong(song.id, 1)} aria-label="Move later"><ChevronRight size={15} /></button>
+                    <button className="icon-button" onClick={() => onUpdate({ ...event, songIds: event.songIds.filter((item) => item !== song.id) })} aria-label="Remove from event"><Trash2 size={15} /></button>
+                  </div>}
+                </div>
+              )
+            })}
+            {!event.songIds.length && <div className="empty"><p>Add songs to start preparing this event.</p></div>}
+          </div>
+        </main>
+
+        {isOwner && <aside className="add-sunday-panel">
+          <div className="section-heading"><div><span className="eyebrow">Add to event</span><h2>Available songs</h2></div></div>
+          <div className="search compact-search"><Search size={16} /><input value={query} onChange={(inputEvent) => setQuery(inputEvent.target.value)} placeholder="Search songs" /></div>
+          <div className="available-list">
+            {available.length ? available.map((song) => (
+              <button key={song.id} className="available-song" onClick={() => onUpdate({ ...event, songIds: [...event.songIds, song.id] })}><strong>{song.title}</strong><small>{song.artist}</small></button>
+            )) : <p className="muted-text">No songs match.</p>}
+          </div>
+        </aside>}
+      </div>
+    </div>
+  )
+}
+
+export function EventSongPage({ songs, settings, events, isOwner, onSetStartingChord }: {
+  songs: Song[]
+  settings: Settings
+  events: WorshipEvent[]
+  isOwner: boolean
+  onSetStartingChord: (eventId: string, songId: string, startingChord: string | null) => Promise<void>
+}) {
+  const { eventId, songId } = useParams()
+  const event = events.find((item) => item.id === eventId)
+  const currentIndex = event?.songIds.indexOf(songId ?? '') ?? -1
+  if (!event || currentIndex < 0) return <Empty title="Event song not found" />
+
+  const previousSong = event.songIds[currentIndex - 1]
+  const nextSong = event.songIds[currentIndex + 1]
+  return (
+    <>
+      <div className="page event-flow-bar">
+        <Link className="secondary-button" to={`/events/${event.id}`}><ChevronLeft size={15} />Event</Link>
+        <span><strong>Event Flow</strong><small>{currentIndex + 1} of {event.songIds.length}</small></span>
+        <div>
+          {previousSong && <Link className="icon-button" to={`/events/${event.id}/flow/${previousSong}`} aria-label="Previous song"><ChevronLeft size={16} /></Link>}
+          {nextSong && <Link className="icon-button" to={`/events/${event.id}/flow/${nextSong}`} aria-label="Next song"><ChevronRight size={16} /></Link>}
+        </div>
+      </div>
+      <SongPage songs={songs} settings={settings} isOwner={isOwner} contextType="event" events={events} onSetStartingChord={onSetStartingChord} />
+    </>
   )
 }
 
@@ -193,41 +317,108 @@ export function SongLibrary({ songs, onCreate, onUpdate, onDuplicate, onDelete, 
   )
 }
 
-export function SongPage({ songs, settings, isOwner }: { songs: Song[]; settings: Settings; isOwner: boolean }) {
-  const { songId } = useParams()
+export function SongPage({ songs, settings, isOwner, contextType, setlists = [], events = [], onSetStartingChord }: {
+  songs: Song[]
+  settings: Settings
+  isOwner: boolean
+  contextType?: 'sunday' | 'event'
+  setlists?: Setlist[]
+  events?: WorshipEvent[]
+  onSetStartingChord?: (contextId: string, songId: string, startingChord: string | null) => Promise<void>
+}) {
+  const { songId, sundayId, eventId } = useParams()
   const navigate = useNavigate()
   const song = songs.find((item) => item.id === songId)
+  const contextId = contextType === 'sunday' ? sundayId : contextType === 'event' ? eventId : undefined
+  const context = contextType === 'sunday' ? setlists.find((item) => item.id === contextId) : contextType === 'event' ? events.find((item) => item.id === contextId) : undefined
+  const savedStartingChord = songId ? context?.startingChordOverrides?.[songId] : undefined
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [viewKey, setViewKey] = useState(song?.currentKey ?? song?.key ?? 'C')
+  const [startingChordEditorOpen, setStartingChordEditorOpen] = useState(false)
+  const [pendingStartingChord, setPendingStartingChord] = useState('')
+  const [savingStartingChord, setSavingStartingChord] = useState(false)
+  const [startingChordError, setStartingChordError] = useState('')
+
+  useEffect(() => {
+    const defaultKey = song?.currentKey ?? song?.key ?? 'C'
+    setViewKey(savedStartingChord ?? defaultKey)
+    setPendingStartingChord(savedStartingChord ?? '')
+    setStartingChordError('')
+  }, [song?.id, song?.currentKey, song?.key, savedStartingChord, contextType, contextId])
 
   if (!song) {
     return <Empty title="Song not found" />
   }
+  if (contextType && !context) {
+    return <Empty title={`${contextType === 'sunday' ? 'Sunday' : 'Event'} not found`} />
+  }
 
   const interval = (keyIndex(viewKey) - keyIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, guitar === 1 ? song.capo : 5, settings.notation)
+  const backPath = contextType === 'sunday' ? `/sunday/${contextId}` : contextType === 'event' ? `/events/${contextId}` : '/songs'
+  const contextName = contextType === 'sunday' ? 'Sunday' : 'Event'
 
   const updateKey = (amount: number) => setViewKey((current) => shiftKey(current, amount))
+  const saveStartingChord = async () => {
+    if (!contextId || !onSetStartingChord) return
+    setSavingStartingChord(true)
+    setStartingChordError('')
+    try {
+      await onSetStartingChord(contextId, song.id, pendingStartingChord || null)
+      setViewKey(pendingStartingChord || song.currentKey || song.key)
+      setStartingChordEditorOpen(false)
+    } catch (saveError) {
+      setStartingChordError(saveError instanceof Error ? saveError.message : 'Unable to save the starting chord.')
+    } finally {
+      setSavingStartingChord(false)
+    }
+  }
 
   return (
     <div className="page continuous-page">
-      <button className="back-button" onClick={() => navigate('/songs')}><ChevronLeft size={16} />Songs</button>
+      <button className="back-button" onClick={() => navigate(backPath)}><ChevronLeft size={16} />{contextType ? context?.name : 'Songs'}</button>
 
       <header className="v5-song-header">
         <div>
-          <div className="eyebrow">Chord sheet · {song.artist}</div>
+          <div className="eyebrow">{contextType ? `${contextName} song` : 'Chord sheet'} · {song.artist}</div>
           <h1>{song.title}</h1>
           <div className="song-tags">
             <span>Key {viewKey}</span>
             <span>Capo {guitar === 1 ? song.capo : 5}</span>
             <span>Shapes {shapeKey}</span>
+            {contextType && <span>Starting chord {savedStartingChord ?? song.currentKey}{savedStartingChord ? ' · Custom' : ' · Original'}</span>}
           </div>
         </div>
         <div className="song-header-actions">
           {isOwner && <Link className="secondary-button" to={`/songs/${song.id}/edit`}>Edit</Link>}
-          <button className="primary-button" onClick={() => document.documentElement.requestFullscreen?.()}>Fullscreen</button>
+          {contextType && isOwner && <button className="primary-button" onClick={() => {
+            setPendingStartingChord(savedStartingChord ?? '')
+            setStartingChordError('')
+            setStartingChordEditorOpen(true)
+          }}>Set Starting Chord</button>}
         </div>
       </header>
+
+      {contextType && startingChordEditorOpen && (
+        <section className="starting-chord-editor" aria-label="Set Starting Chord">
+          <div>
+            <strong>Set Starting Chord</strong>
+            <p>Current: {savedStartingChord ?? song.currentKey}{savedStartingChord ? ' (custom)' : ' (song default)'}</p>
+          </div>
+          <label>
+            Starting chord
+            <select value={pendingStartingChord} onChange={(event) => setPendingStartingChord(event.target.value)}>
+              <option value="">Original ({song.currentKey})</option>
+              {chromatic.map((key) => <option key={key} value={key}>{key}</option>)}
+            </select>
+          </label>
+          {startingChordError && <p className="starting-chord-error" role="alert">{startingChordError}</p>}
+          <div className="starting-chord-actions">
+            <button className="secondary-button" onClick={() => setStartingChordEditorOpen(false)} disabled={savingStartingChord}>Cancel</button>
+            <button className="primary-button" onClick={() => void saveStartingChord()} disabled={savingStartingChord}>{savingStartingChord ? 'Saving…' : 'Save'}</button>
+          </div>
+        </section>
+      )}
 
       <div className="song-key-bar">
         <strong>{viewKey}</strong>
@@ -441,179 +632,6 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   )
 }
 
-export function ChordLibrary() {
-  const [query, setQuery] = useState('')
-  const [rootFilter, setRootFilter] = useState('All')
-  const [typeFilter, setTypeFilter] = useState('All')
-  const [selectedChord, setSelectedChord] = useState<ChordDefinition | null>(null)
-
-  const chordDatabase = useMemo<ChordDefinition[]>(() => [
-    { name: 'A', root: 'A', type: 'Major', notes: ['A', 'C#', 'E'], strings: [-1, 0, 2, 2, 2, 0], fingers: ['x', '0', '2', '2', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Am', root: 'A', type: 'Minor', notes: ['A', 'C', 'E'], strings: [-1, 0, 1, 2, 2, 0], fingers: ['x', '0', '1', '2', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'A7', root: 'A', type: '7', notes: ['A', 'C#', 'E', 'G'], strings: [-1, 0, 2, 0, 2, 0], fingers: ['x', '0', '2', '0', '2', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'B7', root: 'B', type: '7', notes: ['B', 'D#', 'F#', 'A'], strings: [-1, 2, 1, 2, 0, 2], fingers: ['x', '2', '1', '2', '0', '2'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'C', root: 'C', type: 'Major', notes: ['C', 'E', 'G'], strings: [-1, 1, 0, 2, 3, 0], fingers: ['x', '1', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'C7', root: 'C', type: '7', notes: ['C', 'E', 'G', 'Bb'], strings: [-1, 1, 3, 2, 3, 1], fingers: ['x', '1', '3', '2', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Cmaj7', root: 'C', type: 'Maj7', notes: ['C', 'E', 'G', 'B'], strings: [-1, 0, 0, 2, 0, 0], fingers: ['x', '0', '0', '2', '0', '0'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Cadd9', root: 'C', type: 'Add9', notes: ['C', 'E', 'G', 'D'], strings: [-1, 3, 0, 2, 3, 0], fingers: ['x', '3', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Csus2', root: 'C', type: 'Sus2', notes: ['C', 'D', 'G'], strings: [-1, 3, 0, 0, 1, 1], fingers: ['x', '3', '0', '0', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Csus4', root: 'C', type: 'Sus4', notes: ['C', 'F', 'G'], strings: [-1, 1, 1, 2, 3, 1], fingers: ['x', '1', '1', '2', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'D', root: 'D', type: 'Major', notes: ['D', 'F#', 'A'], strings: [-1, -1, 0, 2, 3, 2], fingers: ['x', 'x', '0', '2', '3', '2'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dm', root: 'D', type: 'Minor', notes: ['D', 'F', 'A'], strings: [-1, -1, 0, 2, 3, 1], fingers: ['x', 'x', '0', '2', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'D7', root: 'D', type: '7', notes: ['D', 'F#', 'A', 'C'], strings: [-1, -1, 0, 2, 1, 2], fingers: ['x', 'x', '0', '2', '1', '2'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dm7', root: 'D', type: 'm7', notes: ['D', 'F', 'A', 'C'], strings: [-1, -1, 0, 2, 1, 1], fingers: ['x', 'x', '0', '2', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dmaj7', root: 'D', type: 'Maj7', notes: ['D', 'F#', 'A', 'C#'], strings: [-1, -1, 0, 2, 2, 2], fingers: ['x', 'x', '0', '2', '2', '2'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Dsus2', root: 'D', type: 'Sus2', notes: ['D', 'E', 'A'], strings: [-1, -1, 0, 2, 3, 0], fingers: ['x', 'x', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dsus4', root: 'D', type: 'Sus4', notes: ['D', 'G', 'A'], strings: [-1, -1, 0, 3, 3, 1], fingers: ['x', 'x', '0', '3', '3', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'E', root: 'E', type: 'Major', notes: ['E', 'G#', 'B'], strings: [0, 2, 2, 1, 0, 0], fingers: ['0', '2', '2', '1', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Em', root: 'E', type: 'Minor', notes: ['E', 'G', 'B'], strings: [0, 2, 2, 0, 0, 0], fingers: ['0', '2', '2', '0', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'E7', root: 'E', type: '7', notes: ['E', 'G#', 'B', 'D'], strings: [0, 2, 0, 1, 0, 0], fingers: ['0', '2', '0', '1', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Em7', root: 'E', type: 'm7', notes: ['E', 'G', 'B', 'D'], strings: [0, 2, 0, 0, 0, 0], fingers: ['0', '2', '0', '0', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Eadd9', root: 'E', type: 'Add9', notes: ['E', 'G#', 'B', 'F#'], strings: [0, 2, 2, 1, 0, 2], fingers: ['0', '2', '2', '1', '0', '2'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Esus4', root: 'E', type: 'Sus4', notes: ['E', 'A', 'B'], strings: [0, 2, 2, 2, 0, 0], fingers: ['0', '2', '2', '2', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'F', root: 'F', type: 'Major', notes: ['F', 'A', 'C'], strings: [1, 1, 2, 3, 3, 1], fingers: ['1', '1', '2', '3', '3', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Fmaj7', root: 'F', type: 'Maj7', notes: ['F', 'A', 'C', 'E'], strings: [-1, 3, 2, 3, 2, 1], fingers: ['x', '3', '2', '3', '2', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Fadd9', root: 'F', type: 'Add9', notes: ['F', 'A', 'C', 'G'], strings: [1, 1, 3, 3, 1, 1], fingers: ['1', '1', '3', '3', '1', '1'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'G', root: 'G', type: 'Major', notes: ['G', 'B', 'D'], strings: [3, 2, 0, 0, 0, 3], fingers: ['3', '2', '0', '0', '0', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'G7', root: 'G', type: '7', notes: ['G', 'B', 'D', 'F'], strings: [3, 2, 0, 0, 0, 1], fingers: ['3', '2', '0', '0', '0', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Gmaj7', root: 'G', type: 'Maj7', notes: ['G', 'B', 'D', 'F#'], strings: [2, 2, 0, 0, 0, 2], fingers: ['2', '2', '0', '0', '0', '2'], difficulty: 'Intermediate', baseFret: 1 },
-    { name: 'Gsus2', root: 'G', type: 'Sus2', notes: ['G', 'A', 'D'], strings: [3, 0, 0, 0, 3, 3], fingers: ['3', '0', '0', '0', '3', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Gsus4', root: 'G', type: 'Sus4', notes: ['G', 'C', 'D'], strings: [3, 3, 0, 0, 1, 1], fingers: ['3', '3', '0', '0', '1', '1'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Am7', root: 'A', type: 'm7', notes: ['A', 'C', 'E', 'G'], strings: [-1, 0, 0, 2, 0, 0], fingers: ['x', '0', '0', '2', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Asus2', root: 'A', type: 'Sus2', notes: ['A', 'B', 'E'], strings: [-1, 0, 2, 2, 0, 0], fingers: ['x', '0', '2', '2', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Asus4', root: 'A', type: 'Sus4', notes: ['A', 'D', 'E'], strings: [-1, 0, 2, 3, 0, 0], fingers: ['x', '0', '2', '3', '0', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Dadd9', root: 'D', type: 'Add9', notes: ['D', 'F#', 'A', 'E'], strings: [-1, -1, 0, 2, 3, 0], fingers: ['x', 'x', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'Gadd9', root: 'G', type: 'Add9', notes: ['G', 'B', 'D', 'A'], strings: [3, 2, 0, 0, 3, 3], fingers: ['3', '2', '0', '0', '3', '3'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'C/E', root: 'C', type: 'Slash', notes: ['C', 'E', 'G', 'B'], strings: [0, 1, 0, 2, 3, 0], fingers: ['0', '1', '0', '2', '3', '0'], difficulty: 'Beginner', baseFret: 1 },
-    { name: 'G/B', root: 'G', type: 'Slash', notes: ['G', 'B', 'D'], strings: [0, 2, 0, 0, 0, 3], fingers: ['0', '2', '0', '0', '0', '3'], difficulty: 'Beginner', baseFret: 1 },
-  ], [])
-
-  const visible = chordDatabase.filter((chord) => {
-    const queryText = `${chord.name} ${chord.root} ${chord.type}`.toLowerCase()
-    const matchesQuery = !query || queryText.includes(query.toLowerCase())
-    const matchesRoot = rootFilter === 'All' || chord.root === rootFilter
-    const matchesType = typeFilter === 'All' || chord.type === typeFilter
-    return matchesQuery && matchesRoot && matchesType
-  })
-
-  useEffect(() => {
-    if (!selectedChord) {
-      document.body.style.overflow = ''
-      return
-    }
-
-    document.body.style.overflow = 'hidden'
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setSelectedChord(null)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [selectedChord])
-
-  const closeModal = () => setSelectedChord(null)
-
-  return (
-    <div className="page chord-library-page">
-      <header className="v5-page-header">
-        <div>
-          <div className="eyebrow">Reference for guitarists</div>
-          <h1>Chord library</h1>
-        </div>
-      </header>
-
-      <div className="v5-search-row chord-search-row">
-        <div className="search">
-          <Search size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search chord names, roots, or types" />
-        </div>
-        <select value={rootFilter} onChange={(event) => setRootFilter(event.target.value)}>
-          {rootOptions.map((root) => <option key={root}>{root}</option>)}
-        </select>
-        <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-          {typeOptions.map((type) => <option key={type}>{type}</option>)}
-        </select>
-      </div>
-
-      <div className="chord-family-grid">
-        {visible.map((chord) => (
-          <button key={chord.name} type="button" className="library-chord" onClick={() => setSelectedChord(chord)}>
-            <strong>{chord.name}</strong>
-            <small>{chord.type}</small>
-            <GuitarChordDiagram chord={chord} compact />
-          </button>
-        ))}
-      </div>
-
-      {selectedChord && (
-        <div className="chord-detail-backdrop" role="presentation" onClick={(event) => {
-          if (event.target === event.currentTarget) closeModal()
-        }}>
-          <ChordDetail chord={selectedChord} onClose={closeModal} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function GuitarChordDiagram({ chord, compact = false }: { chord: ChordDefinition; compact?: boolean }) {
-  const rows = chord.strings.map((value, index) => ({
-    label: ['Low E', 'A', 'D', 'G', 'B', 'High E'][index],
-    value,
-    finger: chord.fingers[index],
-  }))
-
-  return (
-    <div className={compact ? 'diagram compact-diagram' : 'diagram'} aria-label={`${chord.name} guitar chord diagram`}>
-      <div className="diagram-row diagram-header">
-        <span>6</span>
-        <span>5</span>
-        <span>4</span>
-        <span>3</span>
-        <span>2</span>
-        <span>1</span>
-      </div>
-      <div className="diagram-grid">
-        {rows.map((row, index) => {
-          const cell = row.value === -1 ? 'X' : row.value === 0 ? 'O' : '●'
-          const className = row.value === -1 ? 'muted' : row.value === 0 ? 'open' : 'fretted'
-          return (
-            <div className="diagram-cell" key={`${row.label}-${index}`}>
-              <span className="string-label">{row.label}</span>
-              <span className={`cell ${className}`}>{cell}</span>
-              {row.value > 0 && <span className="finger-number">{row.finger}</span>}
-            </div>
-          )
-        })}
-      </div>
-      <div className="diagram-frets">
-        {Array.from({ length: 5 }, (_, index) => <span key={index} className="fret-line" />)}
-      </div>
-    </div>
-  )
-}
-
-function ChordDetail({ chord, onClose }: { chord: ChordDefinition; onClose: () => void }) {
-  return (
-    <section className="chord-detail" role="dialog" aria-modal="true" aria-label={`${chord.name} detail`}>
-      <button type="button" className="close-button" onClick={onClose} aria-label="Close chord details"><X size={18} /></button>
-      <div className="eyebrow">Chord detail</div>
-      <h2>{chord.name}</h2>
-      <GuitarChordDiagram chord={chord} />
-      <div className="detail-meta">
-        <p><strong>Notes:</strong> {chord.notes.join(' ')}</p>
-        <p><strong>Fingering:</strong> {chord.strings.map((value) => (value === -1 ? 'X' : value === 0 ? 'O' : String(value))).join(' ')}</p>
-        <p><strong>Difficulty:</strong> {chord.difficulty}</p>
-      </div>
-    </section>
-  )
-}
-
 export function SettingsPageV5({ settings, onSettings }: { settings: Settings; onSettings: (settings: Settings) => void }) {
   return (
     <div className="page">
@@ -666,8 +684,11 @@ export function SettingsPageV5({ settings, onSettings }: { settings: Settings; o
 }
 
 export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreate: () => void; onUpdate: (setlist: Setlist) => void; onDuplicate: (setlist: Setlist) => void; isOwner: boolean }) {
-  const sunday = setlists[0]
-  const previous = setlists[1]
+  const { sundayId } = useParams()
+  const navigate = useNavigate()
+  const sunday = sundayId ? setlists.find((item) => item.id === sundayId) : setlists[0]
+  const selectedIndex = sunday ? setlists.findIndex((item) => item.id === sunday.id) : -1
+  const previous = setlists[selectedIndex + 1]
   const [query, setQuery] = useState('')
 
   if (!sunday) {
@@ -707,6 +728,9 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
           {isOwner ? <input className="sunday-date-input" value={sunday.date} onChange={(event) => onUpdate({ ...sunday, date: event.target.value })} aria-label="Sunday date" /> : <p>{sunday.date}</p>}
         </div>
         <div className="sunday-header-actions">
+          {setlists.length > 1 && <select className="schedule-select" value={sunday.id} onChange={(event) => navigate(`/sunday/${event.target.value}`)} aria-label="Select Sunday schedule">
+            {setlists.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.date}</option>)}
+          </select>}
           {isOwner && <button className="secondary-button" onClick={onCreate}><CalendarDays size={16} />New Sunday</button>}
           {isOwner && previous && <button className="secondary-button" onClick={() => onDuplicate(previous)}>Duplicate previous</button>}
         </div>
@@ -728,9 +752,9 @@ export function SundayPageV5({ songs, setlists, onCreate, onUpdate, onDuplicate,
               return (
                 <div className="sunday-song" key={song.id}>
                   <span className="song-order">{index + 1}</span>
-                  <Link to={`/songs/${song.id}`} className="song-summary">
+                  <Link to={`/sunday/${sunday.id}/songs/${song.id}`} className="song-summary">
                     <strong>{song.title}</strong>
-                    <small>{song.artist}</small>
+                    <small>{song.artist} · Starting chord {sunday.startingChordOverrides?.[song.id] ?? song.currentKey}</small>
                   </Link>
                   {isOwner && <div className="sunday-controls">
                     <button className="icon-button" onClick={() => moveSong(song.id, -1)} aria-label="Move earlier"><ChevronLeft size={15} /></button>

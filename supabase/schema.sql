@@ -55,8 +55,30 @@ create table if not exists public.sunday_songs (
   sunday_id uuid not null references public.sundays(id) on delete cascade,
   song_id uuid not null references public.songs(id) on delete cascade,
   position integer not null default 0,
+  starting_chord_override text,
   primary key (sunday_id, song_id),
   unique (sunday_id, position)
+);
+
+alter table public.sunday_songs
+  add column if not exists starting_chord_override text;
+
+create table if not exists public.events (
+  id uuid primary key default gen_random_uuid(),
+  name text not null default 'Worship Event',
+  event_date date not null default current_date,
+  description text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.event_songs (
+  event_id uuid not null references public.events(id) on delete cascade,
+  song_id uuid not null references public.songs(id) on delete cascade,
+  position integer not null default 0,
+  starting_chord_override text,
+  primary key (event_id, song_id),
+  unique (event_id, position)
 );
 
 create table if not exists public.chord_library (
@@ -72,8 +94,8 @@ create table if not exists public.chord_library (
 );
 
 grant usage on schema public to anon, authenticated;
-grant select on public.profiles, public.songs, public.song_sections, public.sundays, public.sunday_songs, public.chord_library to anon, authenticated;
-grant insert, update, delete on public.songs, public.song_sections, public.sundays, public.sunday_songs, public.chord_library to authenticated;
+grant select on public.profiles, public.songs, public.song_sections, public.sundays, public.sunday_songs, public.events, public.event_songs, public.chord_library to anon, authenticated;
+grant insert, update, delete on public.songs, public.song_sections, public.sundays, public.sunday_songs, public.events, public.event_songs, public.chord_library to authenticated;
 grant update on public.profiles to authenticated;
 
 create or replace function public.is_worship_owner()
@@ -102,6 +124,8 @@ alter table public.songs enable row level security;
 alter table public.song_sections enable row level security;
 alter table public.sundays enable row level security;
 alter table public.sunday_songs enable row level security;
+alter table public.events enable row level security;
+alter table public.event_songs enable row level security;
 alter table public.chord_library enable row level security;
 
 drop policy if exists "users can read own profile" on public.profiles;
@@ -109,12 +133,16 @@ drop policy if exists "public can read songs" on public.songs;
 drop policy if exists "public can read song sections" on public.song_sections;
 drop policy if exists "public can read sundays" on public.sundays;
 drop policy if exists "public can read sunday songs" on public.sunday_songs;
+drop policy if exists "public can read events" on public.events;
+drop policy if exists "public can read event songs" on public.event_songs;
 drop policy if exists "public can read chord library" on public.chord_library;
 create policy "users can read own profile" on public.profiles for select using (id = auth.uid());
 create policy "public can read songs" on public.songs for select using (true);
 create policy "public can read song sections" on public.song_sections for select using (true);
 create policy "public can read sundays" on public.sundays for select using (true);
 create policy "public can read sunday songs" on public.sunday_songs for select using (true);
+create policy "public can read events" on public.events for select using (true);
+create policy "public can read event songs" on public.event_songs for select using (true);
 create policy "public can read chord library" on public.chord_library for select using (true);
 
 drop policy if exists "owner can insert songs" on public.songs;
@@ -129,6 +157,12 @@ drop policy if exists "owner can delete sundays" on public.sundays;
 drop policy if exists "owner can insert sunday songs" on public.sunday_songs;
 drop policy if exists "owner can update sunday songs" on public.sunday_songs;
 drop policy if exists "owner can delete sunday songs" on public.sunday_songs;
+drop policy if exists "owner can insert events" on public.events;
+drop policy if exists "owner can update events" on public.events;
+drop policy if exists "owner can delete events" on public.events;
+drop policy if exists "owner can insert event songs" on public.event_songs;
+drop policy if exists "owner can update event songs" on public.event_songs;
+drop policy if exists "owner can delete event songs" on public.event_songs;
 drop policy if exists "owner can insert chord library" on public.chord_library;
 drop policy if exists "owner can update chord library" on public.chord_library;
 drop policy if exists "owner can delete chord library" on public.chord_library;
@@ -144,6 +178,12 @@ create policy "owner can delete sundays" on public.sundays for delete using (pub
 create policy "owner can insert sunday songs" on public.sunday_songs for insert with check (public.is_worship_owner());
 create policy "owner can update sunday songs" on public.sunday_songs for update using (public.is_worship_owner()) with check (public.is_worship_owner());
 create policy "owner can delete sunday songs" on public.sunday_songs for delete using (public.is_worship_owner());
+create policy "owner can insert events" on public.events for insert with check (public.is_worship_owner());
+create policy "owner can update events" on public.events for update using (public.is_worship_owner()) with check (public.is_worship_owner());
+create policy "owner can delete events" on public.events for delete using (public.is_worship_owner());
+create policy "owner can insert event songs" on public.event_songs for insert with check (public.is_worship_owner());
+create policy "owner can update event songs" on public.event_songs for update using (public.is_worship_owner()) with check (public.is_worship_owner());
+create policy "owner can delete event songs" on public.event_songs for delete using (public.is_worship_owner());
 create policy "owner can insert chord library" on public.chord_library for insert with check (public.is_worship_owner());
 create policy "owner can update chord library" on public.chord_library for update using (public.is_worship_owner()) with check (public.is_worship_owner());
 create policy "owner can delete chord library" on public.chord_library for delete using (public.is_worship_owner());
@@ -163,3 +203,21 @@ create policy "public can view chord images" on storage.objects for select using
 create policy "owner can upload chord images" on storage.objects for insert with check (bucket_id = 'chord-images' and public.is_worship_owner());
 create policy "owner can update chord images" on storage.objects for update using (bucket_id = 'chord-images' and public.is_worship_owner());
 create policy "owner can delete chord images" on storage.objects for delete using (bucket_id = 'chord-images' and public.is_worship_owner());
+
+do $$
+declare
+  table_name text;
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    foreach table_name in array array['songs', 'song_sections', 'sundays', 'sunday_songs', 'events', 'event_songs']
+    loop
+      if not exists (
+        select 1 from pg_publication_tables
+        where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = table_name
+      ) then
+        execute format('alter publication supabase_realtime add table public.%I', table_name);
+      end if;
+    end loop;
+  end if;
+end
+$$;

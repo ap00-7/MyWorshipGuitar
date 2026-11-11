@@ -7,8 +7,9 @@ Worship Guitar is an owner-managed chord-sheet companion for worship musicians. 
 - Shared song library with search, favorites, tags, notes, and owner-only management
 - Structured chord lines with transpose controls, sharp/flat notation, chord simplification, and capo shape calculations
 - Setlists with song ordering and normal full-song chord sheets
+- Sunday- and Event-specific starting-chord overrides that leave library song data unchanged
+- Event song lists with a sequential Event Flow
 - Continuous chord-first song views with no lyric scrolling or section pagination
-- Chord reference library and Roman numeral progression generator
 - JSON export/import for backups
 - Light/dark themes and responsive tablet/mobile layout
 - Public read-only access with Supabase Auth, profile roles, RLS, and protected chord-image storage
@@ -54,13 +55,15 @@ update public.profiles set role = 'owner' where id = 'OWNER_AUTH_USER_UUID';
 
 The schema allows anonymous SELECT access only. INSERT, UPDATE, and DELETE policies require the authenticated user's profile role to be `owner`. The browser UI mirrors those permissions, but the database policies are the security boundary.
 
+For an existing project created before Event support, run the feature SQL provided with the starting-chord implementation in the Supabase SQL Editor before deploying the updated app. It adds assignment-level chord overrides, Event tables, their owner-only write policies, and realtime publication entries without changing `songs`.
+
 ## Deploy to Vercel
 
 1. Push this repository to GitHub.
 2. In Vercel, choose **Add New Project** and import the repository.
 3. Vercel detects Vite automatically. The build command is `npm run build` and the output directory is `dist`.
 4. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` under the Vercel project's Environment Variables for Preview and Production.
-5. Deploy. `vercel.json` rewrites client-side routes back to `index.html`, so refreshing `/songs`, `/sunday`, `/chords`, `/settings`, or `/owner` works correctly.
+5. Deploy. `vercel.json` rewrites client-side routes back to `index.html`, so refreshing `/songs`, `/sunday`, `/events`, `/settings`, or `/owner` works correctly.
 
 The fallback mode uses browser LocalStorage only when Supabase variables are absent and intentionally exposes no management controls. For the real shared installation, configure Supabase before deployment; shared content then loads from Supabase instead of localStorage.
 

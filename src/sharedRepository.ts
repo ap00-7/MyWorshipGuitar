@@ -1,8 +1,8 @@
-import type { Setlist, Song } from './data'
+import type { Setlist, Song, WorshipEvent } from './data'
 import { normalizeSong } from './data'
 import { supabase } from './supabaseClient'
 
-export type SharedSnapshot = { songs: Song[]; setlists: Setlist[] }
+export type SharedSnapshot = { songs: Song[]; setlists: Setlist[]; events: WorshipEvent[] }
 
 type DbSong = {
   id: string
@@ -24,7 +24,15 @@ type DbSunday = {
   name: string
   service_date: string
   description: string
-  sunday_songs: Array<{ position: number; song_id: string }>
+  sunday_songs: Array<{ position: number; song_id: string; starting_chord_override: string | null }>
+}
+
+type DbEvent = {
+  id: string
+  name: string
+  event_date: string
+  description: string
+  event_songs: Array<{ position: number; song_id: string; starting_chord_override: string | null }>
 }
 
 function requireSupabase() {
@@ -34,13 +42,15 @@ function requireSupabase() {
 
 export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   const client = requireSupabase()
-  const [songsResult, sundaysResult] = await Promise.all([
+  const [songsResult, sundaysResult, eventsResult] = await Promise.all([
     client.from('songs').select('id,title,artist,original_key,current_key,capo,bpm,favorite,tags,notes,chord_image_path,sections:song_sections(id,name,chord_text,note,position)').order('updated_at', { ascending: false }),
-    client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position)').order('service_date', { ascending: false }),
+    client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position,starting_chord_override)').order('service_date', { ascending: false }),
+    client.from('events').select('id,name,event_date,description,event_songs(song_id,position,starting_chord_override)').order('event_date', { ascending: false }),
   ])
 
   if (songsResult.error) throw songsResult.error
   if (sundaysResult.error) throw sundaysResult.error
+  if (eventsResult.error) throw eventsResult.error
 
   const songs = ((songsResult.data ?? []) as unknown as DbSong[]).map((song) => normalizeSong({
     id: song.id,
@@ -63,9 +73,19 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     date: sunday.service_date,
     description: sunday.description,
     songIds: (sunday.sunday_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
+    startingChordOverrides: Object.fromEntries((sunday.sunday_songs ?? []).filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
   }))
 
-  return { songs, setlists }
+  const events = ((eventsResult.data ?? []) as unknown as DbEvent[]).map((event) => ({
+    id: event.id,
+    name: event.name,
+    date: event.event_date,
+    description: event.description,
+    songIds: (event.event_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
+    startingChordOverrides: Object.fromEntries((event.event_songs ?? []).filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
+  }))
+
+  return { songs, setlists, events }
 }
 
 export async function upsertSharedSong(song: Song) {
@@ -121,27 +141,89 @@ export async function deleteSharedSong(songId: string) {
   if (error) throw error
 }
 
+async function syncSongAssignments(table: 'sunday_songs' | 'event_songs', parentColumn: 'sunday_id' | 'event_id', parentId: string, songIds: string[], startingChordOverrides: Record<string, string> = {}) {
+  const client = requireSupabase()
+  const { data, error: loadError } = await client.from(table).select('song_id,position').eq(parentColumn, parentId)
+  if (loadError) throw loadError
+
+  const existing = (data ?? []) as Array<{ song_id: string; position: number }>
+  if (existing.length === songIds.length && existing.every((item, index) => songIds[index] === item.song_id)) return
+
+  const desiredIds = new Set(songIds)
+  const removedIds = existing.filter((item) => !desiredIds.has(item.song_id)).map((item) => item.song_id)
+  if (removedIds.length) {
+    const { error } = await client.from(table).delete().eq(parentColumn, parentId).in('song_id', removedIds)
+    if (error) throw error
+  }
+
+  const retained = existing.filter((item) => desiredIds.has(item.song_id))
+  const maxPosition = existing.reduce((max, item) => Math.max(max, item.position), -1)
+  const temporaryBase = maxPosition + songIds.length + 1
+  for (const [index, item] of retained.entries()) {
+    const { error } = await client.from(table).update({ position: temporaryBase + index }).eq(parentColumn, parentId).eq('song_id', item.song_id)
+    if (error) throw error
+  }
+
+  const retainedIds = new Set(retained.map((item) => item.song_id))
+  const newRows = songIds.flatMap((songId, position) => retainedIds.has(songId) ? [] : [{ [parentColumn]: parentId, song_id: songId, position, starting_chord_override: startingChordOverrides[songId] ?? null }])
+  if (newRows.length) {
+    const { error } = await client.from(table).insert(newRows)
+    if (error) throw error
+  }
+
+  for (const [position, songId] of songIds.entries()) {
+    if (!retainedIds.has(songId)) continue
+    const { error } = await client.from(table).update({ position }).eq(parentColumn, parentId).eq('song_id', songId)
+    if (error) throw error
+  }
+}
+
 export async function upsertSunday(setlist: Setlist) {
   const client = requireSupabase()
-  const { error: sundayError } = await client.from('sundays').upsert({
+  const { error } = await client.from('sundays').upsert({
     id: setlist.id,
     name: setlist.name,
     service_date: setlist.date || new Date().toISOString().slice(0, 10),
     description: setlist.description,
   })
-  if (sundayError) throw sundayError
+  if (error) throw error
+  await syncSongAssignments('sunday_songs', 'sunday_id', setlist.id, setlist.songIds, setlist.startingChordOverrides)
+}
 
-  const { error: deleteError } = await client.from('sunday_songs').delete().eq('sunday_id', setlist.id)
-  if (deleteError) throw deleteError
+export async function setSundaySongStartingChord(sundayId: string, songId: string, startingChord: string | null) {
+  const client = requireSupabase()
+  const { data, error } = await client.from('sunday_songs').update({ starting_chord_override: startingChord }).eq('sunday_id', sundayId).eq('song_id', songId).select('song_id').maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('This song is no longer assigned to the selected Sunday.')
+}
 
-  if (setlist.songIds.length) {
-    const { error: songsError } = await client.from('sunday_songs').insert(setlist.songIds.map((songId, position) => ({ sunday_id: setlist.id, song_id: songId, position })))
-    if (songsError) throw songsError
-  }
+export async function upsertEvent(event: WorshipEvent) {
+  const client = requireSupabase()
+  const { error } = await client.from('events').upsert({
+    id: event.id,
+    name: event.name,
+    event_date: event.date || new Date().toISOString().slice(0, 10),
+    description: event.description,
+  })
+  if (error) throw error
+  await syncSongAssignments('event_songs', 'event_id', event.id, event.songIds, event.startingChordOverrides)
+}
+
+export async function setEventSongStartingChord(eventId: string, songId: string, startingChord: string | null) {
+  const client = requireSupabase()
+  const { data, error } = await client.from('event_songs').update({ starting_chord_override: startingChord }).eq('event_id', eventId).eq('song_id', songId).select('song_id').maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('This song is no longer assigned to the selected event.')
 }
 
 export async function deleteSunday(setlistId: string) {
   const client = requireSupabase()
   const { error } = await client.from('sundays').delete().eq('id', setlistId)
+  if (error) throw error
+}
+
+export async function deleteEvent(eventId: string) {
+  const client = requireSupabase()
+  const { error } = await client.from('events').delete().eq('id', eventId)
   if (error) throw error
 }

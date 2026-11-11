@@ -11,6 +11,7 @@ const flatNames: Record<string, string> = {
 }
 
 const chordTokenPattern = /^(?:[A-G](?:#|b)?(?:maj7|m7|maj9|m9|add9|sus[24]|dim|aug|7|9|11|13|6|m6|5)?(?:\/[A-G](?:#|b)?)?|[A-G](?:#|b)?m(?:7|9|6)?(?:\/[A-G](?:#|b)?)?)$/i
+const progressionTokenPattern = /[A-G](?:#|b)?(?:maj7|maj9|m(?:7|9|6)?|add9|sus[24]|dim|aug|7|9|11|13|6|5)?(?:\/[A-G](?:#|b)?)?|\/+/gi
 
 export function normalizeKey(key: string) {
   const value = key.replace('b', '#')
@@ -23,16 +24,27 @@ export function parseChordProgression(input: string) {
   const cleaned = input
     .replace(/[|]/g, ' ')
     .replace(/[–—]/g, '-')
-    .replace(/\s*[-/]+\s*/g, ' ')
+    .replace(/\s*-\s*/g, ' ')
     .trim()
 
   if (!cleaned) return []
 
-  return cleaned
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .filter((part) => chordTokenPattern.test(part))
+  const tokens: string[] = []
+  for (const part of cleaned.split(/\s+/).filter(Boolean)) {
+    const partTokens: string[] = []
+    let cursor = 0
+    progressionTokenPattern.lastIndex = 0
+    let match = progressionTokenPattern.exec(part)
+    while (match && match.index === cursor) {
+      partTokens.push(match[0])
+      cursor = progressionTokenPattern.lastIndex
+      match = progressionTokenPattern.exec(part)
+    }
+
+    if (cursor === part.length && partTokens.length > 0) tokens.push(...partTokens)
+  }
+
+  return tokens.filter((token) => token === '/' || /^\/+$/.test(token) || chordTokenPattern.test(token))
 }
 
 export function extractChordLines(lines: string[]) {

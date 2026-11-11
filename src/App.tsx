@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { BookOpen, CalendarDays, Guitar, Home, LogIn, LogOut, Settings as SettingsIcon } from 'lucide-react'
 import { Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
-import { defaultSettings, demoSongs, normalizeSong, type Setlist, type Settings, type Song } from './data'
+import { defaultSettings, demoSongs, normalizeSong, type Setlist, type Settings, type Song, type WorshipEvent } from './data'
 import { LocalRepository } from './repositories'
-import { deleteSharedSong, deleteSunday, loadSharedSnapshot, upsertSharedSong, upsertSunday } from './sharedRepository'
+import { deleteEvent, deleteSharedSong, deleteSunday, loadSharedSnapshot, setEventSongStartingChord, setSundaySongStartingChord, upsertEvent, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
-import { ChordLibrary, HomePage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
+import { EventPage, EventSongPage, HomePage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5 } from './v5'
 
 const id = () => crypto.randomUUID?.() ?? Math.random().toString(36).slice(2, 9)
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
@@ -27,6 +27,7 @@ function useLocalState<T>(key: string, initial: T) {
 export default function App() {
   const [songs, setSongs] = useLocalState<Song[]>('wg-songs', demoSongs)
   const [setlists, setSetlists] = useLocalState<Setlist[]>('wg-setlists', seedSetlists)
+  const [events, setEvents] = useLocalState<WorshipEvent[]>('wg-events', [])
   const [settings, setSettings] = useLocalState<Settings>('wg-settings', defaultSettings)
   const [role, setRole] = useState<UserRole>('user')
   const [authLoading, setAuthLoading] = useState(supabaseConfigured)
@@ -79,17 +80,47 @@ export default function App() {
   useEffect(() => {
     if (!supabaseConfigured) return
     let active = true
-    void loadSharedSnapshot().then((snapshot) => {
-      if (!active) return
-      setSongs(snapshot.songs)
-      setSetlists(snapshot.setlists)
-    }).catch((loadError) => {
-      if (active) setError(loadError instanceof Error ? loadError.message : 'Unable to load shared content.')
-    }).finally(() => {
-      if (active) setDataLoading(false)
-    })
-    return () => { active = false }
-  }, [setSongs, setSetlists])
+    const client = supabase
+    if (!client) return
+    let refreshSequence = 0
+    let refreshTimer: number | undefined
+    const refresh = async () => {
+      const requestSequence = ++refreshSequence
+      try {
+        const snapshot = await loadSharedSnapshot()
+        if (!active || requestSequence !== refreshSequence) return
+        setSongs(snapshot.songs)
+        setSetlists(snapshot.setlists)
+        setEvents(snapshot.events)
+      } catch (loadError) {
+        if (active && requestSequence === refreshSequence) setError(loadError instanceof Error ? loadError.message : 'Unable to load shared content.')
+      } finally {
+        if (active && requestSequence === refreshSequence) setDataLoading(false)
+      }
+    }
+    const scheduleRefresh = () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => { void refresh() }, 300)
+    }
+
+    void refresh()
+    const channel = client.channel('shared-content-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'songs' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'song_sections' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sundays' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sunday_songs' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_songs' }, scheduleRefresh)
+      .subscribe((status) => {
+        if (active && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) setError('Realtime updates are unavailable. Refresh to load the latest shared content.')
+      })
+
+    return () => {
+      active = false
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      void client.removeChannel(channel)
+    }
+  }, [setSongs, setSetlists, setEvents])
 
   const saveSong = async (song: Song) => {
     const normalized = normalizeSong(song)
@@ -107,7 +138,16 @@ export default function App() {
     try {
       if (supabaseConfigured) await deleteSharedSong(song.id)
       setSongs((current) => current.filter((item) => item.id !== song.id))
-      setSetlists((current) => current.map((setlist) => ({ ...setlist, songIds: setlist.songIds.filter((songId) => songId !== song.id) })))
+      setSetlists((current) => current.map((setlist) => {
+        const startingChordOverrides = { ...setlist.startingChordOverrides }
+        delete startingChordOverrides[song.id]
+        return { ...setlist, songIds: setlist.songIds.filter((songId) => songId !== song.id), startingChordOverrides }
+      }))
+      setEvents((current) => current.map((event) => {
+        const startingChordOverrides = { ...event.startingChordOverrides }
+        delete startingChordOverrides[song.id]
+        return { ...event, songIds: event.songIds.filter((songId) => songId !== song.id), startingChordOverrides }
+      }))
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete song.')
     }
@@ -117,14 +157,71 @@ export default function App() {
   const createSetlist = async () => {
     const setlist: Setlist = { id: id(), name: `Sunday ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, date: new Date().toISOString().slice(0, 10), description: '', songIds: [] }
     await updateSetlist(setlist)
-    setSetlists((current) => current.some((item) => item.id === setlist.id) ? current : [...current, setlist])
+    navigate(`/sunday/${setlist.id}`)
   }
   const updateSetlist = async (setlist: Setlist) => {
     try {
       if (supabaseConfigured) await upsertSunday(setlist)
-      setSetlists((current) => current.map((item) => item.id === setlist.id ? setlist : item))
+      setSetlists((current) => current.some((item) => item.id === setlist.id) ? current.map((item) => item.id === setlist.id ? setlist : item) : [setlist, ...current])
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Unable to update Sunday.')
+    }
+  }
+  const updateSundayStartingChord = async (sundayId: string, songId: string, startingChord: string | null) => {
+    try {
+      if (supabaseConfigured) await setSundaySongStartingChord(sundayId, songId, startingChord)
+      setSetlists((current) => current.map((item) => {
+        if (item.id !== sundayId) return item
+        const overrides = { ...item.startingChordOverrides }
+        if (startingChord) overrides[songId] = startingChord
+        else delete overrides[songId]
+        return { ...item, startingChordOverrides: overrides }
+      }))
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Unable to save Sunday starting chord.')
+      throw updateError
+    }
+  }
+  const createEvent = async () => {
+    const event: WorshipEvent = { id: id(), name: 'New Event', date: new Date().toISOString().slice(0, 10), description: '', songIds: [] }
+    try {
+      if (supabaseConfigured) await upsertEvent(event)
+      setEvents((current) => [event, ...current])
+      navigate(`/events/${event.id}`)
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : 'Unable to create event.')
+    }
+  }
+  const updateEvent = async (event: WorshipEvent) => {
+    try {
+      if (supabaseConfigured) await upsertEvent(event)
+      setEvents((current) => current.map((item) => item.id === event.id ? event : item))
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Unable to update event.')
+    }
+  }
+  const removeEvent = async (eventId: string) => {
+    try {
+      if (supabaseConfigured) await deleteEvent(eventId)
+      setEvents((current) => current.filter((event) => event.id !== eventId))
+      navigate('/events')
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete event.')
+    }
+  }
+  const updateEventStartingChord = async (eventId: string, songId: string, startingChord: string | null) => {
+    try {
+      if (supabaseConfigured) await setEventSongStartingChord(eventId, songId, startingChord)
+      setEvents((current) => current.map((item) => {
+        if (item.id !== eventId) return item
+        const overrides = { ...item.startingChordOverrides }
+        if (startingChord) overrides[songId] = startingChord
+        else delete overrides[songId]
+        return { ...item, startingChordOverrides: overrides }
+      }))
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Unable to save event starting chord.')
+      throw updateError
     }
   }
   const duplicateSetlist = async (previous: Setlist) => updateSetlist({ ...previous, id: id(), name: `${previous.name} · Copy`, date: new Date().toISOString().slice(0, 10) })
@@ -132,7 +229,7 @@ export default function App() {
 
   if (authLoading || dataLoading) return <div className="page"><p>Loading shared worship content...</p></div>
 
-  const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/chords', label: 'Chords', icon: Guitar }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
+  const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/events', label: 'Events', icon: CalendarDays }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
   return (
     <div className="app">
       <Sidebar items={publicNav} isOwner={isOwner} onSignOut={signOut} />
@@ -145,7 +242,12 @@ export default function App() {
           <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId" element={<SongPage songs={songs} settings={settings} isOwner={isOwner} />} />
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} isOwner={isOwner} />} />
-          <Route path="/chords" element={<ChordLibrary />} />
+          <Route path="/sunday/:sundayId" element={<SundayPageV5 songs={songs} setlists={setlists} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} isOwner={isOwner} />} />
+          <Route path="/sunday/:sundayId/songs/:songId" element={<SongPage songs={songs} settings={settings} isOwner={isOwner} contextType="sunday" setlists={setlists} onSetStartingChord={updateSundayStartingChord} />} />
+          <Route path="/events" element={<EventPage songs={songs} events={events} onCreate={createEvent} onUpdate={updateEvent} onDelete={removeEvent} isOwner={isOwner} />} />
+          <Route path="/events/:eventId" element={<EventPage songs={songs} events={events} onCreate={createEvent} onUpdate={updateEvent} onDelete={removeEvent} isOwner={isOwner} />} />
+          <Route path="/events/:eventId/songs/:songId" element={<SongPage songs={songs} settings={settings} isOwner={isOwner} contextType="event" events={events} onSetStartingChord={updateEventStartingChord} />} />
+          <Route path="/events/:eventId/flow/:songId" element={<EventSongPage songs={songs} settings={settings} events={events} isOwner={isOwner} onSetStartingChord={updateEventStartingChord} />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />
           <Route path="/owner" element={<OwnerLogin />} />
           <Route path="*" element={<HomePage songs={songs} setlists={setlists} onCreateSong={createSong} isOwner={isOwner} />} />
