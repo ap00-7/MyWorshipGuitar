@@ -487,7 +487,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
           <h1>{song.title}</h1>
           <div className="song-tags">
             <span>Starting Chord {viewKey1}</span>
-            <span>{guitar === 2 ? `Guitar 2: ${shapeKey} shapes` : `Guitar 1: ${shapeKey} shapes`}</span>
+            <span>{guitar === 2 ? `Guitar 2: ${shapeKey} shapes` : `Guitar 1: ${viewKey1} shapes`}</span>
             <span>Capo {displayedCapo}</span>
             {guitar === 2 && <span>{customGuitar2 ? 'Custom Guitar 2' : 'Dynamic Guitar 2'}</span>}
           </div>
@@ -537,7 +537,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
       )}
 
       <div className="song-key-bar">
-        <strong>{shapeKey}</strong>
+        <strong>{viewKey1}</strong>
         <small>Starting chord {viewKey1} · Guitar {guitar}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => {
