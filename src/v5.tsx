@@ -373,9 +373,10 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
     setSelectedGuitar2Option((current) => current.shapeKey === nextOption.shapeKey && current.capo === nextOption.capo && current.concertKey === nextOption.concertKey ? current : nextOption)
   }, [compatibleGuitar2Options, viewKey1, selectedGuitar2Option, guitar1Progression, effectiveGuitar1Capo, settings.notation])
 
-  const activeDisplayKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.shapeKey
+  const guitar2UsesStartingChordSelector = guitar === 2 && savedCapo !== undefined
+  const activeDisplayKey = guitar === 1 || guitar2UsesStartingChordSelector ? viewKey1 : selectedGuitar2Option.shapeKey
   const handleKeySelect = (nextKey: string) => {
-    if (guitar === 1) {
+    if (guitar === 1 || guitar2UsesStartingChordSelector) {
       setViewKey1(nextKey)
       return
     }
@@ -559,7 +560,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
         }}>Original</button>
         <button onClick={() => updateKey(1)}>＋1</button>
         <select value={activeDisplayKey} onChange={(event) => handleKeySelect(event.target.value)} aria-label="Select starting chord">
-          {(guitar === 1 ? keyOptions : compatibleGuitar2Options.map((option) => option.key)).map((key) => <option key={key} value={key}>{key}</option>)}
+          {(guitar === 1 || guitar2UsesStartingChordSelector ? keyOptions : compatibleGuitar2Options.map((option) => option.key)).map((key) => <option key={key} value={key}>{key}</option>)}
         </select>
         <div className="guitar-switch">
           <button className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>
