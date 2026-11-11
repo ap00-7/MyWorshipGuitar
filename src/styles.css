@@ -753,16 +753,25 @@ nav {
 
 .continuous-page {
   max-width: 1040px;
-  padding-top: 20px;
+  padding-top: 12px;
 }
 
 .continuous-page .back-button {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 
 .continuous-page .v5-song-header {
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.continuous-page .v5-song-header h1 {
+  font-size: clamp(30px, 4vw, 46px);
+}
+
+.continuous-page .song-tags {
+  gap: 6px;
+  margin-top: 7px;
 }
 
 .back-button {
@@ -856,11 +865,11 @@ nav {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 12px 14px;
+  padding: 9px 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel);
-  margin-bottom: 18px;
+  margin-bottom: 12px;
   box-shadow: 0 8px 20px rgba(33, 28, 22, 0.04);
 }
 
