@@ -408,10 +408,13 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   const displayedCapo = selectedCapo
   const viewKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.concertKey
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
-  const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
+  const guitar2SoundingKey = soundingKey(viewKey1, effectiveGuitar1Capo, settings.notation)
+  const shapeKey = guitar === 1
+    ? capoShapeKey(viewKey1, effectiveGuitar1Capo, settings.notation)
+    : capoShapeKey(guitar2SoundingKey, selectedCapo, settings.notation)
   const capoAdjustedShapeLabel = guitar === 1
     ? soundingKey(viewKey1, effectiveGuitar1Capo, settings.notation)
-    : soundingKey(shapeKey, selectedCapo, settings.notation)
+    : guitar2SoundingKey
   const updateKey = (amount: number) => {
     if (guitar === 1) {
       setViewKey1((current) => shiftKey(current, amount, settings.notation))
