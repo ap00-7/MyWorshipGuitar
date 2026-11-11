@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Info, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, GripVertical, Image as ImageIcon, Info, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { parseImportedChordText, readChordSheetImage } from './chordImport'
 import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
@@ -9,6 +9,7 @@ import { getWorshipFlowStartingChord, moveEventFlowSong, moveWorshipFlowSong, or
 import { barreSegments, fretboardRow, guitarStringNames, guitarStringNumbers, stringIndicator } from './chordDiagram'
 import { chordDefinitions } from './chordDefinitions'
 import type { ChordDefinition } from './chordDefinitions'
+import { useSongReordering } from './songReordering'
 
 const editorKey = () => crypto.randomUUID()
 
@@ -1131,6 +1132,10 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const sortedSessions = [...sessions].sort((left, right) => (right.date || '').localeCompare(left.date || ''))
   const requestedSessionId = searchParams.get('session')
+  const sessionForReorder = sortedSessions.find((item) => item.id === requestedSessionId) ?? sortedSessions.find((item) => item.id === selectedId) ?? sortedSessions[0]
+  const eventReordering = useSongReordering(sessionForReorder?.songIds ?? [], isOwner, (songIds) => {
+    if (sessionForReorder) void onUpdate({ ...sessionForReorder, songIds })
+  })
   const session = sortedSessions.find((item) => item.id === requestedSessionId) ?? sortedSessions.find((item) => item.id === selectedId) ?? sortedSessions[0]
 
   const formatSessionDate = (value: string) => {
@@ -1182,15 +1187,6 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
 
   const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
 
-  const moveSong = (songId: string, direction: -1 | 1) => {
-    const index = session.songIds.indexOf(songId)
-    const nextIndex = index + direction
-    if (index < 0 || nextIndex < 0 || nextIndex >= session.songIds.length) return
-    const next = [...session.songIds]
-    ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
-    void onUpdate({ ...session, songIds: next })
-  }
-
   return (
     <div className="page private-session-page">
       <header className="private-session-header">
@@ -1215,17 +1211,16 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
         <main className="private-session-songs">
           {session.songIds.length > 0 ? <>
             <div className="section-heading"><div><span className="eyebrow">Planned songs</span></div></div>
-            <div className="private-session-list">
+            <div className="private-session-list" onClickCapture={eventReordering.onClickCapture}>
             {session.songIds.map((songId, index) => {
               const song = songs.find((item) => item.id === songId)
               if (!song) return null
               return (
-                <div className="private-session-song" key={song.id}>
+                <div className={`private-session-song ${eventReordering.getItemClassName(index)}`} data-reorder-song-index={index} key={song.id}>
                   <span className="song-order">{index + 1}</span>
                   <Link to={`/songs/${song.id}?context=private-session&session=${encodeURIComponent(session.id)}`} className="song-summary"><strong>{song.title}</strong></Link>
                   {isOwner && <div className="private-session-controls">
-                    <button className="icon-button" onClick={() => moveSong(song.id, -1)} disabled={index === 0} aria-label="Move earlier"><ChevronLeft size={15} /></button>
-                    <button className="icon-button" onClick={() => moveSong(song.id, 1)} disabled={index === session.songIds.length - 1} aria-label="Move later"><ChevronRight size={15} /></button>
+                    <button className="icon-button song-reorder-handle" type="button" {...eventReordering.getHandleProps(index, song.id, song.title)}><GripVertical size={17} /></button>
                     <button className="icon-button" onClick={() => void onUpdate({ ...session, songIds: session.songIds.filter((item) => item !== song.id) })} aria-label="Remove from event"><Trash2 size={15} /></button>
                   </div>}
                 </div>
@@ -1255,6 +1250,10 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
   const defaultSunday = chooseDisplayedSunday(sundaySetlists) ?? sundaySetlists[0]
   const sunday = sundaySetlists.find((item) => item.id === selectedSundayId) ?? defaultSunday
   const previous = sundaySetlists.find((item) => item.id !== sunday?.id)
+  const sundayForReorder = sunday
+  const sundayReordering = useSongReordering(sundayForReorder?.songIds ?? [], isOwner, (songIds) => {
+    if (sundayForReorder) onUpdate({ ...sundayForReorder, songIds })
+  })
 
   useEffect(() => {
     if (sunday && sunday.id !== selectedSundayId) setSelectedSundayId(sunday.id)
@@ -1280,16 +1279,6 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
 
   const available = songs.filter((song) => !sunday.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
 
-  const moveSong = (songId: string, direction: -1 | 1) => {
-    const index = sunday.songIds.indexOf(songId)
-    const nextIndex = index + direction
-    if (index < 0 || nextIndex < 0 || nextIndex >= sunday.songIds.length) return
-
-    const next = [...sunday.songIds]
-    ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
-    onUpdate({ ...sunday, songIds: next })
-  }
-
   return (
     <div className="page sunday-page">
       <header className="sunday-header">
@@ -1314,7 +1303,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
 
       <div className="sunday-layout">
         <main className="sunday-songs">
-          {sunday.songIds.length > 0 ? <div className="sunday-list">
+          {sunday.songIds.length > 0 ? <div className="sunday-list" onClickCapture={sundayReordering.onClickCapture}>
             <div className="section-heading">
               <div><span className="eyebrow">Songs for this service</span></div>
             </div>
@@ -1322,14 +1311,13 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
               const song = songs.find((item) => item.id === songId)
               if (!song) return null
               return (
-                <div className="sunday-song" key={song.id}>
+                <div className={`sunday-song ${sundayReordering.getItemClassName(index)}`} data-reorder-song-index={index} key={song.id}>
                   <span className="song-order">{index + 1}</span>
                   <Link to={`/songs/${song.id}?context=sunday&sunday=${encodeURIComponent(sunday.id)}`} className="song-summary">
                     <strong>{song.title}</strong>
                   </Link>
                   {isOwner && <div className="sunday-controls">
-                    <button className="icon-button" onClick={() => moveSong(song.id, -1)} aria-label="Move earlier" disabled={index === 0}><ChevronLeft size={15} /></button>
-                    <button className="icon-button" onClick={() => moveSong(song.id, 1)} aria-label="Move later" disabled={index === sunday.songIds.length - 1}><ChevronRight size={15} /></button>
+                    <button className="icon-button song-reorder-handle" type="button" {...sundayReordering.getHandleProps(index, song.id, song.title)}><GripVertical size={17} /></button>
                     <button className="icon-button" onClick={() => onUpdate({ ...sunday, songIds: sunday.songIds.filter((item) => item !== song.id) })} aria-label="Remove from Sunday"><Trash2 size={15} /></button>
                   </div>}
                 </div>

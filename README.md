@@ -14,7 +14,7 @@ Worship Guitar is an owner-managed chord-sheet companion for worship musicians. 
 - Public read-only access with Supabase Auth, profile roles, RLS, and protected chord-image storage
 - Installable PWA with a small offline app-shell cache
 - Continuous chord sheets with no lyric-first performance flow
-- Sunday workspace with date editing, add/remove, drag reorder, and duplicate-previous workflow
+- Sunday and Event schedules with date editing, song management, and press-and-hold drag reorder; Sundays also support duplicate-previous
 - Per-Sunday Worship Flow with owner-managed song selection and an independent performance order
 - Compact, chord-first, read-only Guitar 1 display with shared Supabase updates
 

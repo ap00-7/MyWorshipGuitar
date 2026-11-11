@@ -1750,6 +1750,44 @@ nav {
   padding: 12px 10px;
   border: 1px solid var(--line);
   border-radius: 12px;
+  position: relative;
+  transition: background-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.song-reorder-handle {
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.song-reorder-handle:active {
+  cursor: grabbing;
+}
+
+.schedule-song-dragging {
+  z-index: 1;
+  opacity: 0.58;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(33, 28, 22, 0.16);
+}
+
+.schedule-song-drop-before::before,
+.schedule-song-drop-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--gold);
+  pointer-events: none;
+}
+
+.schedule-song-drop-before::before {
+  top: -7px;
+}
+
+.schedule-song-drop-after::after {
+  bottom: -7px;
 }
 
 .song-order {
