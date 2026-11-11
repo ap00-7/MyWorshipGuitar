@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { BookOpen, CalendarDays, Guitar, Home, LogIn, LogOut, Settings as SettingsIcon } from 'lucide-react'
+import { BookOpen, CalendarDays, Home, LogIn, LogOut, Settings as SettingsIcon } from 'lucide-react'
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { defaultSettings, demoSongs, normalizeSong, type PrivateSession, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
-import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadSharedSnapshot, saveEventFlow as persistEventFlow, saveWorshipFlow as persistWorshipFlow, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
+import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadSharedSnapshot, saveEventFlow as persistEventFlow, saveWorshipFlow as persistWorshipFlow, setEventSongStartingChord, setSundaySongStartingChord, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
-import { AboutPage, ChordLibrary, EventFlowPage, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5, WorshipFlowPage } from './v5'
-import { orderedEventFlowIds, orderedWorshipFlowIds, resetWorshipFlowStartingChord, setWorshipFlowStartingChord, type WorshipFlowStartingChordPreferences } from './worshipFlow'
+import { AboutPage, EventFlowPage, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5, WorshipFlowPage } from './v5'
+import { orderedEventFlowIds, orderedWorshipFlowIds } from './worshipFlow'
 import { BrandLogo } from './components/BrandLogo'
 
 const seedSetlists: Setlist[] = [{ id: 'sunday', name: 'Sunday Morning', date: 'This Sunday', description: 'A simple set for gathered worship.', songIds: demoSongs.map((song) => song.id) }]
@@ -22,7 +22,6 @@ function scrollSection(pathname: string, _search: string) {
   if (pathname.startsWith('/songs')) return 'songs'
   if (pathname.startsWith('/sunday')) return 'sunday'
   if (pathname.startsWith('/private-session')) return 'private-session'
-  if (pathname.startsWith('/chords')) return 'chords'
   if (pathname.startsWith('/about')) return 'about'
   if (pathname.startsWith('/settings')) return 'settings'
   if (pathname.startsWith('/owner')) return 'owner'
@@ -51,9 +50,7 @@ export default function App() {
   const [worshipFlows, setWorshipFlows] = useLocalState<Record<string, string[]>>('wg-worship-flows', {}, !supabaseConfigured)
   const [eventFlows, setEventFlows] = useLocalState<Record<string, string[]>>('wg-event-flows', {}, !supabaseConfigured)
   const [worshipFlowFontScale, setWorshipFlowFontScale] = useLocalState<number>('wg-worship-flow-font-scale', 1)
-  const [worshipFlowStartingChords, setWorshipFlowStartingChords] = useLocalState<WorshipFlowStartingChordPreferences>('wg-worship-flow-starting-chords', {})
   const [eventFlowFontScale, setEventFlowFontScale] = useLocalState<number>('wg-event-flow-font-scale', 1)
-  const [eventFlowStartingChords, setEventFlowStartingChords] = useLocalState<WorshipFlowStartingChordPreferences>('wg-event-flow-starting-chords', {})
   const [settings, setSettings] = useLocalState<Settings>('wg-settings', defaultSettings)
   const [role, setRole] = useState<UserRole>('user')
   const [authLoading, setAuthLoading] = useState(supabaseConfigured)
@@ -64,6 +61,8 @@ export default function App() {
   const mainRef = useRef<HTMLElement | null>(null)
   const scrollPositionsRef = useRef<Record<string, number>>({})
   const isOwner = role === 'owner'
+  const worshipFlowStartingChords = Object.fromEntries(setlists.map((setlist) => [setlist.id, setlist.startingChordOverrides ?? {}]))
+  const eventFlowStartingChords = Object.fromEntries(privateSessions.map((session) => [session.id, session.startingChordOverrides ?? {}]))
   const currentScrollSection = scrollSection(location.pathname, location.search)
 
   useEffect(() => {
@@ -340,6 +339,42 @@ export default function App() {
       throw saveError instanceof Error ? saveError : new Error(message)
     }
   }
+  const updateContextStartingChord = async (context: 'sunday' | 'private-session', contextId: string, songId: string, startingChord: string | null) => {
+    try {
+      if (!isOwner) throw new Error('Only the owner can set a starting chord.')
+      const assignment = context === 'sunday'
+        ? setlists.find((item) => item.id === contextId)
+        : privateSessions.find((item) => item.id === contextId)
+      if (!assignment?.songIds.includes(songId)) throw new Error('This song is no longer assigned to the selected schedule or event.')
+      if (supabaseConfigured) {
+        if (context === 'sunday') await setSundaySongStartingChord(contextId, songId, startingChord)
+        else await setEventSongStartingChord(contextId, songId, startingChord)
+        const snapshot = await refreshShared()
+        const savedChord = context === 'sunday'
+          ? snapshot.setlists.find((item) => item.id === contextId)?.startingChordOverrides?.[songId] ?? null
+          : snapshot.privateSessions.find((item) => item.id === contextId)?.startingChordOverrides?.[songId] ?? null
+        if (savedChord !== startingChord) throw new Error('The starting chord was saved but could not be verified.')
+      } else {
+        const updateOverrides = (overrides: Record<string, string> | undefined) => {
+          const next = { ...overrides }
+          if (startingChord) next[songId] = startingChord
+          else delete next[songId]
+          return next
+        }
+        if (context === 'sunday') {
+          setSetlists((current) => current.map((item) => item.id === contextId ? { ...item, startingChordOverrides: updateOverrides(item.startingChordOverrides) } : item))
+        } else {
+          setPrivateSessions((current) => current.map((item) => item.id === contextId ? { ...item, startingChordOverrides: updateOverrides(item.startingChordOverrides) } : item))
+        }
+      }
+      setError('')
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Unable to save the starting chord.'
+      console.error('Unable to save assignment starting chord', { context, contextId, songId, error: saveError })
+      setError(message)
+      throw saveError instanceof Error ? saveError : new Error(message)
+    }
+  }
   const removeSunday = async (sundayId: string) => {
     if (supabaseConfigured) {
       await deleteSunday(sundayId)
@@ -391,7 +426,7 @@ export default function App() {
 
   if (shouldShowGlobalLoading) return <div className="page"><p>Loading shared worship content...</p></div>
 
-  const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/private-session', label: 'Events', icon: CalendarDays }, { to: '/chords', label: 'Chords', icon: Guitar }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
+  const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/private-session', label: 'Events', icon: CalendarDays }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
   return (
     <div className={`app${location.pathname === '/worship-flow' ? ' app-worship-flow' : ''}${location.pathname === '/event-flow' ? ' app-event-flow' : ''}`}>
       <Sidebar items={publicNav} isOwner={isOwner} onSignOut={signOut} />
@@ -402,12 +437,11 @@ export default function App() {
           <Route path="/songs" element={<SongLibrary songs={songs} onCreate={createSong} onDuplicate={duplicateSong} onDelete={deleteSong} isOwner={isOwner} />} />
           <Route path="/songs/new" element={isOwner ? <SongEditor key="new-song" songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
           <Route path="/songs/:songId/edit" element={isOwner ? <SongEditor key={`${location.pathname}`} songs={songs} onSave={saveSong} onDelete={deleteSong} /> : <ReadOnlyPage />} />
-          <Route path="/songs/:songId" element={<SongPage key={location.pathname + location.search} songs={songs} setlists={setlists} privateSessions={privateSessions} settings={settings} isOwner={isOwner} />} />
+          <Route path="/songs/:songId" element={<SongPage key={location.pathname + location.search} songs={songs} setlists={setlists} privateSessions={privateSessions} settings={settings} isOwner={isOwner} onSetStartingChord={updateContextStartingChord} />} />
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} onDelete={removeSunday} isOwner={isOwner} />} />
-          <Route path="/worship-flow" element={<WorshipFlowPage songs={songs} setlists={setlists} worshipFlows={worshipFlows} startingChords={worshipFlowStartingChords} onStartingChordChange={(sundayId, songId, key) => setWorshipFlowStartingChords((current) => setWorshipFlowStartingChord(current, sundayId, songId, key))} onStartingChordReset={(sundayId, songId) => setWorshipFlowStartingChords((current) => resetWorshipFlowStartingChord(current, sundayId, songId))} settings={settings} fontScale={worshipFlowFontScale} onFontScale={setWorshipFlowFontScale} isOwner={isOwner} onSaveFlow={updateWorshipFlow} />} />
-          <Route path="/event-flow" element={<EventFlowPage key={location.search} songs={songs} sessions={privateSessions} eventFlows={eventFlows} startingChords={eventFlowStartingChords} onStartingChordChange={(sessionId, songId, key) => setEventFlowStartingChords((current) => setWorshipFlowStartingChord(current, sessionId, songId, key))} onStartingChordReset={(sessionId, songId) => setEventFlowStartingChords((current) => resetWorshipFlowStartingChord(current, sessionId, songId))} settings={settings} fontScale={eventFlowFontScale} onFontScale={setEventFlowFontScale} isOwner={isOwner} onSaveFlow={updateEventFlow} />} />
+          <Route path="/worship-flow" element={<WorshipFlowPage songs={songs} setlists={setlists} worshipFlows={worshipFlows} startingChords={worshipFlowStartingChords} onStartingChordChange={(sundayId, songId, key) => { void updateContextStartingChord('sunday', sundayId, songId, key).catch(() => undefined) }} onStartingChordReset={(sundayId, songId) => { void updateContextStartingChord('sunday', sundayId, songId, null).catch(() => undefined) }} settings={settings} fontScale={worshipFlowFontScale} onFontScale={setWorshipFlowFontScale} isOwner={isOwner} onSaveFlow={updateWorshipFlow} />} />
+          <Route path="/event-flow" element={<EventFlowPage key={location.search} songs={songs} sessions={privateSessions} eventFlows={eventFlows} startingChords={eventFlowStartingChords} onStartingChordChange={(sessionId, songId, key) => { void updateContextStartingChord('private-session', sessionId, songId, key).catch(() => undefined) }} onStartingChordReset={(sessionId, songId) => { void updateContextStartingChord('private-session', sessionId, songId, null).catch(() => undefined) }} settings={settings} fontScale={eventFlowFontScale} onFontScale={setEventFlowFontScale} isOwner={isOwner} onSaveFlow={updateEventFlow} />} />
           <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else { setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); setEventFlows((current) => { const next = { ...current }; delete next[sessionId]; return next }) } }} />} />
-          <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/owner" element={<OwnerLogin />} />

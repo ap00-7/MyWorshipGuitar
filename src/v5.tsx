@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Info, Maximize2, Minimize2, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, Image as ImageIcon, Info, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { parseImportedChordText, readChordSheetImage } from './chordImport'
 import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
@@ -11,9 +11,6 @@ import { chordDefinitions } from './chordDefinitions'
 import type { ChordDefinition } from './chordDefinitions'
 
 const editorKey = () => crypto.randomUUID()
-
-const rootOptions = ['All', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
-const typeOptions = ['All', 'Major', 'Minor', '7', 'Maj7', 'm7', 'Sus2', 'Sus4', 'Add9', 'Dim', 'Aug', '6', '9', '11', '13', '5', 'Slash']
 
 function ConfirmDialog({ open, title, message, confirmLabel = 'Delete', cancelLabel = 'Cancel', onConfirm, onCancel }: { open: boolean; title: string; message: string; confirmLabel?: string; cancelLabel?: string; onConfirm: () => Promise<void> | void; onCancel: () => void }) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null)
@@ -200,11 +197,6 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
           <b>Song library</b>
           <small>Find a song</small>
         </Link>
-        <Link to="/chords">
-          <span className="home-action-symbol">♬</span>
-          <b>Chord library</b>
-          <small>Find a shape</small>
-        </Link>
       </div>
 
       <section className="library-panel">
@@ -301,7 +293,7 @@ export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }:
   )
 }
 
-export function SongPage({ songs, setlists, privateSessions, settings, isOwner }: { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[]; settings: Settings; isOwner: boolean }) {
+export function SongPage({ songs, setlists, privateSessions, settings, isOwner, onSetStartingChord }: { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[]; settings: Settings; isOwner: boolean; onSetStartingChord: (context: 'sunday' | 'private-session', contextId: string, songId: string, startingChord: string | null) => Promise<void> }) {
   const { songId } = useParams()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -311,20 +303,26 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
   const sunday = setlists.find((item) => item.id === sundayId)
   const sessionId = searchParams.get('session')
   const session = privateSessions.find((item) => item.id === sessionId)
+  const savedStartingChord = context === 'sunday'
+    ? sunday?.startingChordOverrides?.[songId ?? '']
+    : context === 'private-session'
+      ? session?.startingChordOverrides?.[songId ?? '']
+      : undefined
   const contextSongIds = context === 'private-session' ? (session?.songIds ?? []) : context === 'sunday' ? (sunday?.songIds ?? []) : []
   const contextIndex = song ? contextSongIds.indexOf(song.id) : -1
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [guitar2Activated, setGuitar2Activated] = useState(false)
-  const [viewKey1, setViewKey1] = useState(song?.key ?? 'C')
+  const [viewKey1, setViewKey1] = useState(savedStartingChord ?? song?.key ?? 'C')
   const [selectedGuitar2Option, setSelectedGuitar2Option] = useState<SelectedGuitar2Option>(() => ({
     shapeKey: song ? capoShapeKey(song.key, song.capo, settings.notation) : 'C',
     capo: song?.capo ?? 0,
     concertKey: song?.key ?? 'C',
   }))
   const [chordScale, setChordScale] = useState(1)
-  const [sheetOnly, setSheetOnly] = useState(false)
-  const sheetRef = useRef<HTMLDivElement>(null)
-  const nativeFullscreen = useRef(false)
+  const [startingChordEditorOpen, setStartingChordEditorOpen] = useState(false)
+  const [pendingStartingChord, setPendingStartingChord] = useState(savedStartingChord ?? song?.key ?? 'C')
+  const [startingChordSaving, setStartingChordSaving] = useState(false)
+  const [startingChordError, setStartingChordError] = useState('')
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const customGuitar2 = song ? hasCustomGuitar2(song) : false
   const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation, song?.key), [viewKey1, settings.notation, song?.key])
@@ -340,8 +338,10 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
 
   useEffect(() => {
     if (!song?.key) return
-    setViewKey1(song.key)
-  }, [song?.id, song?.key])
+    const currentKey = savedStartingChord ?? song.key
+    setViewKey1(currentKey)
+    setPendingStartingChord(currentKey)
+  }, [song?.id, song?.key, savedStartingChord])
 
   useEffect(() => {
     if (!compatibleGuitar2Options.length) return
@@ -361,18 +361,6 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
     }
     selectGuitar2Option(nextKey)
   }
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      if (document.fullscreenElement === sheetRef.current) setSheetOnly(true)
-      else if (nativeFullscreen.current) {
-        nativeFullscreen.current = false
-        setSheetOnly(false)
-      }
-    }
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  }, [])
 
   useEffect(() => {
     type WakeLock = { release: () => Promise<void> }
@@ -409,18 +397,23 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
     const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, nextKey, guitar1Progression, song.capo, settings.notation)
     if (option) setSelectedGuitar2Option(option)
   }
-  const enterSheetOnly = async () => {
-    setSheetOnly(true)
-    if (!sheetRef.current?.requestFullscreen) return
+  const assignmentId = context === 'sunday' ? sunday?.id : context === 'private-session' ? session?.id : undefined
+  const canSetStartingChord = isOwner && Boolean(assignmentId && contextSongIds.includes(song.id))
+  const saveStartingChord = async (startingChord: string | null) => {
+    if (!assignmentId || (context !== 'sunday' && context !== 'private-session')) return
+    setStartingChordSaving(true)
+    setStartingChordError('')
     try {
-      await sheetRef.current.requestFullscreen()
-      nativeFullscreen.current = true
-    } catch { /* CSS fallback remains active when browser fullscreen is unavailable. */ }
-  }
-  const exitSheetOnly = async () => {
-    nativeFullscreen.current = false
-    setSheetOnly(false)
-    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined)
+      await onSetStartingChord(context, assignmentId, song.id, startingChord)
+      const currentKey = startingChord ?? song.key
+      setViewKey1(currentKey)
+      setPendingStartingChord(currentKey)
+      setStartingChordEditorOpen(false)
+    } catch (saveError) {
+      setStartingChordError(saveError instanceof Error ? saveError.message : 'Unable to save the starting chord.')
+    } finally {
+      setStartingChordSaving(false)
+    }
   }
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     if (context === 'songs' || contextIndex < 0 || event.touches.length !== 1) return
@@ -445,7 +438,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
   }
 
   return (
-    <div className={`page continuous-page${sheetOnly ? ' sheet-only-fallback' : ''}`}>
+    <div className="page continuous-page">
       <button className="back-button" onClick={() => navigate(context === 'private-session' && session ? `/private-session?session=${encodeURIComponent(session.id)}` : context === 'sunday' && sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/songs')}><ChevronLeft size={16} />{context === 'private-session' ? 'Events' : context === 'sunday' ? 'Sunday' : 'Songs'}</button>
 
       <header className="v5-song-header">
@@ -461,9 +454,27 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
         </div>
         <div className="song-header-actions">
           {isOwner && <Link className="secondary-button" to={`/songs/${song.id}/edit`}>Edit</Link>}
-          <button className="primary-button" onClick={() => void enterSheetOnly()}><Maximize2 size={15} />Fullscreen</button>
+          {canSetStartingChord && <button className="secondary-button" onClick={() => { setPendingStartingChord(savedStartingChord ?? song.key); setStartingChordError(''); setStartingChordEditorOpen((open) => !open) }}>Set Starting Chord</button>}
         </div>
       </header>
+
+      {canSetStartingChord && startingChordEditorOpen && (
+        <section className="starting-chord-editor" aria-label="Set starting chord">
+          <div>
+            <strong>Current starting chord: {savedStartingChord ?? song.key}</strong>
+            <label htmlFor="context-starting-chord">Choose a starting chord</label>
+            <select id="context-starting-chord" value={pendingStartingChord} onChange={(event) => setPendingStartingChord(event.target.value)} disabled={startingChordSaving}>
+              {startingChordOptions.map((key) => <option key={key} value={key}>{key}</option>)}
+            </select>
+          </div>
+          {startingChordError && <p className="starting-chord-error" role="alert">{startingChordError}</p>}
+          <div className="starting-chord-actions">
+            <button className="primary-button" type="button" disabled={startingChordSaving} onClick={() => void saveStartingChord(pendingStartingChord)}><Save size={15} />Save</button>
+            <button className="secondary-button" type="button" disabled={startingChordSaving} onClick={() => { setStartingChordEditorOpen(false); setStartingChordError('') }}>Cancel</button>
+            {savedStartingChord && <button className="secondary-button" type="button" disabled={startingChordSaving} onClick={() => void saveStartingChord(null)}>Reset to original</button>}
+          </div>
+        </section>
+      )}
 
       <div className="song-key-bar">
         <strong>{shapeKey}</strong>
@@ -500,8 +511,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
         </div>
       </div>
 
-      <div className="continuous-sheet" ref={sheetRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
-        {sheetOnly && <button className="sheet-exit-button" onClick={() => void exitSheetOnly()}><Minimize2 size={15} />Exit full screen</button>}
+      <div className="continuous-sheet" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
         {song.sections.map((section, sectionIndex) => {
           const lines = guitar === 2
             ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, song.capo, selectedCapo, interval) })
@@ -510,7 +520,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
             <section className="continuous-section" key={section.id || section.name}>
               <div className="continuous-section-header">
                 <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · capo ${selectedCapo}` : ''}</div>
-                {sectionIndex === 0 && <div className={`continuous-title ${sheetOnly ? 'fullscreen-title' : 'normal-section-title'}`}>{song.title}</div>}
+                {sectionIndex === 0 && <div className="continuous-title normal-section-title">{song.title}</div>}
               </div>
               {lines.map((line, lineIndex) => (
                 <div className="continuous-line" key={`${section.id}-${lineIndex}`}>
@@ -525,15 +535,9 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner }
             <img src={song.chordImage.dataUrl} alt={`${song.title} chord sheet`} />
           </div>
         )}
-        {sheetOnly && song.notes.trim() && (
-          <section className="song-notes">
-            <div className="eyebrow">Notes</div>
-            <p>{renderNoteText(song.notes)}</p>
-          </section>
-        )}
       </div>
 
-      {!sheetOnly && song.notes.trim() && (
+      {song.notes.trim() && (
         <section className="song-notes">
           <div className="eyebrow">Notes</div>
           <p>{renderNoteText(song.notes)}</p>
@@ -985,88 +989,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   )
 }
 
-export function ChordLibrary() {
-  const [query, setQuery] = useState('')
-  const [rootFilter, setRootFilter] = useState('All')
-  const [typeFilter, setTypeFilter] = useState('All')
-  const [selectedChord, setSelectedChord] = useState<ChordDefinition | null>(null)
-
-  const chordDatabase = chordDefinitions
-
-  const visible = chordDatabase.filter((chord) => {
-    const queryText = `${chord.name} ${chord.root} ${chord.type}`.toLowerCase()
-    const matchesQuery = !query || queryText.includes(query.toLowerCase())
-    const matchesRoot = rootFilter === 'All' || chord.root === rootFilter
-    const matchesType = typeFilter === 'All' || chord.type === typeFilter
-    return matchesQuery && matchesRoot && matchesType
-  })
-
-  useEffect(() => {
-    if (!selectedChord) {
-      document.body.style.overflow = ''
-      return
-    }
-
-    document.body.style.overflow = 'hidden'
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setSelectedChord(null)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [selectedChord])
-
-  const closeModal = () => setSelectedChord(null)
-
-  return (
-    <div className="page chord-library-page">
-      <header className="v5-page-header">
-        <div>
-          <div className="eyebrow">Reference for guitarists</div>
-          <h1>Chord library</h1>
-        </div>
-      </header>
-
-      <div className="v5-search-row chord-search-row">
-        <div className="search">
-          <Search size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search chord names, roots, or types" />
-        </div>
-        <select value={rootFilter} onChange={(event) => setRootFilter(event.target.value)}>
-          {rootOptions.map((root) => <option key={root}>{root}</option>)}
-        </select>
-        <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-          {typeOptions.map((type) => <option key={type}>{type}</option>)}
-        </select>
-      </div>
-
-      <div className="chord-family-grid">
-        {visible.map((chord) => (
-          <button key={chord.name} type="button" className="library-chord" onClick={() => setSelectedChord(chord)}>
-            <strong>{chord.name}</strong>
-            <small>{chord.type}</small>
-            <GuitarChordDiagram chord={chord} compact />
-          </button>
-        ))}
-      </div>
-
-      {selectedChord && (
-        <div className="chord-detail-backdrop" role="presentation" onClick={(event) => {
-          if (event.target === event.currentTarget) closeModal()
-        }}>
-          <ChordDetail chord={selectedChord} onClose={closeModal} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function GuitarChordDiagram({ chord, compact = false }: { chord: ChordDefinition; compact?: boolean }) {
+function GuitarChordDiagram({ chord }: { chord: ChordDefinition }) {
   const fretCount = 5
   const markers = chord.strings.map((position, index) => ({
     position,
@@ -1078,7 +1001,7 @@ function GuitarChordDiagram({ chord, compact = false }: { chord: ChordDefinition
   const barreMarks = barreSegments(chord.strings, chord.fingers, chord.baseFret, chord.barre)
 
   return (
-    <div className={compact ? 'diagram compact-diagram' : 'diagram'} aria-label={`${chord.name} guitar chord diagram, low E to high E`}>
+    <div className="diagram" aria-label={`${chord.name} guitar chord diagram, low E to high E`}>
       <div className="diagram-row diagram-header">
         {markers.map((marker, index) => <span key={marker.label} title={marker.label}>{guitarStringNumbers[index]}</span>)}
       </div>
@@ -1170,7 +1093,6 @@ export function AboutPage() {
           <h2>Plan and perform</h2>
           <ul>
             <li><strong>Songs Library:</strong> Browse shared songs; the owner can add, edit, and manage them.</li>
-            <li><strong>Chord Library:</strong> Explore chord diagrams, finger positions, notes, and fingering information.</li>
             <li><strong>Sunday Schedule:</strong> Organize and order songs for each Sunday.</li>
             <li><strong>Worship Flow:</strong> Select and reorder songs already assigned to a Sunday, then use the compact performance view.</li>
             <li><strong>Events:</strong> The owner can create and manage events and their assigned songs.</li>

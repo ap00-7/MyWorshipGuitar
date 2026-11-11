@@ -63,8 +63,8 @@ export const normalizeSong = (song: Partial<Song> & { id?: string }): Song => ({
   createdAt: song.createdAt,
 })
 
-export type Setlist = { id: string; name: string; date: string; songIds: string[]; description: string }
-export type PrivateSession = { id: string; name: string; date: string; songIds: string[]; description: string }
+export type Setlist = { id: string; name: string; date: string; songIds: string[]; description: string; startingChordOverrides?: Record<string, string> }
+export type PrivateSession = { id: string; name: string; date: string; songIds: string[]; description: string; startingChordOverrides?: Record<string, string> }
 
 export type Settings = {
   theme: 'light' | 'dark'

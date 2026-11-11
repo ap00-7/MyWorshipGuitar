@@ -61,9 +61,13 @@ create table if not exists public.sunday_songs (
   sunday_id uuid not null references public.sundays(id) on delete cascade,
   song_id uuid not null references public.songs(id) on delete cascade,
   position integer not null default 0,
+  starting_chord_override text,
   primary key (sunday_id, song_id),
   unique (sunday_id, position)
 );
+
+alter table public.sunday_songs
+  add column if not exists starting_chord_override text;
 
 create table if not exists public.private_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -80,9 +84,13 @@ create table if not exists public.private_session_songs (
   private_session_id uuid not null references public.private_sessions(id) on delete cascade,
   song_id uuid not null references public.songs(id) on delete cascade,
   position integer not null default 0,
+  starting_chord_override text,
   primary key (private_session_id, song_id),
   unique (private_session_id, position)
 );
+
+alter table public.private_session_songs
+  add column if not exists starting_chord_override text;
 
 create table if not exists public.chord_library (
   id uuid primary key default gen_random_uuid(),

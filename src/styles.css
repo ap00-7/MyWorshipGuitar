@@ -112,7 +112,6 @@ img { max-width: 100%; display: block; }
 :root[data-theme='dark'] .song-key-bar,
 :root[data-theme='dark'] .section-card,
 :root[data-theme='dark'] .image-preview,
-:root[data-theme='dark'] .library-chord,
 :root[data-theme='dark'] .chord-detail,
 :root[data-theme='dark'] .setting {
   background: linear-gradient(145deg, #1d1a16, #171512);
@@ -763,6 +762,53 @@ nav {
   gap: 8px;
 }
 
+.starting-chord-editor {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: -4px 0 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.starting-chord-editor > div:first-child {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.starting-chord-editor label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.starting-chord-editor select {
+  min-height: 40px;
+  width: min(100%, 220px);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.starting-chord-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.starting-chord-error {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--danger, #b42318);
+  font-size: 12px;
+}
+
 .song-tags {
   display: flex;
   flex-wrap: wrap;
@@ -902,39 +948,6 @@ nav {
   background: var(--paper);
 }
 
-.sheet-only-fallback {
-  max-width: none;
-  padding: 0;
-}
-
-.sheet-only-fallback > *:not(.continuous-sheet) {
-  display: none;
-}
-
-.sheet-only-fallback .continuous-sheet,
-.continuous-sheet:fullscreen {
-  min-height: 100vh;
-  border: 0;
-  border-radius: 0;
-  overflow: auto;
-}
-
-.sheet-exit-button {
-  position: fixed;
-  top: max(12px, env(safe-area-inset-top));
-  right: max(12px, env(safe-area-inset-right));
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--panel);
-  color: var(--ink);
-  font-size: 11px;
-}
-
 .continuous-section {
   padding: 22px 22px 26px;
   border-bottom: 1px solid var(--line);
@@ -983,11 +996,6 @@ nav {
 }
 
 .continuous-title.normal-section-title { color: var(--gold); }
-.continuous-title.fullscreen-title { color: var(--gold); }
-
-.sheet-only-fallback .continuous-section-header {
-  padding-right: clamp(190px, 16vw, 240px);
-}
 
 .continuous-line {
   display: flex;
@@ -1280,56 +1288,9 @@ nav {
   min-width: 130px;
 }
 
-.chord-library-page {
-  max-width: 1040px;
-}
-
-.chord-search-row select {
-  min-width: 140px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink);
-  border-radius: 9px;
-  padding: 0 12px;
-  height: 42px;
-}
-
-.chord-family-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.library-chord {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  background: var(--paper);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px 10px;
-  text-align: center;
-}
-
-.library-chord:hover,
-.library-chord:focus-visible {
-  border-color: var(--gold-line);
-  box-shadow: inset 0 1px 0 rgba(229, 199, 107, 0.12);
-  outline: none;
-}
-
-.library-chord strong { font-size: 17px; }
-.library-chord small { color: var(--muted); }
-
 .diagram {
   width: 100%;
   max-width: 150px;
-}
-
-.compact-diagram {
-  max-width: 120px;
 }
 
 .diagram-row {
@@ -1863,7 +1824,7 @@ nav {
   .brand { margin-bottom: 16px; }
 
   nav {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 6px;
   }
 
@@ -1961,7 +1922,7 @@ nav {
 
   nav {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
     margin: 0;
     width: 100%;
@@ -2073,23 +2034,6 @@ nav {
     grid-column: auto;
   }
 
-  .chord-search-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .chord-search-row select {
-    width: 100%;
-  }
-
-  .chord-family-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .library-chord {
-    min-height: 170px;
-  }
-
   .chord-detail {
     width: min(100%, 420px);
     max-height: 84vh;
@@ -2129,9 +2073,6 @@ nav {
     grid-template-columns: 1fr;
   }
 
-  .chord-family-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .app-worship-flow,

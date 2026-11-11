@@ -28,7 +28,7 @@ type DbSunday = {
   name: string
   service_date: string
   description: string
-  sunday_songs: Array<{ position: number; song_id: string }>
+  sunday_songs: Array<{ position: number; song_id: string; starting_chord_override: string | null }>
 }
 
 type DbPrivateSession = {
@@ -36,7 +36,7 @@ type DbPrivateSession = {
   name: string
   session_date: string
   description: string
-  private_session_songs: Array<{ position: number; song_id: string }>
+  private_session_songs: Array<{ position: number; song_id: string; starting_chord_override: string | null }>
 }
 
 type DbWorshipFlowSong = {
@@ -140,7 +140,7 @@ async function selectSongById(songId: string) {
 export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   const client = requireSupabase()
   const [sundaysResult, worshipFlowResult, eventFlowResult] = await Promise.all([
-    client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position)').order('service_date', { ascending: false }),
+    client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position,starting_chord_override)').order('service_date', { ascending: false }),
     client.from('worship_flow_songs').select('sunday_id,song_id,position').order('position'),
     client.from('event_flow_songs').select('private_session_id,song_id,position').order('position'),
   ])
@@ -150,7 +150,7 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
 
   let privateSessions: PrivateSession[] = []
   try {
-    const privateSessionsResult = await client.from('private_sessions').select('id,name,session_date,description,private_session_songs(song_id,position)').order('session_date', { ascending: false })
+    const privateSessionsResult = await client.from('private_sessions').select('id,name,session_date,description,private_session_songs(song_id,position,starting_chord_override)').order('session_date', { ascending: false })
     if (!privateSessionsResult.error) {
       privateSessions = ((privateSessionsResult.data ?? []) as unknown as DbPrivateSession[]).map((session) => ({
         id: session.id,
@@ -158,6 +158,7 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
         date: session.session_date,
         description: session.description,
         songIds: (session.private_session_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
+        startingChordOverrides: Object.fromEntries((session.private_session_songs ?? []).filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
       }))
     } else if (!isMissingTable(privateSessionsResult.error, 'private_sessions')) {
       throwIfError(privateSessionsResult.error, 'Unable to load Events.')
@@ -186,6 +187,7 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     date: sunday.service_date,
     description: sunday.description,
     songIds: (sunday.sunday_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
+    startingChordOverrides: Object.fromEntries((sunday.sunday_songs ?? []).filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
   }))
   const worshipFlows = ((worshipFlowResult.data ?? []) as DbWorshipFlowSong[]).reduce<Record<string, string[]>>((flows, item) => {
     ;(flows[item.sunday_id] ??= []).push(item.song_id)
@@ -196,6 +198,30 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     return flows
   }, {})
   return { songs, setlists, privateSessions, worshipFlows, eventFlows }
+}
+
+export async function setSundaySongStartingChord(sundayId: string, songId: string, startingChord: string | null) {
+  const client = requireSupabase()
+  const { data, error } = await client.from('sunday_songs')
+    .update({ starting_chord_override: startingChord })
+    .eq('sunday_id', sundayId)
+    .eq('song_id', songId)
+    .select('song_id')
+    .maybeSingle()
+  throwIfError(error, 'Unable to save the Sunday starting chord.')
+  if (!data) throw new Error('This song is no longer assigned to the selected Sunday.')
+}
+
+export async function setEventSongStartingChord(sessionId: string, songId: string, startingChord: string | null) {
+  const client = requireSupabase()
+  const { data, error } = await client.from('private_session_songs')
+    .update({ starting_chord_override: startingChord })
+    .eq('private_session_id', sessionId)
+    .eq('song_id', songId)
+    .select('song_id')
+    .maybeSingle()
+  throwIfError(error, 'Unable to save the Event starting chord.')
+  if (!data) throw new Error('This song is no longer assigned to the selected Event.')
 }
 
 async function saveChordImage(songId: string, dataUrl: string) {
