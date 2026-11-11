@@ -409,7 +409,9 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   const viewKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.concertKey
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
-  const capoAdjustedShapeLabel = soundingKey(viewKey1, effectiveGuitar1Capo, settings.notation)
+  const capoAdjustedShapeLabel = guitar === 1
+    ? soundingKey(viewKey1, effectiveGuitar1Capo, settings.notation)
+    : soundingKey(shapeKey, selectedCapo, settings.notation)
   const updateKey = (amount: number) => {
     if (guitar === 1) {
       setViewKey1((current) => shiftKey(current, amount, settings.notation))
@@ -488,7 +490,9 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
           <h1>{song.title}</h1>
           <div className="song-tags">
             <span>Starting Chord {viewKey1}</span>
-            <span>{`${guitar === 2 ? 'Guitar 2' : 'Guitar 1'}: ${capoAdjustedShapeLabel} shapes`}</span>
+            <span>{guitar === 2
+              ? `Guitar 2: ${shapeKey} shapes${selectedCapo ? ` · sounds ${capoAdjustedShapeLabel}` : ''}`
+              : `Guitar 1: ${capoAdjustedShapeLabel} shapes`}</span>
             <span>Capo {displayedCapo}</span>
             {guitar === 2 && <span>{customGuitar2 ? 'Custom Guitar 2' : 'Dynamic Guitar 2'}</span>}
           </div>
@@ -538,8 +542,10 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
       )}
 
       <div className="song-key-bar">
-        <strong>{viewKey1}</strong>
-        <small>Starting chord {viewKey1} · Guitar {guitar}</small>
+        <strong>{guitar === 1 ? viewKey1 : shapeKey}</strong>
+        <small>{guitar === 1
+          ? `Starting chord ${viewKey1} · Guitar 1`
+          : `Guitar 2 shape ${shapeKey} · sounds ${capoAdjustedShapeLabel}`}</small>
         <button onClick={() => updateKey(-1)}>−1</button>
         <button onClick={() => {
           if (guitar === 1) setViewKey1(song.key)
