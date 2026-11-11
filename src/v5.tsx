@@ -339,7 +339,9 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const guitar2SourceCapo = useRef(effectiveGuitar1Capo)
   const customGuitar2 = song ? hasCustomGuitar2(song) : false
-  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation, song?.key), [viewKey1, settings.notation, song?.key])
+  const guitar2SoundingKey = soundingKey(viewKey1, effectiveGuitar1Capo, settings.notation)
+  const guitar2OptionKey = savedCapo !== undefined ? guitar2SoundingKey : viewKey1
+  const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(guitar2OptionKey, settings.notation, song?.key), [guitar2OptionKey, settings.notation, song?.key])
   const guitar1Progression = song?.sections.map((section) => section.chordText).join('\n') ?? ''
 
   const selectGuitar2Option = (nextKey: string) => {
@@ -399,7 +401,6 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   const displayedCapo = selectedCapo
   const viewKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.concertKey
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
-  const guitar2SoundingKey = soundingKey(viewKey1, effectiveGuitar1Capo, settings.notation)
   const shapeKey = guitar === 1
     ? capoShapeKey(viewKey1, effectiveGuitar1Capo, settings.notation)
     : capoShapeKey(guitar2SoundingKey, selectedCapo, settings.notation)
