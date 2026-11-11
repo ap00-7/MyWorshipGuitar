@@ -296,7 +296,7 @@ export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }:
   )
 }
 
-export function SongPage({ songs, setlists, privateSessions, settings, isOwner, onSetStartingChord }: { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[]; settings: Settings; isOwner: boolean; onSetStartingChord: (context: 'sunday' | 'private-session', contextId: string, songId: string, startingChord: string | null) => Promise<void> }) {
+export function SongPage({ songs, setlists, privateSessions, settings, isOwner, onSetStartingChord, onSetCapo }: { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[]; settings: Settings; isOwner: boolean; onSetStartingChord: (context: 'sunday' | 'private-session', contextId: string, songId: string, startingChord: string | null) => Promise<void>; onSetCapo: (context: 'sunday' | 'private-session', contextId: string, songId: string, capo: number | null) => Promise<void> }) {
   const { songId } = useParams()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -310,6 +310,11 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
     ? sunday?.startingChordOverrides?.[songId ?? '']
     : context === 'private-session'
       ? session?.startingChordOverrides?.[songId ?? '']
+      : undefined
+  const savedCapo = context === 'sunday'
+    ? sunday?.capoOverrides?.[songId ?? '']
+    : context === 'private-session'
+      ? session?.capoOverrides?.[songId ?? '']
       : undefined
   const contextSongIds = context === 'private-session' ? (session?.songIds ?? []) : context === 'sunday' ? (sunday?.songIds ?? []) : []
   const contextIndex = song ? contextSongIds.indexOf(song.id) : -1
@@ -326,6 +331,10 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   const [pendingStartingChord, setPendingStartingChord] = useState(savedStartingChord ?? song?.key ?? 'C')
   const [startingChordSaving, setStartingChordSaving] = useState(false)
   const [startingChordError, setStartingChordError] = useState('')
+  const [capoEditorOpen, setCapoEditorOpen] = useState(false)
+  const [pendingCapo, setPendingCapo] = useState<number | null>(savedCapo ?? null)
+  const [capoSaving, setCapoSaving] = useState(false)
+  const [capoError, setCapoError] = useState('')
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const customGuitar2 = song ? hasCustomGuitar2(song) : false
   const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation, song?.key), [viewKey1, settings.notation, song?.key])
@@ -345,6 +354,10 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
     setViewKey1(currentKey)
     setPendingStartingChord(currentKey)
   }, [song?.id, song?.key, savedStartingChord])
+
+  useEffect(() => {
+    setPendingCapo(savedCapo ?? null)
+  }, [song?.id, savedCapo])
 
   useEffect(() => {
     if (!compatibleGuitar2Options.length) return
@@ -388,6 +401,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   }
 
   const selectedCapo = guitar === 1 ? song.capo : selectedGuitar2Option.capo
+  const displayedCapo = savedCapo ?? selectedCapo
   const viewKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.concertKey
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
@@ -416,6 +430,20 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
       setStartingChordError(saveError instanceof Error ? saveError.message : 'Unable to save the starting chord.')
     } finally {
       setStartingChordSaving(false)
+    }
+  }
+  const saveCapo = async (capo: number | null) => {
+    if (!assignmentId || (context !== 'sunday' && context !== 'private-session')) return
+    setCapoSaving(true)
+    setCapoError('')
+    try {
+      await onSetCapo(context, assignmentId, song.id, capo)
+      setPendingCapo(capo)
+      setCapoEditorOpen(false)
+    } catch (saveError) {
+      setCapoError(saveError instanceof Error ? saveError.message : 'Unable to save the capo.')
+    } finally {
+      setCapoSaving(false)
     }
   }
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -451,13 +479,14 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
           <div className="song-tags">
             <span>Starting Chord {activeDisplayKey}</span>
             <span>{guitar === 2 ? `Guitar 2: ${shapeKey} shapes` : `Guitar 1: ${shapeKey} shapes`}</span>
-            <span>Capo {selectedCapo}</span>
+            <span>Capo {displayedCapo}</span>
             {guitar === 2 && <span>{customGuitar2 ? 'Custom Guitar 2' : 'Dynamic Guitar 2'}</span>}
           </div>
         </div>
         <div className="song-header-actions">
           {isOwner && <Link className="secondary-button" to={`/songs/${song.id}/edit`}>Edit</Link>}
           {canSetStartingChord && <button className="secondary-button" onClick={() => { setPendingStartingChord(savedStartingChord ?? song.key); setStartingChordError(''); setStartingChordEditorOpen((open) => !open) }}>Set Starting Chord</button>}
+          {canSetStartingChord && <button className="secondary-button" onClick={() => { setPendingCapo(savedCapo ?? null); setCapoError(''); setCapoEditorOpen((open) => !open) }}>Set Capo</button>}
         </div>
       </header>
 
@@ -475,6 +504,25 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
             <button className="primary-button" type="button" disabled={startingChordSaving} onClick={() => void saveStartingChord(pendingStartingChord)}><Save size={15} />Save</button>
             <button className="secondary-button" type="button" disabled={startingChordSaving} onClick={() => { setStartingChordEditorOpen(false); setStartingChordError('') }}>Cancel</button>
             {savedStartingChord && <button className="secondary-button" type="button" disabled={startingChordSaving} onClick={() => void saveStartingChord(null)}>Reset to original</button>}
+          </div>
+        </section>
+      )}
+
+      {canSetStartingChord && capoEditorOpen && (
+        <section className="starting-chord-editor" aria-label="Set capo">
+          <div>
+            <strong>Current capo: {savedCapo !== undefined ? `Fret ${savedCapo}` : `Original song setting${song.capo ? ` (Fret ${song.capo})` : ''}`}</strong>
+            <label htmlFor="context-capo">Choose a capo fret</label>
+            <select id="context-capo" value={pendingCapo ?? ''} onChange={(event) => setPendingCapo(event.target.value ? Number(event.target.value) : null)} disabled={capoSaving}>
+              <option value="">Original song setting</option>
+              {Array.from({ length: 12 }, (_, index) => index + 1).map((fret) => <option key={fret} value={fret}>Fret {fret}</option>)}
+            </select>
+          </div>
+          {capoError && <p className="starting-chord-error" role="alert">{capoError}</p>}
+          <div className="starting-chord-actions">
+            <button className="primary-button" type="button" disabled={capoSaving} onClick={() => void saveCapo(pendingCapo)}><Save size={15} />Save</button>
+            <button className="secondary-button" type="button" disabled={capoSaving} onClick={() => { setCapoEditorOpen(false); setCapoError('') }}>Cancel</button>
+            {savedCapo !== undefined && <button className="secondary-button" type="button" disabled={capoSaving} onClick={() => void saveCapo(null)}>Clear capo</button>}
           </div>
         </section>
       )}
@@ -1356,7 +1404,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
   )
 }
 
-export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords, onStartingChordChange, onStartingChordReset, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; startingChords: WorshipFlowStartingChordPreferences; onStartingChordChange: (sundayId: string, songId: string, key: string) => void; onStartingChordReset: (sundayId: string, songId: string) => void; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
+export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords, capoOverrides, onStartingChordChange, onStartingChordReset, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; startingChords: WorshipFlowStartingChordPreferences; capoOverrides: Record<string, Record<string, number>>; onStartingChordChange: (sundayId: string, songId: string, key: string) => void; onStartingChordReset: (sundayId: string, songId: string) => void; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
@@ -1452,7 +1500,7 @@ export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords,
           <div className="worship-flow-save-status" aria-live="polite">{saving ? 'Saving…' : saveError ? saveError : ''}</div>
         </section>}
 
-        {flowSongs.length > 0 ? <WorshipFlowPerformance songs={flowSongs} flowId={sunday?.id ?? ''} startingChords={startingChords} onStartingChordChange={onStartingChordChange} onStartingChordReset={onStartingChordReset} settings={settings} /> : <div className="worship-flow-empty">
+        {flowSongs.length > 0 ? <WorshipFlowPerformance songs={flowSongs} flowId={sunday?.id ?? ''} startingChords={startingChords} capoOverrides={capoOverrides} onStartingChordChange={onStartingChordChange} onStartingChordReset={onStartingChordReset} settings={settings} /> : <div className="worship-flow-empty">
           <p>No songs added to Worship Flow yet.</p>
           {isOwner && !editing && <button className="secondary-button" type="button" onClick={() => setEditing(true)}>Select songs</button>}
         </div>}
@@ -1475,10 +1523,11 @@ function renderFlowChordLine(line: string, interval: number, settings: Settings,
   })
 }
 
-function WorshipFlowPerformance({ songs, flowId, startingChords, onStartingChordChange, onStartingChordReset, settings, onChordDetail }: {
+function WorshipFlowPerformance({ songs, flowId, startingChords, capoOverrides, onStartingChordChange, onStartingChordReset, settings, onChordDetail }: {
   songs: Song[]
   flowId: string
   startingChords: WorshipFlowStartingChordPreferences
+  capoOverrides: Record<string, Record<string, number>>
   onStartingChordChange: (flowId: string, songId: string, key: string) => void
   onStartingChordReset: (flowId: string, songId: string) => void
   settings: Settings
@@ -1491,7 +1540,10 @@ function WorshipFlowPerformance({ songs, flowId, startingChords, onStartingChord
         const interval = (noteIndex(startingChord) - noteIndex(song.key) + 12) % 12
         return <article className="worship-flow-song" key={song.id}>
           <div className="worship-flow-song-heading">
-            <h2>{song.title}</h2>
+            <div className="worship-flow-song-title">
+              <h2>{song.title}</h2>
+              {capoOverrides[flowId]?.[song.id] !== undefined && <span className="worship-flow-capo">Capo {capoOverrides[flowId][song.id]}</span>}
+            </div>
             <div className="worship-flow-starting-chord-controls">
               <button className="worship-flow-original" type="button" onClick={() => onStartingChordReset(flowId, song.id)} aria-label={`Restore original chords for ${song.title}`}>Original</button>
               <select className="worship-flow-starting-chord" value={startingChord} onChange={(event) => onStartingChordChange(flowId, song.id, event.target.value)} aria-label={`Starting chord for ${song.title}`}>
@@ -1513,11 +1565,12 @@ function WorshipFlowPerformance({ songs, flowId, startingChords, onStartingChord
   )
 }
 
-export function EventFlowPage({ songs, sessions, eventFlows, startingChords, onStartingChordChange, onStartingChordReset, settings, fontScale, onFontScale, isOwner, onSaveFlow }: {
+export function EventFlowPage({ songs, sessions, eventFlows, startingChords, capoOverrides, onStartingChordChange, onStartingChordReset, settings, fontScale, onFontScale, isOwner, onSaveFlow }: {
   songs: Song[]
   sessions: PrivateSession[]
   eventFlows: Record<string, string[]>
   startingChords: WorshipFlowStartingChordPreferences
+  capoOverrides: Record<string, Record<string, number>>
   onStartingChordChange: (sessionId: string, songId: string, key: string) => void
   onStartingChordReset: (sessionId: string, songId: string) => void
   settings: Settings
@@ -1651,7 +1704,7 @@ export function EventFlowPage({ songs, sessions, eventFlows, startingChords, onS
           <div className="worship-flow-save-status" aria-live="polite">{saving ? 'Saving…' : saveError}</div>
         </section>}
 
-        {flowSongs.length > 0 ? <WorshipFlowPerformance songs={flowSongs} flowId={session.id} startingChords={startingChords} onStartingChordChange={onStartingChordChange} onStartingChordReset={onStartingChordReset} settings={settings} onChordDetail={setSelectedChord} /> : <div className="worship-flow-empty">
+        {flowSongs.length > 0 ? <WorshipFlowPerformance songs={flowSongs} flowId={session.id} startingChords={startingChords} capoOverrides={capoOverrides} onStartingChordChange={onStartingChordChange} onStartingChordReset={onStartingChordReset} settings={settings} onChordDetail={setSelectedChord} /> : <div className="worship-flow-empty">
           <p>No songs added to Event Flow yet.</p>
           {isOwner && !editing && <button className="secondary-button" type="button" onClick={() => setEditing(true)}>Select songs</button>}
         </div>}

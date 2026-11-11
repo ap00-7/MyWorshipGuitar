@@ -28,7 +28,7 @@ type DbSunday = {
   name: string
   service_date: string
   description: string
-  sunday_songs: Array<{ position: number; song_id: string; starting_chord_override: string | null }>
+  sunday_songs: Array<{ position: number; song_id: string; starting_chord_override: string | null; capo_override: number | null }>
 }
 
 type DbPrivateSession = {
@@ -36,7 +36,7 @@ type DbPrivateSession = {
   name: string
   session_date: string
   description: string
-  private_session_songs: Array<{ position: number; song_id: string; starting_chord_override: string | null }>
+  private_session_songs: Array<{ position: number; song_id: string; starting_chord_override: string | null; capo_override: number | null }>
 }
 
 type DbWorshipFlowSong = {
@@ -89,6 +89,10 @@ function isMissingYoutubeColumn(error: unknown) {
   return JSON.stringify(error).toLowerCase().includes('youtube_url')
 }
 
+function isMissingCapoOverrideColumn(error: unknown) {
+  return JSON.stringify(error).toLowerCase().includes('capo_override')
+}
+
 function isMissingTable(error: unknown, tableName: string) {
   const text = JSON.stringify(error).toLowerCase()
   return text.includes(tableName.toLowerCase()) || text.includes('pgrst205') || text.includes('does not exist')
@@ -139,18 +143,24 @@ async function selectSongById(songId: string) {
 
 export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   const client = requireSupabase()
-  const [sundaysResult, worshipFlowResult, eventFlowResult] = await Promise.all([
-    client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position,starting_chord_override)').order('service_date', { ascending: false }),
+  const [sundayWithCapoResult, worshipFlowResult, eventFlowResult] = await Promise.all([
+    client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position,starting_chord_override,capo_override)').order('service_date', { ascending: false }),
     client.from('worship_flow_songs').select('sunday_id,song_id,position').order('position'),
     client.from('event_flow_songs').select('private_session_id,song_id,position').order('position'),
   ])
+  const sundaysResult = sundayWithCapoResult.error && isMissingCapoOverrideColumn(sundayWithCapoResult.error)
+    ? await client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position,starting_chord_override)').order('service_date', { ascending: false })
+    : sundayWithCapoResult
   throwIfError(sundaysResult.error, 'Unable to load Sunday schedule.')
   throwIfError(worshipFlowResult.error, 'Unable to load Worship Flow. Apply the approved Worship Flow database migration.')
   throwIfError(eventFlowResult.error, 'Unable to load Event Flow. Apply the approved Event Flow database migration.')
 
   let privateSessions: PrivateSession[] = []
   try {
-    const privateSessionsResult = await client.from('private_sessions').select('id,name,session_date,description,private_session_songs(song_id,position,starting_chord_override)').order('session_date', { ascending: false })
+    const privateSessionsWithCapoResult = await client.from('private_sessions').select('id,name,session_date,description,private_session_songs(song_id,position,starting_chord_override,capo_override)').order('session_date', { ascending: false })
+    const privateSessionsResult = privateSessionsWithCapoResult.error && isMissingCapoOverrideColumn(privateSessionsWithCapoResult.error)
+      ? await client.from('private_sessions').select('id,name,session_date,description,private_session_songs(song_id,position,starting_chord_override)').order('session_date', { ascending: false })
+      : privateSessionsWithCapoResult
     if (!privateSessionsResult.error) {
       privateSessions = ((privateSessionsResult.data ?? []) as unknown as DbPrivateSession[]).map((session) => ({
         id: session.id,
@@ -159,6 +169,7 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
         description: session.description,
         songIds: (session.private_session_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
         startingChordOverrides: Object.fromEntries((session.private_session_songs ?? []).filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
+        capoOverrides: Object.fromEntries((session.private_session_songs ?? []).filter((item) => item.capo_override != null).map((item) => [item.song_id, item.capo_override as number])),
       }))
     } else if (!isMissingTable(privateSessionsResult.error, 'private_sessions')) {
       throwIfError(privateSessionsResult.error, 'Unable to load Events.')
@@ -188,6 +199,7 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     description: sunday.description,
     songIds: (sunday.sunday_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
     startingChordOverrides: Object.fromEntries((sunday.sunday_songs ?? []).filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
+    capoOverrides: Object.fromEntries((sunday.sunday_songs ?? []).filter((item) => item.capo_override != null).map((item) => [item.song_id, item.capo_override as number])),
   }))
   const worshipFlows = ((worshipFlowResult.data ?? []) as DbWorshipFlowSong[]).reduce<Record<string, string[]>>((flows, item) => {
     ;(flows[item.sunday_id] ??= []).push(item.song_id)
@@ -221,6 +233,30 @@ export async function setEventSongStartingChord(sessionId: string, songId: strin
     .select('song_id')
     .maybeSingle()
   throwIfError(error, 'Unable to save the Event starting chord.')
+  if (!data) throw new Error('This song is no longer assigned to the selected Event.')
+}
+
+export async function setSundaySongCapo(sundayId: string, songId: string, capo: number | null) {
+  const client = requireSupabase()
+  const { data, error } = await client.from('sunday_songs')
+    .update({ capo_override: capo })
+    .eq('sunday_id', sundayId)
+    .eq('song_id', songId)
+    .select('song_id')
+    .maybeSingle()
+  throwIfError(error, 'Unable to save the Sunday capo.')
+  if (!data) throw new Error('This song is no longer assigned to the selected Sunday.')
+}
+
+export async function setEventSongCapo(sessionId: string, songId: string, capo: number | null) {
+  const client = requireSupabase()
+  const { data, error } = await client.from('private_session_songs')
+    .update({ capo_override: capo })
+    .eq('private_session_id', sessionId)
+    .eq('song_id', songId)
+    .select('song_id')
+    .maybeSingle()
+  throwIfError(error, 'Unable to save the Event capo.')
   if (!data) throw new Error('This song is no longer assigned to the selected Event.')
 }
 
