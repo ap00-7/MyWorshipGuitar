@@ -316,6 +316,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
     : context === 'private-session'
       ? session?.capoOverrides?.[songId ?? '']
       : undefined
+  const effectiveGuitar1Capo = song ? savedCapo ?? song.capo : 0
   const contextSongIds = context === 'private-session' ? (session?.songIds ?? []) : context === 'sunday' ? (sunday?.songIds ?? []) : []
   const contextIndex = song ? contextSongIds.indexOf(song.id) : -1
   const [guitar, setGuitar] = useState<1 | 2>(1)
@@ -336,12 +337,13 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   const [capoSaving, setCapoSaving] = useState(false)
   const [capoError, setCapoError] = useState('')
   const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const guitar2SourceCapo = useRef(effectiveGuitar1Capo)
   const customGuitar2 = song ? hasCustomGuitar2(song) : false
   const compatibleGuitar2Options = useMemo(() => generateCompatibleGuitar2Options(viewKey1, settings.notation, song?.key), [viewKey1, settings.notation, song?.key])
   const guitar1Progression = song?.sections.map((section) => section.chordText).join('\n') ?? ''
 
   const selectGuitar2Option = (nextKey: string) => {
-    const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, nextKey, guitar1Progression, song?.capo ?? 0, settings.notation)
+    const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, nextKey, guitar1Progression, effectiveGuitar1Capo, settings.notation)
     if (option) {
       setSelectedGuitar2Option(option)
       setGuitar2Activated(true)
@@ -361,13 +363,15 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
 
   useEffect(() => {
     if (!compatibleGuitar2Options.length) return
+    const capoChanged = guitar2SourceCapo.current !== effectiveGuitar1Capo
+    guitar2SourceCapo.current = effectiveGuitar1Capo
     const stillValid = selectedGuitar2Option.concertKey === viewKey1
       && compatibleGuitar2Options.some((option) => option.key === selectedGuitar2Option.shapeKey && option.capo === selectedGuitar2Option.capo)
-    if (stillValid) return
-    const nextOption = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, undefined, guitar1Progression, song?.capo ?? 0, settings.notation)
+    if (stillValid && !capoChanged) return
+    const nextOption = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, undefined, guitar1Progression, effectiveGuitar1Capo, settings.notation)
     if (!nextOption) return
     setSelectedGuitar2Option((current) => current.shapeKey === nextOption.shapeKey && current.capo === nextOption.capo && current.concertKey === nextOption.concertKey ? current : nextOption)
-  }, [compatibleGuitar2Options, viewKey1, selectedGuitar2Option, guitar1Progression, song?.capo, settings.notation])
+  }, [compatibleGuitar2Options, viewKey1, selectedGuitar2Option, guitar1Progression, effectiveGuitar1Capo, settings.notation])
 
   const activeDisplayKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.shapeKey
   const handleKeySelect = (nextKey: string) => {
@@ -400,8 +404,8 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
     return <Empty title="Song not found" />
   }
 
-  const selectedCapo = guitar === 1 ? song.capo : selectedGuitar2Option.capo
-  const displayedCapo = savedCapo ?? selectedCapo
+  const selectedCapo = guitar === 1 ? effectiveGuitar1Capo : selectedGuitar2Option.capo
+  const displayedCapo = selectedCapo
   const viewKey = guitar === 1 ? viewKey1 : selectedGuitar2Option.concertKey
   const interval = (noteIndex(viewKey) - noteIndex(song.key) + 12) % 12
   const shapeKey = capoShapeKey(viewKey, selectedCapo, settings.notation)
@@ -411,7 +415,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
       return
     }
     const nextKey = shiftKey(selectedGuitar2Option.shapeKey, amount, settings.notation)
-    const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, nextKey, guitar1Progression, song.capo, settings.notation)
+    const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, nextKey, guitar1Progression, effectiveGuitar1Capo, settings.notation)
     if (option) setSelectedGuitar2Option(option)
   }
   const assignmentId = context === 'sunday' ? sunday?.id : context === 'private-session' ? session?.id : undefined
@@ -447,7 +451,12 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
     }
   }
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (context === 'songs' || contextIndex < 0 || event.touches.length !== 1) return
+    const target = event.target
+    if (context === 'songs' || contextIndex < 0 || event.touches.length !== 1
+      || (target instanceof Element && target.closest('button, a, input, select, textarea, label, [role="button"], .starting-chord-editor'))) {
+      touchStart.current = null
+      return
+    }
     const touch = event.touches[0]
     touchStart.current = { x: touch.clientX, y: touch.clientY }
   }
@@ -469,7 +478,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   }
 
   return (
-    <div className="page continuous-page">
+    <div className="page continuous-page" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <button className="back-button" onClick={() => navigate(context === 'private-session' && session ? `/private-session?session=${encodeURIComponent(session.id)}` : context === 'sunday' && sunday ? `/sunday?sunday=${encodeURIComponent(sunday.id)}` : '/songs')}><ChevronLeft size={16} />{context === 'private-session' ? 'Events' : context === 'sunday' ? 'Sunday' : 'Songs'}</button>
 
       <header className="v5-song-header">
@@ -534,7 +543,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
         <button onClick={() => {
           if (guitar === 1) setViewKey1(song.key)
           else {
-            const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, undefined, guitar1Progression, song.capo, settings.notation)
+            const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, undefined, guitar1Progression, effectiveGuitar1Capo, settings.notation)
             if (option) setSelectedGuitar2Option(option)
           }
         }}>Original</button>
@@ -548,7 +557,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
             const stillValid = selectedGuitar2Option.concertKey === viewKey1
               && compatibleGuitar2Options.some((option) => option.key === selectedGuitar2Option.shapeKey && option.capo === selectedGuitar2Option.capo)
             if (!guitar2Activated || !stillValid) {
-              const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, undefined, guitar1Progression, song.capo, settings.notation)
+              const option = selectCompatibleGuitar2Option(viewKey1, compatibleGuitar2Options, undefined, guitar1Progression, effectiveGuitar1Capo, settings.notation)
               if (option) setSelectedGuitar2Option(option)
             }
             setGuitar2Activated(true)
@@ -562,15 +571,16 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
         </div>
       </div>
 
-      <div className="continuous-sheet" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
+      <div className="continuous-sheet" style={{ '--chord-font-size': `clamp(${23 * chordScale}px, ${2.5 * chordScale}vw, ${36 * chordScale}px)` } as CSSProperties}>
         {song.sections.map((section, sectionIndex) => {
           const lines = guitar === 2
-            ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, song.capo, selectedCapo, interval) })
+            ? sectionChordLines({ ...section, chordText: guitar2TextForSection(section, settings.notation, effectiveGuitar1Capo, selectedCapo, interval) })
             : sectionChordLines(section)
+          const sectionCapo = guitar === 1 ? effectiveGuitar1Capo : selectedCapo
           return (
             <section className="continuous-section" key={section.id || section.name}>
               <div className="continuous-section-header">
-                <div className="continuous-label">{section.name.toUpperCase()}{guitar === 2 && !section.guitar2ChordText?.trim() ? ` · capo ${selectedCapo}` : ''}</div>
+                <div className="continuous-label">{section.name.toUpperCase()}{sectionCapo > 0 ? ` · CAPO ${sectionCapo}` : ''}</div>
                 {sectionIndex === 0 && <div className="continuous-title normal-section-title">{song.title}</div>}
               </div>
               {lines.map((line, lineIndex) => (
