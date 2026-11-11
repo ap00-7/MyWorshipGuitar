@@ -416,6 +416,16 @@ export function formatSundayDate(isoDate: string) {
     .join('')
 }
 
+export function formatSundayDateParts(isoDate: string) {
+  const date = parseLocalIsoDate(isoDate)
+  if (!date) return null
+  const parts = new Intl.DateTimeFormat('en-IN', { month: 'short', day: 'numeric' }).formatToParts(date)
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+  if (!month || !day) return null
+  return { month, day, suffix: ordinalSuffix(Number(day)).toLowerCase() }
+}
+
 export function normalizeSongTitle(title: string) {
   return String(title ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase()
 }

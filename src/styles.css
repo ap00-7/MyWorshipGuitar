@@ -402,6 +402,15 @@ nav {
   letter-spacing: -0.04em;
 }
 
+.home-sunday h2 sup {
+  display: inline-block;
+  margin-left: 2px;
+  font-size: 0.42em;
+  line-height: 0;
+  letter-spacing: 0;
+  vertical-align: super;
+}
+
 .home-sunday p {
   margin: 0;
   color: var(--muted);
@@ -744,6 +753,16 @@ nav {
 
 .continuous-page {
   max-width: 1040px;
+  padding-top: 20px;
+}
+
+.continuous-page .back-button {
+  margin-bottom: 12px;
+}
+
+.continuous-page .v5-song-header {
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
 .back-button {
@@ -1756,7 +1775,7 @@ nav {
 
 .song-reorder-handle {
   cursor: grab;
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .song-reorder-handle:active {

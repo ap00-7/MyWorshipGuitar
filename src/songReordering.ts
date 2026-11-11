@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type TouchEvent as ReactTouchEvent, type MouseEvent as ReactMouseEvent } from 'react'
 
-const activationDelay = 360
+const activationDelay = 180
 const movementTolerance = 10
 
 type SongGesture = {
@@ -50,7 +50,6 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
     clearGesture()
     if (!gesture?.active || destinationIndex === null) return
 
-    suppressClickRef.current = true
     const ids = [...currentSongIdsRef.current]
     const fromIndex = ids.indexOf(gesture.songId)
     if (fromIndex < 0) return
@@ -58,6 +57,7 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
     const insertIndex = Math.max(0, Math.min(ids.length, destinationIndex > fromIndex ? destinationIndex - 1 : destinationIndex))
     if (insertIndex === fromIndex) return
     ids.splice(insertIndex, 0, songId)
+    suppressClickRef.current = true
     onReorderRef.current(ids)
   }
 
@@ -109,6 +109,8 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
     }
     const handleEnd = (endEvent: PointerEvent) => {
       if (gestureRef.current?.pointerId !== endEvent.pointerId) return
+      const currentGesture = gestureRef.current
+      if (currentGesture.active) updateDropPosition(currentGesture, endEvent.clientY)
       finishGesture()
     }
     const handleCancel = (cancelEvent: PointerEvent) => {
@@ -147,7 +149,11 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
       }
     }
     const handleEnd = (endEvent: TouchEvent) => {
-      if (Array.from(endEvent.changedTouches).some((item) => item.identifier === gestureRef.current?.touchId)) finishGesture()
+      const currentGesture = gestureRef.current
+      const endedTouch = Array.from(endEvent.changedTouches).find((item) => item.identifier === currentGesture?.touchId)
+      if (!currentGesture || !endedTouch) return
+      if (currentGesture.active) updateDropPosition(currentGesture, endedTouch.clientY)
+      finishGesture()
     }
     const handleCancel = (cancelEvent: TouchEvent) => {
       if (Array.from(cancelEvent.changedTouches).some((item) => item.identifier === gestureRef.current?.touchId)) clearGesture()

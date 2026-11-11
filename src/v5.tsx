@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, typ
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, GripVertical, Image as ImageIcon, Info, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { parseImportedChordText, readChordSheetImage } from './chordImport'
-import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDate, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
+import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDateParts, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { BrandLogo } from './components/BrandLogo'
 import { getWorshipFlowStartingChord, moveEventFlowSong, moveWorshipFlowSong, orderedEventFlowIds, orderedWorshipFlowIds, selectEventFlowSong, selectWorshipFlowSong, type WorshipFlowStartingChordPreferences } from './worshipFlow'
@@ -160,7 +160,7 @@ const renderChordLine = (line: string, interval: number, notation: Notation, sim
 
 export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: Song[]; setlists: Setlist[]; onCreateSong: () => void; isOwner: boolean }) {
   const sunday = chooseDisplayedSunday(setlists) ?? null
-  const formattedDate = sunday?.date ? formatSundayDate(sunday.date) : null
+  const formattedDate = sunday?.date ? formatSundayDateParts(sunday.date) : null
   const recentSongs = songs
     .slice()
     .sort((left, right) => (Date.parse(right.createdAt ?? '') || 0) - (Date.parse(left.createdAt ?? '') || 0))
@@ -180,7 +180,9 @@ export function HomePage({ songs, setlists, onCreateSong, isOwner }: { songs: So
       <section className="home-sunday">
         <div>
           <span className="eyebrow">This Sunday</span>
-          <h2>{formattedDate || sunday?.name || 'No Sunday schedule is ready yet.'}</h2>
+          <h2>{formattedDate
+            ? <>{formattedDate.month} {formattedDate.day}<sup>{formattedDate.suffix}</sup></>
+            : sunday?.date || sunday?.name || 'No Sunday schedule is ready yet.'}</h2>
         </div>
         <Link className="primary-button" to="/sunday">
           Open Sunday <ChevronRight size={15} />
