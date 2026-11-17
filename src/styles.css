@@ -1955,12 +1955,12 @@ nav {
 
   .brand { margin-bottom: 16px; }
 
-  .sidebar nav.sidebar-nav-public {
+  .sidebar nav.sidebar-nav-four {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
 
-  .sidebar nav.sidebar-nav-owner {
+  .sidebar nav.sidebar-nav-five {
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 6px;
   }
@@ -2079,7 +2079,7 @@ nav {
     display: none;
   }
 
-  .sidebar nav.sidebar-nav-public {
+  .sidebar nav.sidebar-nav-four {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
@@ -2087,7 +2087,7 @@ nav {
     width: 100%;
   }
 
-  .sidebar nav.sidebar-nav-owner {
+  .sidebar nav.sidebar-nav-five {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
