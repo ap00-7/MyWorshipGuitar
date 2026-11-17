@@ -2,12 +2,7 @@ export type WorshipFlowStartingChordPreferences = Record<string, Record<string, 
 
 export function orderedWorshipFlowIds(scheduledIds: string[], flowIds: string[]) {
   const scheduled = new Set(scheduledIds)
-  const seen = new Set<string>()
-  return flowIds.filter((songId) => {
-    if (!scheduled.has(songId) || seen.has(songId)) return false
-    seen.add(songId)
-    return true
-  })
+  return flowIds.filter((songId) => scheduled.has(songId))
 }
 
 export const orderedEventFlowIds = orderedWorshipFlowIds
@@ -42,8 +37,8 @@ export function selectWorshipFlowSong(flowIds: string[], songId: string, selecte
 
 export const selectEventFlowSong = selectWorshipFlowSong
 
-export function moveWorshipFlowSong(flowIds: string[], songId: string, direction: -1 | 1) {
-  const index = flowIds.indexOf(songId)
+export function moveWorshipFlowSong(flowIds: string[], songId: string, direction: -1 | 1, sourceIndex?: number) {
+  const index = sourceIndex !== undefined && flowIds[sourceIndex] === songId ? sourceIndex : flowIds.indexOf(songId)
   const target = index + direction
   if (index < 0 || target < 0 || target >= flowIds.length) return flowIds
   const next = [...flowIds]
@@ -52,3 +47,12 @@ export function moveWorshipFlowSong(flowIds: string[], songId: string, direction
 }
 
 export const moveEventFlowSong = moveWorshipFlowSong
+
+export function duplicateWorshipFlowSong(flowIds: string[], songId: string, sourceIndex = flowIds.lastIndexOf(songId)) {
+  if (sourceIndex < 0 || flowIds[sourceIndex] !== songId) return flowIds
+  const next = [...flowIds]
+  next.splice(sourceIndex + 1, 0, songId)
+  return next
+}
+
+export const duplicateEventFlowSong = duplicateWorshipFlowSong

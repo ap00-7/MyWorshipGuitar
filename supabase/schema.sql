@@ -100,15 +100,6 @@ alter table public.private_session_songs
 alter table public.private_session_songs
   add column if not exists capo_override integer;
 
-create table if not exists public.private_session_song_occurrences (
-  private_session_id uuid not null,
-  song_id uuid not null,
-  position integer not null check (position >= 0),
-  primary key (private_session_id, position),
-  foreign key (private_session_id, song_id)
-    references public.private_session_songs(private_session_id, song_id) on delete cascade
-);
-
 create table if not exists public.chord_library (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
@@ -122,8 +113,8 @@ create table if not exists public.chord_library (
 );
 
 grant usage on schema public to anon, authenticated;
-grant select on public.profiles, public.songs, public.song_sections, public.sundays, public.sunday_songs, public.private_sessions, public.private_session_songs, public.private_session_song_occurrences, public.chord_library to anon, authenticated;
-grant insert, update, delete on public.songs, public.song_sections, public.sundays, public.sunday_songs, public.private_sessions, public.private_session_songs, public.private_session_song_occurrences, public.chord_library to authenticated;
+grant select on public.profiles, public.songs, public.song_sections, public.sundays, public.sunday_songs, public.private_sessions, public.private_session_songs, public.chord_library to anon, authenticated;
+grant insert, update, delete on public.songs, public.song_sections, public.sundays, public.sunday_songs, public.private_sessions, public.private_session_songs, public.chord_library to authenticated;
 grant update on public.profiles to authenticated;
 
 create or replace function public.is_worship_owner()
@@ -154,7 +145,6 @@ alter table public.sundays enable row level security;
 alter table public.sunday_songs enable row level security;
 alter table public.private_sessions enable row level security;
 alter table public.private_session_songs enable row level security;
-alter table public.private_session_song_occurrences enable row level security;
 alter table public.chord_library enable row level security;
 
 drop policy if exists "users can read own profile" on public.profiles;
@@ -164,7 +154,6 @@ drop policy if exists "public can read sundays" on public.sundays;
 drop policy if exists "public can read sunday songs" on public.sunday_songs;
 drop policy if exists "public can read private sessions" on public.private_sessions;
 drop policy if exists "public can read private session songs" on public.private_session_songs;
-drop policy if exists "public can read private session song occurrences" on public.private_session_song_occurrences;
 drop policy if exists "public can read chord library" on public.chord_library;
 create policy "users can read own profile" on public.profiles for select using (id = auth.uid());
 create policy "public can read songs" on public.songs for select using (true);
@@ -173,7 +162,6 @@ create policy "public can read sundays" on public.sundays for select using (true
 create policy "public can read sunday songs" on public.sunday_songs for select using (true);
 create policy "public can read private sessions" on public.private_sessions for select using (true);
 create policy "public can read private session songs" on public.private_session_songs for select using (true);
-create policy "public can read private session song occurrences" on public.private_session_song_occurrences for select using (true);
 create policy "public can read chord library" on public.chord_library for select using (true);
 
 drop policy if exists "owner can insert songs" on public.songs;
@@ -194,9 +182,6 @@ drop policy if exists "owner can delete private sessions" on public.private_sess
 drop policy if exists "owner can insert private session songs" on public.private_session_songs;
 drop policy if exists "owner can update private session songs" on public.private_session_songs;
 drop policy if exists "owner can delete private session songs" on public.private_session_songs;
-drop policy if exists "owner can insert private session song occurrences" on public.private_session_song_occurrences;
-drop policy if exists "owner can update private session song occurrences" on public.private_session_song_occurrences;
-drop policy if exists "owner can delete private session song occurrences" on public.private_session_song_occurrences;
 drop policy if exists "owner can insert chord library" on public.chord_library;
 drop policy if exists "owner can update chord library" on public.chord_library;
 drop policy if exists "owner can delete chord library" on public.chord_library;
@@ -218,9 +203,6 @@ create policy "owner can delete private sessions" on public.private_sessions for
 create policy "owner can insert private session songs" on public.private_session_songs for insert with check (public.is_worship_owner());
 create policy "owner can update private session songs" on public.private_session_songs for update using (public.is_worship_owner()) with check (public.is_worship_owner());
 create policy "owner can delete private session songs" on public.private_session_songs for delete using (public.is_worship_owner());
-create policy "owner can insert private session song occurrences" on public.private_session_song_occurrences for insert with check (public.is_worship_owner());
-create policy "owner can update private session song occurrences" on public.private_session_song_occurrences for update using (public.is_worship_owner()) with check (public.is_worship_owner());
-create policy "owner can delete private session song occurrences" on public.private_session_song_occurrences for delete using (public.is_worship_owner());
 create policy "owner can insert chord library" on public.chord_library for insert with check (public.is_worship_owner());
 create policy "owner can update chord library" on public.chord_library for update using (public.is_worship_owner()) with check (public.is_worship_owner());
 create policy "owner can delete chord library" on public.chord_library for delete using (public.is_worship_owner());

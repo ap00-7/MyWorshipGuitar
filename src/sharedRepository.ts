@@ -168,6 +168,22 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   throwIfError(sundaysResult.error, 'Unable to load Sunday schedule.')
   throwIfError(worshipFlowResult.error, 'Unable to load Worship Flow. Apply the approved Worship Flow database migration.')
   throwIfError(eventFlowResult.error, 'Unable to load Event Flow. Apply the approved Event Flow database migration.')
+  const [worshipFlowOccurrencesResult, eventFlowOccurrencesResult] = await Promise.all([
+    client.from('worship_flow_song_occurrences').select('sunday_id,song_id,position').order('position'),
+    client.from('event_flow_song_occurrences').select('private_session_id,song_id,position').order('position'),
+  ])
+  if (worshipFlowOccurrencesResult.error && !isMissingTable(worshipFlowOccurrencesResult.error, 'worship_flow_song_occurrences')) {
+    throwIfError(worshipFlowOccurrencesResult.error, 'Unable to load Worship Flow song order.')
+  }
+  if (eventFlowOccurrencesResult.error && !isMissingTable(eventFlowOccurrencesResult.error, 'event_flow_song_occurrences')) {
+    throwIfError(eventFlowOccurrencesResult.error, 'Unable to load Event Flow song order.')
+  }
+  const worshipFlowRows = worshipFlowOccurrencesResult.error
+    ? (worshipFlowResult.data ?? []) as DbWorshipFlowSong[]
+    : (worshipFlowOccurrencesResult.data ?? []) as DbWorshipFlowSong[]
+  const eventFlowRows = eventFlowOccurrencesResult.error
+    ? (eventFlowResult.data ?? []) as DbEventFlowSong[]
+    : (eventFlowOccurrencesResult.data ?? []) as DbEventFlowSong[]
 
   let privateSessions: PrivateSession[] = []
   try {
@@ -177,8 +193,6 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     } else {
       const dbSessions = (privateSessionsResult.data ?? []) as unknown as DbPrivateSession[]
       let dbSessionSongs: DbPrivateSessionSong[] = []
-      let dbSessionSongOccurrences: Array<{ private_session_id: string; song_id: string; position: number }> = []
-      let hasSongOccurrences = false
       if (dbSessions.length) {
         const sessionIds = dbSessions.map((session) => session.id)
         const sessionSongSelections = [
@@ -209,29 +223,16 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
           dbSessionSongs = (sessionSongsResult.data ?? []) as unknown as DbPrivateSessionSong[]
         }
 
-        const occurrencesResult = await client.from('private_session_song_occurrences')
-          .select('private_session_id,song_id,position')
-          .in('private_session_id', sessionIds)
-          .order('position')
-        if (occurrencesResult.error) {
-          if (!isMissingTable(occurrencesResult.error, 'private_session_song_occurrences')) throwIfError(occurrencesResult.error, 'Unable to load event song order.')
-        } else {
-          hasSongOccurrences = true
-          dbSessionSongOccurrences = (occurrencesResult.data ?? []) as Array<{ private_session_id: string; song_id: string; position: number }>
-        }
       }
 
       privateSessions = dbSessions.map((session) => {
         const assignedSongs = dbSessionSongs.filter((item) => item.private_session_id === session.id).sort((a, b) => a.position - b.position)
-        const songOrder = hasSongOccurrences
-          ? dbSessionSongOccurrences.filter((item) => item.private_session_id === session.id).sort((a, b) => a.position - b.position)
-          : assignedSongs
         return {
           id: session.id,
           name: session.name,
           date: session.session_date,
           description: session.description,
-          songIds: songOrder.map((item) => item.song_id),
+          songIds: assignedSongs.map((item) => item.song_id),
           startingChordOverrides: Object.fromEntries(assignedSongs.filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
           capoOverrides: Object.fromEntries(assignedSongs.filter((item) => item.capo_override != null).map((item) => [item.song_id, item.capo_override as number])),
         }
@@ -264,11 +265,11 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     startingChordOverrides: Object.fromEntries((sunday.sunday_songs ?? []).filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
     capoOverrides: Object.fromEntries((sunday.sunday_songs ?? []).filter((item) => item.capo_override != null).map((item) => [item.song_id, item.capo_override as number])),
   }))
-  const worshipFlows = ((worshipFlowResult.data ?? []) as DbWorshipFlowSong[]).reduce<Record<string, string[]>>((flows, item) => {
+  const worshipFlows = worshipFlowRows.reduce<Record<string, string[]>>((flows, item) => {
     ;(flows[item.sunday_id] ??= []).push(item.song_id)
     return flows
   }, {})
-  const eventFlows = ((eventFlowResult.data ?? []) as DbEventFlowSong[]).reduce<Record<string, string[]>>((flows, item) => {
+  const eventFlows = eventFlowRows.reduce<Record<string, string[]>>((flows, item) => {
     ;(flows[item.private_session_id] ??= []).push(item.song_id)
     return flows
   }, {})

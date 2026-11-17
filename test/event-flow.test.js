@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 import {
+  duplicateEventFlowSong,
   moveEventFlowSong,
   orderedEventFlowIds,
   selectEventFlowSong,
@@ -11,7 +12,7 @@ import { formatTransposedChordLine, noteIndex } from '../src/music.ts'
 
 test('Event Flow is restricted to songs assigned to the selected event', () => {
   const assignedIds = ['song-a', 'song-b', 'song-c', 'song-d']
-  assert.deepEqual(orderedEventFlowIds(assignedIds, ['song-c', 'song-a', 'outside', 'song-c']), ['song-c', 'song-a'])
+  assert.deepEqual(orderedEventFlowIds(assignedIds, ['song-c', 'song-a', 'outside', 'song-c']), ['song-c', 'song-a', 'song-c'])
   assert.deepEqual(orderedEventFlowIds(['other-event-song'], ['song-c', 'song-a']), [])
 })
 
@@ -62,11 +63,30 @@ test('flow performance uses existing transposition and preserves timing markers'
   assert.equal(storedProgression, 'G D Em C /')
 })
 
-test('missing, duplicate, and stale event flow IDs are removed on event changes', () => {
+test('stale event flow IDs are removed while repeated assigned songs are preserved', () => {
   assert.deepEqual(orderedEventFlowIds([], ['old-event-song']), [])
-  assert.deepEqual(orderedEventFlowIds(['song-a'], ['song-a', 'song-b', 'song-a']), ['song-a'])
+  assert.deepEqual(orderedEventFlowIds(['song-a'], ['song-a', 'song-b', 'song-a']), ['song-a', 'song-a'])
 })
 
+test('Event Flow can duplicate and reorder a specific occurrence', () => {
+  const duplicated = duplicateEventFlowSong(['song-a', 'song-b'], 'song-a', 0)
+  assert.deepEqual(duplicated, ['song-a', 'song-a', 'song-b'])
+  assert.deepEqual(moveEventFlowSong(duplicated, 'song-a', 1, 0), ['song-a', 'song-a', 'song-b'])
+  assert.deepEqual(moveEventFlowSong(duplicated, 'song-a', 1, 1), ['song-a', 'song-b', 'song-a'])
+})
+
+test('event schedules remain unique while the new migration moves repeats into flows', () => {
+  const migration = readFileSync('supabase/migrations/20261117112000_flow_repeats.sql', 'utf8')
+  const schema = readFileSync('supabase/schema.sql', 'utf8')
+
+  assert.match(migration, /drop table if exists public\.private_session_song_occurrences/)
+  assert.match(migration, /add column if not exists starting_chord_override text/)
+  assert.match(migration, /Song IDs must be non-null and unique/)
+  assert.match(migration, /create table if not exists public\.worship_flow_song_occurrences/)
+  assert.match(migration, /create table if not exists public\.event_flow_song_occurrences/)
+  assert.doesNotMatch(schema, /private_session_song_occurrences/)
+  assert.match(schema, /primary key \(private_session_id, song_id\)/)
+})
 test('database persistence restricts writes to owners and assigned songs', () => {
   const migration = readFileSync('supabase/migrations/20261016_event_flow.sql', 'utf8')
   assert.match(migration, /foreign key \(private_session_id, song_id\)\s+references public\.private_session_songs\(private_session_id, song_id\) on delete cascade/)
@@ -81,14 +101,4 @@ test('the application subscribes to Event Flow changes through shared Realtime r
   const app = readFileSync('src/App.tsx', 'utf8')
   assert.match(app, /table: 'event_flow_songs'[\s\S]*?refreshAfterRealtime/)
   assert.match(app, /table: 'private_session_songs'[\s\S]*?refreshAfterRealtime/)
-})
-
-test('event assignments support repeated songs while Sunday assignments remain unique', () => {
-  const migration = readFileSync('supabase/migrations/20261117_repeat_event_songs.sql', 'utf8')
-  const schema = readFileSync('supabase/schema.sql', 'utf8')
-
-  assert.match(migration, /create table if not exists public\.private_session_song_occurrences[\s\S]*?primary key \(private_session_id, position\)/)
-  assert.match(migration, /insert into public\.private_session_song_occurrences[\s\S]*?unnest\(p_song_ids\) with ordinality/)
-  assert.doesNotMatch(migration, /Song IDs must be non-null and unique/)
-  assert.match(schema, /create table if not exists public\.sunday_songs[\s\S]*?primary key \(sunday_id, song_id\)/)
 })

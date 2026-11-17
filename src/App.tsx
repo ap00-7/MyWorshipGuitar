@@ -173,10 +173,11 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sundays' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sunday_songs' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'worship_flow_songs' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'worship_flow_song_occurrences' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'private_sessions' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'private_session_songs' }, refreshAfterRealtime)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'private_session_song_occurrences' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_flow_songs' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_flow_song_occurrences' }, refreshAfterRealtime)
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           if (hasConnected) void refreshAfterRealtime()

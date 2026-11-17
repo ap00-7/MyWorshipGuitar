@@ -5,7 +5,7 @@ import { parseImportedChordText, readChordSheetImage } from './chordImport'
 import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDateParts, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
 import type { PrivateSession, Section, Settings, Setlist, Song } from './data'
 import { BrandLogo } from './components/BrandLogo'
-import { getWorshipFlowStartingChord, moveEventFlowSong, moveWorshipFlowSong, orderedEventFlowIds, orderedWorshipFlowIds, selectEventFlowSong, selectWorshipFlowSong, type WorshipFlowStartingChordPreferences } from './worshipFlow'
+import { duplicateEventFlowSong, duplicateWorshipFlowSong, getWorshipFlowStartingChord, moveEventFlowSong, moveWorshipFlowSong, orderedEventFlowIds, orderedWorshipFlowIds, selectEventFlowSong, selectWorshipFlowSong, type WorshipFlowStartingChordPreferences } from './worshipFlow'
 import { barreSegments, fretboardRow, guitarStringNames, guitarStringNumbers, stringIndicator } from './chordDiagram'
 import { chordDefinitions } from './chordDefinitions'
 import type { ChordDefinition } from './chordDefinitions'
@@ -1277,7 +1277,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates,
     return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Events</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create Event</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => { setCreateDate(event.target.value); setCreateError('') }} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button>{createError && <p className="form-error" role="alert">{createError}</p>}</div>}<div className="empty private-session-empty"><h2>No events available yet.</h2>{isOwner && <p>Create an event to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
   }
 
-  const available = songs.filter((song) => song.title.toLowerCase().includes(query.toLowerCase()))
+  const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
 
   return (
     <div className="page private-session-page">
@@ -1308,12 +1308,12 @@ export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates,
               const song = songs.find((item) => item.id === songId)
               if (!song) return null
               return (
-                <div className={`private-session-song ${eventReordering.getItemClassName(index)}`} data-reorder-song-index={index} key={`${song.id}-${index}`}>
+                <div className={`private-session-song ${eventReordering.getItemClassName(index)}`} data-reorder-song-index={index} key={song.id}>
                   <span className="song-order">{index + 1}</span>
                   <Link to={`/songs/${song.id}?context=private-session&session=${encodeURIComponent(session.id)}`} className="song-summary"><strong>{song.title}</strong></Link>
                   {isOwner && <div className="private-session-controls">
                     <button className="icon-button song-reorder-handle" type="button" {...eventReordering.getHandleProps(index, song.id, song.title)}><GripVertical size={17} /></button>
-                    <button className="icon-button" onClick={() => void onUpdate({ ...session, songIds: session.songIds.filter((_, itemIndex) => itemIndex !== index) })} aria-label={`Remove ${song.title} from event`}><Trash2 size={15} /></button>
+                    <button className="icon-button" onClick={() => void onUpdate({ ...session, songIds: session.songIds.filter((item) => item !== song.id) })} aria-label="Remove from event"><Trash2 size={15} /></button>
                   </div>}
                 </div>
               )
@@ -1532,11 +1532,12 @@ export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords,
             </label>)}
           </div>
           {flowSongs.length > 0 && <ol className="worship-flow-order-list" aria-label="Worship Flow song order">
-            {flowSongs.map((song, index) => <li key={song.id}>
+            {flowSongs.map((song, index) => <li key={`${song.id}-${index}`}>
               <span>{song.title}</span>
               <div className="worship-flow-order-controls">
-                <button className="icon-button" type="button" aria-label={`Move ${song.title} up`} disabled={saving || index === 0} onClick={() => void persistFlow(moveWorshipFlowSong(flowIds, song.id, -1))}><ArrowUp size={16} /></button>
-                <button className="icon-button" type="button" aria-label={`Move ${song.title} down`} disabled={saving || index === flowSongs.length - 1} onClick={() => void persistFlow(moveWorshipFlowSong(flowIds, song.id, 1))}><ArrowDown size={16} /></button>
+                <button className="icon-button" type="button" aria-label={`Move ${song.title} ${index + 1} up`} disabled={saving || index === 0} onClick={() => void persistFlow(moveWorshipFlowSong(flowIds, song.id, -1, index))}><ArrowUp size={16} /></button>
+                <button className="icon-button" type="button" aria-label={`Move ${song.title} ${index + 1} down`} disabled={saving || index === flowSongs.length - 1} onClick={() => void persistFlow(moveWorshipFlowSong(flowIds, song.id, 1, index))}><ArrowDown size={16} /></button>
+                <button className="icon-button" type="button" aria-label={`Duplicate ${song.title} in Worship Flow`} disabled={saving} onClick={() => void persistFlow(duplicateWorshipFlowSong(flowIds, song.id, index))}><Copy size={16} /></button>
               </div>
             </li>)}
           </ol>}
@@ -1578,10 +1579,10 @@ function WorshipFlowPerformance({ songs, flowId, startingChords, capoOverrides, 
 }) {
   return (
     <div className="worship-flow-sheet">
-      {songs.map((song) => {
+      {songs.map((song, songIndex) => {
         const startingChord = getWorshipFlowStartingChord(startingChords, flowId, song.id, song.key)
         const interval = (noteIndex(startingChord) - noteIndex(song.key) + 12) % 12
-        return <article className="worship-flow-song" key={song.id}>
+        return <article className="worship-flow-song" key={`${song.id}-${songIndex}`}>
           <div className="worship-flow-song-heading">
             <div className="worship-flow-song-title">
               <h2>{song.title}</h2>
@@ -1737,11 +1738,12 @@ export function EventFlowPage({ songs, sessions, eventFlows, startingChords, cap
             </label>)}
           </div>
           {flowSongs.length > 0 && <ol className="worship-flow-order-list" aria-label="Event Flow song order">
-            {flowSongs.map((song, index) => <li key={song.id}>
+            {flowSongs.map((song, index) => <li key={`${song.id}-${index}`}>
               <span>{song.title}</span>
               <div className="worship-flow-order-controls">
-                <button className="icon-button" type="button" aria-label={`Move ${song.title} up`} disabled={saving || index === 0} onClick={() => void persistFlow(moveEventFlowSong(flowIds, song.id, -1))}><ArrowUp size={16} /></button>
-                <button className="icon-button" type="button" aria-label={`Move ${song.title} down`} disabled={saving || index === flowSongs.length - 1} onClick={() => void persistFlow(moveEventFlowSong(flowIds, song.id, 1))}><ArrowDown size={16} /></button>
+                <button className="icon-button" type="button" aria-label={`Move ${song.title} ${index + 1} up`} disabled={saving || index === 0} onClick={() => void persistFlow(moveEventFlowSong(flowIds, song.id, -1, index))}><ArrowUp size={16} /></button>
+                <button className="icon-button" type="button" aria-label={`Move ${song.title} ${index + 1} down`} disabled={saving || index === flowSongs.length - 1} onClick={() => void persistFlow(moveEventFlowSong(flowIds, song.id, 1, index))}><ArrowDown size={16} /></button>
+                <button className="icon-button" type="button" aria-label={`Duplicate ${song.title} in Event Flow`} disabled={saving} onClick={() => void persistFlow(duplicateEventFlowSong(flowIds, song.id, index))}><Copy size={16} /></button>
               </div>
             </li>)}
           </ol>}
