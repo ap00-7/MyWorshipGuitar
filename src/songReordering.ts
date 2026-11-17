@@ -5,6 +5,7 @@ const movementTolerance = 10
 
 type SongGesture = {
   songId: string
+  index: number
   startX: number
   startY: number
   active: boolean
@@ -14,7 +15,7 @@ type SongGesture = {
 }
 
 export function useSongReordering(songIds: string[], enabled: boolean, onReorder: (songIds: string[]) => void) {
-  const [draggingSongId, setDraggingSongId] = useState<string | null>(null)
+  const [draggingSongIndex, setDraggingSongIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const gestureRef = useRef<SongGesture | null>(null)
   const activationTimerRef = useRef<number | null>(null)
@@ -40,7 +41,7 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
     detachListenersRef.current?.()
     detachListenersRef.current = null
     gestureRef.current = null
-    setDraggingSongId(null)
+    setDraggingSongIndex(null)
     setDropPosition(null)
   }
 
@@ -51,8 +52,8 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
     if (!gesture?.active || destinationIndex === null) return
 
     const ids = [...currentSongIdsRef.current]
-    const fromIndex = ids.indexOf(gesture.songId)
-    if (fromIndex < 0) return
+    const fromIndex = gesture.index
+    if (ids[fromIndex] !== gesture.songId) return
     const [songId] = ids.splice(fromIndex, 1)
     const insertIndex = Math.max(0, Math.min(ids.length, destinationIndex > fromIndex ? destinationIndex - 1 : destinationIndex))
     if (insertIndex === fromIndex) return
@@ -77,12 +78,12 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
   const startGesture = (songId: string, index: number, x: number, y: number, root: HTMLElement, pointerId?: number, touchId?: number) => {
     if (!enabled || gestureRef.current) return false
     suppressClickRef.current = false
-    const gesture: SongGesture = { songId, startX: x, startY: y, active: false, root, pointerId, touchId }
+    const gesture: SongGesture = { songId, index, startX: x, startY: y, active: false, root, pointerId, touchId }
     gestureRef.current = gesture
     activationTimerRef.current = window.setTimeout(() => {
       if (gestureRef.current !== gesture) return
       gesture.active = true
-      setDraggingSongId(songId)
+      setDraggingSongIndex(index)
       setDropPosition(index)
     }, activationDelay)
     return true
@@ -175,7 +176,7 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
   }, [])
 
   const getItemClassName = (index: number) => [
-      draggingSongId === songIds[index] && 'schedule-song-dragging',
+      draggingSongIndex === index && 'schedule-song-dragging',
       dropIndex === index && 'schedule-song-drop-before',
       dropIndex === index + 1 && 'schedule-song-drop-after',
   ].filter(Boolean).join(' ')

@@ -175,6 +175,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'worship_flow_songs' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'private_sessions' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'private_session_songs' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'private_session_song_occurrences' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_flow_songs' }, refreshAfterRealtime)
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {

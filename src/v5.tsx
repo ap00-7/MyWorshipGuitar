@@ -13,6 +13,26 @@ import { useSongReordering } from './songReordering'
 
 const editorKey = () => crypto.randomUUID()
 
+function useScreenWakeLock(enabled: boolean) {
+  useEffect(() => {
+    type WakeLock = { release: () => Promise<void> }
+    if (!enabled) return
+    const wakeLock = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLock> } }
+    let sentinel: WakeLock | null = null
+    const requestWakeLock = async () => {
+      if (document.hidden || !wakeLock.wakeLock) return
+      try { sentinel = await wakeLock.wakeLock.request('screen') } catch { sentinel = null }
+    }
+    const handleVisibilityChange = () => { if (!document.hidden) void requestWakeLock() }
+    void requestWakeLock()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (sentinel) void sentinel.release()
+    }
+  }, [enabled])
+}
+
 function ConfirmDialog({ open, title, message, confirmLabel = 'Delete', cancelLabel = 'Cancel', onConfirm, onCancel }: { open: boolean; title: string; message: string; confirmLabel?: string; cancelLabel?: string; onConfirm: () => Promise<void> | void; onCancel: () => void }) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
@@ -375,23 +395,7 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
     setSelectedGuitar2Option((current) => current.shapeKey === nextOption.shapeKey && current.capo === nextOption.capo && current.concertKey === nextOption.concertKey ? current : nextOption)
   }, [compatibleGuitar2Options, viewKey1, selectedGuitar2Option, guitar1Progression, effectiveGuitar1Capo, settings.notation])
 
-  useEffect(() => {
-    type WakeLock = { release: () => Promise<void> }
-    if (!song?.id) return
-    const wakeLock = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLock> } }
-    let sentinel: WakeLock | null = null
-    const requestWakeLock = async () => {
-      if (document.hidden || !wakeLock.wakeLock) return
-      try { sentinel = await wakeLock.wakeLock.request('screen') } catch { sentinel = null }
-    }
-    const handleVisibilityChange = () => { if (!document.hidden) void requestWakeLock() }
-    void requestWakeLock()
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (sentinel) void sentinel.release()
-    }
-  }, [song?.id])
+  useScreenWakeLock(Boolean(song?.id))
 
   if (!song) {
     return <Empty title="Song not found" />
@@ -1273,7 +1277,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates,
     return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Events</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create Event</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => { setCreateDate(event.target.value); setCreateError('') }} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button>{createError && <p className="form-error" role="alert">{createError}</p>}</div>}<div className="empty private-session-empty"><h2>No events available yet.</h2>{isOwner && <p>Create an event to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
   }
 
-  const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
+  const available = songs.filter((song) => song.title.toLowerCase().includes(query.toLowerCase()))
 
   return (
     <div className="page private-session-page">
@@ -1304,12 +1308,12 @@ export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates,
               const song = songs.find((item) => item.id === songId)
               if (!song) return null
               return (
-                <div className={`private-session-song ${eventReordering.getItemClassName(index)}`} data-reorder-song-index={index} key={song.id}>
+                <div className={`private-session-song ${eventReordering.getItemClassName(index)}`} data-reorder-song-index={index} key={`${song.id}-${index}`}>
                   <span className="song-order">{index + 1}</span>
                   <Link to={`/songs/${song.id}?context=private-session&session=${encodeURIComponent(session.id)}`} className="song-summary"><strong>{song.title}</strong></Link>
                   {isOwner && <div className="private-session-controls">
                     <button className="icon-button song-reorder-handle" type="button" {...eventReordering.getHandleProps(index, song.id, song.title)}><GripVertical size={17} /></button>
-                    <button className="icon-button" onClick={() => void onUpdate({ ...session, songIds: session.songIds.filter((item) => item !== song.id) })} aria-label="Remove from event"><Trash2 size={15} /></button>
+                    <button className="icon-button" onClick={() => void onUpdate({ ...session, songIds: session.songIds.filter((_, itemIndex) => itemIndex !== index) })} aria-label={`Remove ${song.title} from event`}><Trash2 size={15} /></button>
                   </div>}
                 </div>
               )
@@ -1443,6 +1447,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
 }
 
 export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords, capoOverrides, onStartingChordChange, onStartingChordReset, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; startingChords: WorshipFlowStartingChordPreferences; capoOverrides: Record<string, Record<string, number>>; onStartingChordChange: (sundayId: string, songId: string, key: string) => void; onStartingChordReset: (sundayId: string, songId: string) => void; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
+  useScreenWakeLock(true)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const sundaySetlists = setlists.filter((item) => isSundayIso(item.date))
@@ -1617,14 +1622,15 @@ export function EventFlowPage({ songs, sessions, eventFlows, startingChords, cap
   isOwner: boolean
   onSaveFlow: (sessionId: string, songIds: string[]) => Promise<void>
 }) {
+  useScreenWakeLock(true)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const sortedSessions = [...sessions].sort((left, right) => (right.date || '').localeCompare(left.date || ''))
   const requestedSessionId = searchParams.get('session') || ''
   const session = sortedSessions.find((item) => item.id === requestedSessionId) ?? sortedSessions[0]
-  const availableSongs = session?.songIds
+  const availableSongs = [...new Set(session?.songIds ?? [])]
     .map((songId) => songs.find((song) => song.id === songId))
-    .filter((song): song is Song => Boolean(song)) ?? []
+    .filter((song): song is Song => Boolean(song))
   const availableIds = availableSongs.map((song) => song.id)
   const savedFlowIds = session ? orderedEventFlowIds(availableIds, eventFlows[session.id] ?? []) : []
   const safeFontScale = Number.isFinite(fontScale) ? Math.min(1.3, Math.max(0.8, fontScale)) : 1

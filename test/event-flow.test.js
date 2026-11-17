@@ -82,3 +82,13 @@ test('the application subscribes to Event Flow changes through shared Realtime r
   assert.match(app, /table: 'event_flow_songs'[\s\S]*?refreshAfterRealtime/)
   assert.match(app, /table: 'private_session_songs'[\s\S]*?refreshAfterRealtime/)
 })
+
+test('event assignments support repeated songs while Sunday assignments remain unique', () => {
+  const migration = readFileSync('supabase/migrations/20261117_repeat_event_songs.sql', 'utf8')
+  const schema = readFileSync('supabase/schema.sql', 'utf8')
+
+  assert.match(migration, /create table if not exists public\.private_session_song_occurrences[\s\S]*?primary key \(private_session_id, position\)/)
+  assert.match(migration, /insert into public\.private_session_song_occurrences[\s\S]*?unnest\(p_song_ids\) with ordinality/)
+  assert.doesNotMatch(migration, /Song IDs must be non-null and unique/)
+  assert.match(schema, /create table if not exists public\.sunday_songs[\s\S]*?primary key \(sunday_id, song_id\)/)
+})

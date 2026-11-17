@@ -1675,6 +1675,18 @@ nav {
   margin-bottom: 24px;
 }
 
+.private-session-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.private-session-header > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .sunday-header-actions {
   display: flex;
   align-items: center;
@@ -1710,6 +1722,12 @@ nav {
   overflow-wrap: anywhere;
 }
 
+.private-session-name-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  max-width: 540px;
+}
+
 .private-session-name-field input,
 .private-session-create-form input {
   min-width: 0;
@@ -1721,6 +1739,38 @@ nav {
   font: 14px 'DM Sans', sans-serif;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.private-session-name-field input {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.private-session-name-field button {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 40px;
+}
+
+.private-session-name-field .form-error {
+  grid-column: 1 / -1;
+}
+
+.private-session-date-field {
+  max-width: 220px;
+}
+
+.private-session-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.private-session-actions > * {
+  min-height: 42px;
 }
 
 .private-session-create-form {
@@ -1918,6 +1968,28 @@ nav {
   .private-session-layout,
   .sunday-layout {
     grid-template-columns: 1fr;
+  }
+
+  .private-session-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .private-session-name-field {
+    max-width: none;
+  }
+
+  .private-session-actions {
+    justify-content: flex-start;
+  }
+
+  .private-session-actions > * {
+    flex: 1 1 auto;
+  }
+
+  .private-session-header > .primary-button {
+    align-self: flex-start;
   }
 
   .private-session-create-form {

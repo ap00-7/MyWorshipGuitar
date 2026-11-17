@@ -177,6 +177,8 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     } else {
       const dbSessions = (privateSessionsResult.data ?? []) as unknown as DbPrivateSession[]
       let dbSessionSongs: DbPrivateSessionSong[] = []
+      let dbSessionSongOccurrences: Array<{ private_session_id: string; song_id: string; position: number }> = []
+      let hasSongOccurrences = false
       if (dbSessions.length) {
         const sessionIds = dbSessions.map((session) => session.id)
         const sessionSongSelections = [
@@ -206,16 +208,30 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
         } else {
           dbSessionSongs = (sessionSongsResult.data ?? []) as unknown as DbPrivateSessionSong[]
         }
+
+        const occurrencesResult = await client.from('private_session_song_occurrences')
+          .select('private_session_id,song_id,position')
+          .in('private_session_id', sessionIds)
+          .order('position')
+        if (occurrencesResult.error) {
+          if (!isMissingTable(occurrencesResult.error, 'private_session_song_occurrences')) throwIfError(occurrencesResult.error, 'Unable to load event song order.')
+        } else {
+          hasSongOccurrences = true
+          dbSessionSongOccurrences = (occurrencesResult.data ?? []) as Array<{ private_session_id: string; song_id: string; position: number }>
+        }
       }
 
       privateSessions = dbSessions.map((session) => {
         const assignedSongs = dbSessionSongs.filter((item) => item.private_session_id === session.id).sort((a, b) => a.position - b.position)
+        const songOrder = hasSongOccurrences
+          ? dbSessionSongOccurrences.filter((item) => item.private_session_id === session.id).sort((a, b) => a.position - b.position)
+          : assignedSongs
         return {
           id: session.id,
           name: session.name,
           date: session.session_date,
           description: session.description,
-          songIds: assignedSongs.map((item) => item.song_id),
+          songIds: songOrder.map((item) => item.song_id),
           startingChordOverrides: Object.fromEntries(assignedSongs.filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
           capoOverrides: Object.fromEntries(assignedSongs.filter((item) => item.capo_override != null).map((item) => [item.song_id, item.capo_override as number])),
         }
