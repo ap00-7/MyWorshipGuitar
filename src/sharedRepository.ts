@@ -11,6 +11,7 @@ export type SharedSnapshot = {
   eventFlows: Record<string, string[]>
   worshipFlowStartingChords: Record<string, Record<string, string>>
   eventFlowStartingChords: Record<string, Record<string, string>>
+  eventsPublic: boolean
 }
 
 type DbSong = {
@@ -167,10 +168,11 @@ async function selectSongById(songId: string) {
 
 export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   const client = requireSupabase()
-  const [sundayWithCapoResult, worshipFlowResult, eventFlowResult] = await Promise.all([
+  const [sundayWithCapoResult, worshipFlowResult, eventFlowResult, eventsVisibilityResult] = await Promise.all([
     client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position,starting_chord_override,capo_override)').order('service_date', { ascending: false }),
     client.from('worship_flow_songs').select('sunday_id,song_id,position').order('position'),
     client.from('event_flow_songs').select('private_session_id,song_id,position').order('position'),
+    client.from('app_settings').select('events_public').eq('id', true).maybeSingle(),
   ])
   const sundaysResult = sundayWithCapoResult.error && isMissingCapoOverrideColumn(sundayWithCapoResult.error)
     ? await client.from('sundays').select('id,name,service_date,description,sunday_songs(song_id,position,starting_chord_override)').order('service_date', { ascending: false })
@@ -178,6 +180,10 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   throwIfError(sundaysResult.error, 'Unable to load Sunday schedule.')
   throwIfError(worshipFlowResult.error, 'Unable to load Worship Flow. Apply the approved Worship Flow database migration.')
   throwIfError(eventFlowResult.error, 'Unable to load Event Flow. Apply the approved Event Flow database migration.')
+  if (eventsVisibilityResult.error && !isMissingTable(eventsVisibilityResult.error, 'app_settings')) {
+    throwIfError(eventsVisibilityResult.error, 'Unable to load Events visibility.')
+  }
+  const eventsPublic = !eventsVisibilityResult.error && eventsVisibilityResult.data?.events_public === true
   const [worshipFlowOccurrencesWithChords, eventFlowOccurrencesWithChords] = await Promise.all([
     client.from('worship_flow_song_occurrences').select('sunday_id,song_id,position,starting_chord_override').order('position'),
     client.from('event_flow_song_occurrences').select('private_session_id,song_id,position,starting_chord_override').order('position'),
@@ -297,7 +303,18 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     eventFlows[item.private_session_id].push(item.song_id)
     if (item.starting_chord_override) (eventFlowStartingChords[item.private_session_id] ??= {})[String(occurrenceIndex)] = item.starting_chord_override
   }
-  return { songs, setlists, privateSessions, worshipFlows, eventFlows, worshipFlowStartingChords, eventFlowStartingChords }
+  return { songs, setlists, privateSessions, worshipFlows, eventFlows, worshipFlowStartingChords, eventFlowStartingChords, eventsPublic }
+}
+
+export async function setEventsPublic(eventsPublic: boolean) {
+  const client = requireSupabase()
+  const { data, error } = await client.from('app_settings')
+    .update({ events_public: eventsPublic })
+    .eq('id', true)
+    .select('events_public')
+    .maybeSingle()
+  throwIfError(error, 'Unable to update Events visibility.')
+  if (!data || data.events_public !== eventsPublic) throw new Error('Events visibility was updated but could not be verified.')
 }
 
 export async function setWorshipFlowSongStartingChord(sundayId: string, position: number, songId: string, startingChord: string | null) {

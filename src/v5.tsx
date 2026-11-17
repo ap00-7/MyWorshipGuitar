@@ -1201,7 +1201,7 @@ function nextAvailableSessionDate(sessions: { date: string }[], from = new Date(
   return toIsoDate(date)
 }
 
-export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates, onCreate, onUpdate, onDelete }: { songs: Song[]; sessions: { id: string; name: string; date: string; description: string; songIds: string[] }[]; isOwner: boolean; uniqueEventDates: boolean; onCreate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onUpdate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onDelete: (sessionId: string) => Promise<void> | void; }) {
+export function PrivateSessionPage({ songs, sessions, isOwner, eventsPublic, onEventsPublicChange, uniqueEventDates, onCreate, onUpdate, onDelete }: { songs: Song[]; sessions: { id: string; name: string; date: string; description: string; songIds: string[] }[]; isOwner: boolean; eventsPublic: boolean; onEventsPublicChange: (enabled: boolean) => Promise<void>; uniqueEventDates: boolean; onCreate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onUpdate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onDelete: (sessionId: string) => Promise<void> | void; }) {
   const [selectedId, setSelectedId] = useState(() => sessions[0]?.id ?? '')
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -1213,6 +1213,8 @@ export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates,
   const [sessionName, setSessionName] = useState('')
   const [sessionNameError, setSessionNameError] = useState('')
   const [isSavingSessionName, setIsSavingSessionName] = useState(false)
+  const [isSavingEventsVisibility, setIsSavingEventsVisibility] = useState(false)
+  const [eventsVisibilityError, setEventsVisibilityError] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const sortedSessions = [...sessions].sort((left, right) => (right.date || '').localeCompare(left.date || ''))
   const requestedSessionId = searchParams.get('session')
@@ -1260,6 +1262,23 @@ export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates,
     }
   }
 
+  const updateEventsVisibility = async (enabled: boolean) => {
+    setIsSavingEventsVisibility(true)
+    setEventsVisibilityError('')
+    try {
+      await onEventsPublicChange(enabled)
+    } catch (error) {
+      setEventsVisibilityError(error instanceof Error ? error.message : 'Unable to update Events visibility.')
+    } finally {
+      setIsSavingEventsVisibility(false)
+    }
+  }
+
+  const publicEventsToggle = isOwner && <label className="private-session-public-toggle">
+    <input type="checkbox" checked={eventsPublic} disabled={isSavingEventsVisibility} onChange={(event) => void updateEventsVisibility(event.target.checked)} />
+    <span>Allow public to view Events</span>
+  </label>
+
   useEffect(() => {
     if (!sortedSessions.length) {
       setSelectedId('')
@@ -1275,7 +1294,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates,
   }, [session?.id, session?.name])
 
   if (!sortedSessions.length) {
-    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Events</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create Event</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => { setCreateDate(event.target.value); setCreateError('') }} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button>{createError && <p className="form-error" role="alert">{createError}</p>}</div>}<div className="empty private-session-empty"><h2>No events available yet.</h2>{isOwner && <p>Create an event to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
+    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Events</h1></div>{isOwner && <div className="private-session-actions">{publicEventsToggle}<button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create Event</button></div>}</header>{eventsVisibilityError && <p className="form-error" role="alert">{eventsVisibilityError}</p>}{isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => { setCreateDate(event.target.value); setCreateError('') }} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button>{createError && <p className="form-error" role="alert">{createError}</p>}</div>}<div className="empty private-session-empty"><h2>No events available yet.</h2>{isOwner && <p>Create an event to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
   }
 
   const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
@@ -1292,12 +1311,14 @@ export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates,
           {isOwner && <label className="private-session-date-field">Date<input className="private-session-date-input" type="date" value={session.date} onChange={(event) => { const nextDate = event.target.value; if (nextDate) void onUpdate({ ...session, date: nextDate }); }} aria-label="Event date" /></label>}
         </div>
         <div className="private-session-actions">
+          {publicEventsToggle}
           <Link className="secondary-button" to={`/event-flow?session=${encodeURIComponent(session.id)}`}>Event Flow</Link>
           {isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>New Event</button>}
           {isOwner && session && <button className="secondary-button" onClick={() => setDeleteDialogOpen(true)} aria-label="Delete event">Delete</button>}
         </div>
       </header>
 
+      {eventsVisibilityError && <p className="form-error" role="alert">{eventsVisibilityError}</p>}
       {isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => { setCreateDate(event.target.value); setCreateError('') }} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button>{createError && <p className="form-error" role="alert">{createError}</p>}</div>}
 
       <div className="private-session-layout">
@@ -1568,7 +1589,7 @@ function renderFlowChordLine(line: string, interval: number, settings: Settings,
   })
 }
 
-function WorshipFlowPerformance({ songs, flowId, startingChords, capoOverrides, onStartingChordChange, onStartingChordReset, settings, onChordDetail }: {
+function WorshipFlowPerformance({ songs, flowId, startingChords, capoOverrides, onStartingChordChange, onStartingChordReset, settings, onChordDetail, canEditStartingChord = true }: {
   songs: Song[]
   flowId: string
   startingChords: WorshipFlowStartingChordPreferences
@@ -1577,6 +1598,7 @@ function WorshipFlowPerformance({ songs, flowId, startingChords, capoOverrides, 
   onStartingChordReset: (flowId: string, occurrenceIndex: number, songId: string) => void
   settings: Settings
   onChordDetail?: (chord: ChordDefinition) => void
+  canEditStartingChord?: boolean
 }) {
   return (
     <div className="worship-flow-sheet">
@@ -1589,12 +1611,12 @@ function WorshipFlowPerformance({ songs, flowId, startingChords, capoOverrides, 
               <h2>{song.title}</h2>
               {capoOverrides[flowId]?.[song.id] !== undefined && <span className="worship-flow-capo">Capo {capoOverrides[flowId][song.id]}</span>}
             </div>
-            <div className="worship-flow-starting-chord-controls">
+            {canEditStartingChord ? <div className="worship-flow-starting-chord-controls">
               <button className="worship-flow-original" type="button" onClick={() => onStartingChordReset(flowId, songIndex, song.id)} aria-label={`Restore original chords for ${song.title}, copy ${songIndex + 1}`}>Original</button>
               <select className="worship-flow-starting-chord" value={startingChord} onChange={(event) => onStartingChordChange(flowId, songIndex, song.id, event.target.value)} aria-label={`Starting chord for ${song.title}, copy ${songIndex + 1}`}>
                 {keyOptions.map((key) => <option key={key} value={key}>{key}</option>)}
               </select>
-            </div>
+            </div> : <span className="worship-flow-starting-chord-display">{startingChord}</span>}
           </div>
           {song.sections.map((section, sectionIndex) => <section className="worship-flow-section" key={section.id || `${song.id}-${sectionIndex}`}>
             <h3>{section.name}</h3>
@@ -1751,7 +1773,7 @@ export function EventFlowPage({ songs, sessions, eventFlows, startingChords, cap
           <div className="worship-flow-save-status" aria-live="polite">{saving ? 'Saving…' : saveError}</div>
         </section>}
 
-        {flowSongs.length > 0 ? <WorshipFlowPerformance songs={flowSongs} flowId={session.id} startingChords={startingChords} capoOverrides={capoOverrides} onStartingChordChange={onStartingChordChange} onStartingChordReset={onStartingChordReset} settings={settings} onChordDetail={setSelectedChord} /> : <div className="worship-flow-empty">
+        {flowSongs.length > 0 ? <WorshipFlowPerformance songs={flowSongs} flowId={session.id} startingChords={startingChords} capoOverrides={capoOverrides} onStartingChordChange={onStartingChordChange} onStartingChordReset={onStartingChordReset} settings={settings} onChordDetail={setSelectedChord} canEditStartingChord={isOwner} /> : <div className="worship-flow-empty">
           <p>No songs added to Event Flow yet.</p>
           {isOwner && !editing && <button className="secondary-button" type="button" onClick={() => setEditing(true)}>Select songs</button>}
         </div>}

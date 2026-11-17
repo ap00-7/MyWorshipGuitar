@@ -3,7 +3,7 @@ import { BookOpen, CalendarDays, Home, LogIn, LogOut, Settings as SettingsIcon }
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { defaultSettings, demoSongs, normalizeSong, type PrivateSession, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
-import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadSharedSnapshot, saveEventFlow as persistEventFlow, saveWorshipFlow as persistWorshipFlow, setEventFlowSongStartingChord, setEventSongCapo, setEventSongStartingChord, setSundaySongCapo, setSundaySongStartingChord, setWorshipFlowSongStartingChord, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
+import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadSharedSnapshot, saveEventFlow as persistEventFlow, saveWorshipFlow as persistWorshipFlow, setEventFlowSongStartingChord, setEventSongCapo, setEventSongStartingChord, setEventsPublic as persistEventsPublic, setSundaySongCapo, setSundaySongStartingChord, setWorshipFlowSongStartingChord, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
 import { getUserRole, supabase, supabaseConfigured, type UserRole } from './supabaseClient'
 import { formatSundayTitle, isSundayIso, nextUnusedSundayIso, toIsoDate, upcomingSundayIso } from './music'
 import { AboutPage, EventFlowPage, HomePage, PrivateSessionPage, SettingsPageV5, SongEditor, SongLibrary, SongPage, SundayPageV5, WorshipFlowPage } from './v5'
@@ -51,6 +51,7 @@ export default function App() {
   const [eventFlows, setEventFlows] = useLocalState<Record<string, string[]>>('wg-event-flows', {}, !supabaseConfigured)
   const [worshipFlowStartingChords, setWorshipFlowStartingChords] = useLocalState<WorshipFlowStartingChordPreferences>('wg-worship-flow-starting-chords', {}, !supabaseConfigured)
   const [eventFlowStartingChords, setEventFlowStartingChords] = useLocalState<WorshipFlowStartingChordPreferences>('wg-event-flow-starting-chords', {}, !supabaseConfigured)
+  const [eventsPublic, setEventsPublic] = useState(false)
   const [worshipFlowFontScale, setWorshipFlowFontScale] = useLocalState<number>('wg-worship-flow-font-scale', 1)
   const [eventFlowFontScale, setEventFlowFontScale] = useLocalState<number>('wg-event-flow-font-scale', 1)
   const [settings, setSettings] = useLocalState<Settings>('wg-settings', defaultSettings)
@@ -63,6 +64,7 @@ export default function App() {
   const mainRef = useRef<HTMLElement | null>(null)
   const scrollPositionsRef = useRef<Record<string, number>>({})
   const isOwner = role === 'owner'
+  const canViewEvents = isOwner || eventsPublic
   const worshipFlowCapos = Object.fromEntries(setlists.map((setlist) => [setlist.id, setlist.capoOverrides ?? {}]))
   const eventFlowCapos = Object.fromEntries(privateSessions.map((session) => [session.id, session.capoOverrides ?? {}]))
   const currentScrollSection = scrollSection(location.pathname, location.search)
@@ -136,6 +138,7 @@ export default function App() {
       setEventFlows(snapshot.eventFlows)
       setWorshipFlowStartingChords(snapshot.worshipFlowStartingChords)
       setEventFlowStartingChords(snapshot.eventFlowStartingChords)
+      setEventsPublic(snapshot.eventsPublic)
     }).catch((loadError) => {
       if (active) setError(loadError instanceof Error ? loadError.message : 'Unable to load shared content.')
     }).finally(() => {
@@ -180,6 +183,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'private_session_songs' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_flow_songs' }, refreshAfterRealtime)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_flow_song_occurrences' }, refreshAfterRealtime)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, refreshAfterRealtime)
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           if (hasConnected) void refreshAfterRealtime()
@@ -202,6 +206,7 @@ export default function App() {
     setEventFlows(snapshot.eventFlows)
     setWorshipFlowStartingChords(snapshot.worshipFlowStartingChords)
     setEventFlowStartingChords(snapshot.eventFlowStartingChords)
+    setEventsPublic(snapshot.eventsPublic)
     return snapshot
   }
 
@@ -419,6 +424,24 @@ export default function App() {
       throw saveError instanceof Error ? saveError : new Error(message)
     }
   }
+  const updateEventsVisibility = async (enabled: boolean) => {
+    try {
+      if (!isOwner) throw new Error('Only the owner can change Events visibility.')
+      if (supabaseConfigured) {
+        await persistEventsPublic(enabled)
+        const snapshot = await refreshShared()
+        if (snapshot.eventsPublic !== enabled) throw new Error('Events visibility was updated but could not be verified.')
+      } else {
+        setEventsPublic(enabled)
+      }
+      setError('')
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Unable to update Events visibility.'
+      console.error('Unable to update Events visibility', { enabled, error: saveError })
+      setError(message)
+      throw saveError instanceof Error ? saveError : new Error(message)
+    }
+  }
   const updateContextCapo = async (context: 'sunday' | 'private-session', contextId: string, songId: string, capo: number | null) => {
     try {
       if (!isOwner) throw new Error('Only the owner can set a capo.')
@@ -514,7 +537,7 @@ export default function App() {
     { to: '/', label: 'Home', icon: Home },
     { to: '/songs', label: 'Songs', icon: BookOpen },
     { to: '/sunday', label: 'Sunday', icon: CalendarDays },
-    ...(isOwner ? [{ to: '/private-session', label: 'Events', icon: CalendarDays }] : []),
+    ...(canViewEvents ? [{ to: '/private-session', label: 'Events', icon: CalendarDays }] : []),
     { to: '/settings', label: 'Settings', icon: SettingsIcon },
   ]
   return (
@@ -530,8 +553,8 @@ export default function App() {
           <Route path="/songs/:songId" element={<SongPage key={location.pathname + location.search} songs={songs} setlists={setlists} privateSessions={privateSessions} settings={settings} isOwner={isOwner} onSetStartingChord={updateContextStartingChord} onSetCapo={updateContextCapo} />} />
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} onDelete={removeSunday} isOwner={isOwner} />} />
           <Route path="/worship-flow" element={<WorshipFlowPage songs={songs} setlists={setlists} worshipFlows={worshipFlows} startingChords={worshipFlowStartingChords} capoOverrides={worshipFlowCapos} onStartingChordChange={(sundayId, occurrenceIndex, songId, key) => { void updateFlowStartingChord('worship', sundayId, occurrenceIndex, songId, key).catch(() => undefined) }} onStartingChordReset={(sundayId, occurrenceIndex, songId) => { void updateFlowStartingChord('worship', sundayId, occurrenceIndex, songId, null).catch(() => undefined) }} settings={settings} fontScale={worshipFlowFontScale} onFontScale={setWorshipFlowFontScale} isOwner={isOwner} onSaveFlow={updateWorshipFlow} />} />
-          <Route path="/event-flow" element={isOwner ? <EventFlowPage key={location.search} songs={songs} sessions={privateSessions} eventFlows={eventFlows} startingChords={eventFlowStartingChords} capoOverrides={eventFlowCapos} onStartingChordChange={(sessionId, occurrenceIndex, songId, key) => { void updateFlowStartingChord('event', sessionId, occurrenceIndex, songId, key).catch(() => undefined) }} onStartingChordReset={(sessionId, occurrenceIndex, songId) => { void updateFlowStartingChord('event', sessionId, occurrenceIndex, songId, null).catch(() => undefined) }} settings={settings} fontScale={eventFlowFontScale} onFontScale={setEventFlowFontScale} isOwner={isOwner} onSaveFlow={updateEventFlow} /> : <Navigate to="/" replace />} />
-          <Route path="/private-session" element={isOwner ? <PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} uniqueEventDates={supabaseConfigured} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else { setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); setEventFlows((current) => { const next = { ...current }; delete next[sessionId]; return next }); setEventFlowStartingChords((current) => { const next = { ...current }; delete next[sessionId]; return next }) } }} /> : <Navigate to="/" replace />} />
+          <Route path="/event-flow" element={canViewEvents ? <EventFlowPage key={location.search} songs={songs} sessions={privateSessions} eventFlows={eventFlows} startingChords={eventFlowStartingChords} capoOverrides={eventFlowCapos} onStartingChordChange={(sessionId, occurrenceIndex, songId, key) => { void updateFlowStartingChord('event', sessionId, occurrenceIndex, songId, key).catch(() => undefined) }} onStartingChordReset={(sessionId, occurrenceIndex, songId) => { void updateFlowStartingChord('event', sessionId, occurrenceIndex, songId, null).catch(() => undefined) }} settings={settings} fontScale={eventFlowFontScale} onFontScale={setEventFlowFontScale} isOwner={isOwner} onSaveFlow={updateEventFlow} /> : <Navigate to="/" replace />} />
+          <Route path="/private-session" element={canViewEvents ? <PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} eventsPublic={eventsPublic} onEventsPublicChange={updateEventsVisibility} uniqueEventDates={supabaseConfigured} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else { setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); setEventFlows((current) => { const next = { ...current }; delete next[sessionId]; return next }); setEventFlowStartingChords((current) => { const next = { ...current }; delete next[sessionId]; return next }) } }} /> : <Navigate to="/" replace />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/owner" element={<OwnerLogin />} />

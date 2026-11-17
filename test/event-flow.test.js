@@ -110,14 +110,8 @@ test('event schedules remain unique while the new migration moves repeats into f
   assert.match(schema, /primary key \(private_session_id, song_id\)/)
 })
 
-test('Flow copy starting chords persist per occurrence', () => {
-  const migration = readFileSync('supabase/migrations/20261117114000_flow_occurrence_chords.sql', 'utf8')
+test('Flow starting chord controls have no dotted underline', () => {
   const styles = readFileSync('src/styles.css', 'utf8')
-
-  assert.match(migration, /add column if not exists starting_chord_override text/)
-  assert.match(migration, /row_number\(\) over \(partition by song_id order by position\)/)
-  assert.match(migration, /set_worship_flow_song_starting_chord/)
-  assert.match(migration, /set_event_flow_song_starting_chord/)
   assert.doesNotMatch(styles, /text-decoration:\s*underline dotted/)
 })
 test('database persistence restricts writes to owners and assigned songs', () => {

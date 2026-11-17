@@ -16,6 +16,15 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.app_settings (
+  id boolean primary key default true check (id),
+  events_public boolean not null default false
+);
+
+insert into public.app_settings (id, events_public)
+values (true, false)
+on conflict (id) do nothing;
+
 create table if not exists public.songs (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -113,14 +122,20 @@ create table if not exists public.chord_library (
 );
 
 grant usage on schema public to anon, authenticated;
-grant select on public.profiles, public.songs, public.song_sections, public.sundays, public.sunday_songs, public.private_sessions, public.private_session_songs, public.chord_library to anon, authenticated;
+grant select on public.profiles, public.app_settings, public.songs, public.song_sections, public.sundays, public.sunday_songs, public.private_sessions, public.private_session_songs, public.chord_library to anon, authenticated;
 grant insert, update, delete on public.songs, public.song_sections, public.sundays, public.sunday_songs, public.private_sessions, public.private_session_songs, public.chord_library to authenticated;
-grant update on public.profiles to authenticated;
+grant update on public.profiles, public.app_settings to authenticated;
 
 create or replace function public.is_worship_owner()
 returns boolean language sql stable security definer set search_path = public
 as $$
   select exists (select 1 from public.profiles where id = auth.uid() and role = 'owner');
+$$;
+
+create or replace function public.events_are_public()
+returns boolean language sql stable security definer set search_path = public
+as $$
+  select coalesce((select events_public from public.app_settings where id = true), false);
 $$;
 
 create or replace function public.handle_new_user()
@@ -139,6 +154,7 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 alter table public.profiles enable row level security;
+alter table public.app_settings enable row level security;
 alter table public.songs enable row level security;
 alter table public.song_sections enable row level security;
 alter table public.sundays enable row level security;
@@ -148,20 +164,26 @@ alter table public.private_session_songs enable row level security;
 alter table public.chord_library enable row level security;
 
 drop policy if exists "users can read own profile" on public.profiles;
+drop policy if exists "public can read app settings" on public.app_settings;
+drop policy if exists "owner can update app settings" on public.app_settings;
 drop policy if exists "public can read songs" on public.songs;
 drop policy if exists "public can read song sections" on public.song_sections;
 drop policy if exists "public can read sundays" on public.sundays;
 drop policy if exists "public can read sunday songs" on public.sunday_songs;
 drop policy if exists "public can read private sessions" on public.private_sessions;
 drop policy if exists "public can read private session songs" on public.private_session_songs;
+drop policy if exists "users can read visible private sessions" on public.private_sessions;
+drop policy if exists "users can read visible private session songs" on public.private_session_songs;
 drop policy if exists "public can read chord library" on public.chord_library;
 create policy "users can read own profile" on public.profiles for select using (id = auth.uid());
+create policy "public can read app settings" on public.app_settings for select using (true);
+create policy "owner can update app settings" on public.app_settings for update using (public.is_worship_owner()) with check (public.is_worship_owner());
 create policy "public can read songs" on public.songs for select using (true);
 create policy "public can read song sections" on public.song_sections for select using (true);
 create policy "public can read sundays" on public.sundays for select using (true);
 create policy "public can read sunday songs" on public.sunday_songs for select using (true);
-create policy "public can read private sessions" on public.private_sessions for select using (true);
-create policy "public can read private session songs" on public.private_session_songs for select using (true);
+create policy "users can read visible private sessions" on public.private_sessions for select using (public.is_worship_owner() or public.events_are_public());
+create policy "users can read visible private session songs" on public.private_session_songs for select using (public.is_worship_owner() or public.events_are_public());
 create policy "public can read chord library" on public.chord_library for select using (true);
 
 drop policy if exists "owner can insert songs" on public.songs;
