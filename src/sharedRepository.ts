@@ -100,6 +100,10 @@ function isMissingCapoOverrideColumn(error: unknown) {
   return JSON.stringify(error).toLowerCase().includes('capo_override')
 }
 
+function isMissingStartingChordOverrideColumn(error: unknown) {
+  return JSON.stringify(error).toLowerCase().includes('starting_chord_override')
+}
+
 function isMissingTable(error: unknown, tableName: string) {
   if (!error || typeof error !== 'object') return false
   const record = error as { code?: unknown; message?: unknown; details?: unknown }
@@ -175,16 +179,28 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
       let dbSessionSongs: DbPrivateSessionSong[] = []
       if (dbSessions.length) {
         const sessionIds = dbSessions.map((session) => session.id)
-        const songsWithCapoResult = await client.from('private_session_songs')
-          .select('private_session_id,song_id,position,starting_chord_override,capo_override')
-          .in('private_session_id', sessionIds)
-          .order('position')
-        const sessionSongsResult = songsWithCapoResult.error && isMissingCapoOverrideColumn(songsWithCapoResult.error)
-          ? await client.from('private_session_songs')
-              .select('private_session_id,song_id,position,starting_chord_override')
-              .in('private_session_id', sessionIds)
-              .order('position')
-          : songsWithCapoResult
+        const sessionSongSelections = [
+          'private_session_id,song_id,position,starting_chord_override,capo_override',
+          'private_session_id,song_id,position,starting_chord_override',
+          'private_session_id,song_id,position,capo_override',
+          'private_session_id,song_id,position',
+        ]
+        let sessionSongsResult: { data: unknown; error: unknown } | undefined
+        for (const selection of sessionSongSelections) {
+          const result = await client.from('private_session_songs')
+            .select(selection)
+            .in('private_session_id', sessionIds)
+            .order('position')
+          if (!result.error) {
+            sessionSongsResult = result as unknown as { data: unknown; error: unknown }
+            break
+          }
+          if (!isMissingCapoOverrideColumn(result.error) && !isMissingStartingChordOverrideColumn(result.error)) {
+            sessionSongsResult = result as unknown as { data: unknown; error: unknown }
+            break
+          }
+        }
+        if (!sessionSongsResult) throw new Error('Unable to load event songs.')
         if (sessionSongsResult.error) {
           if (!isMissingTable(sessionSongsResult.error, 'private_session_songs')) throwIfError(sessionSongsResult.error, 'Unable to load event songs.')
         } else {
