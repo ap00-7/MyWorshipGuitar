@@ -1189,14 +1189,22 @@ export function AboutPage() {
   )
 }
 
-export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdate, onDelete }: { songs: Song[]; sessions: { id: string; name: string; date: string; description: string; songIds: string[] }[]; isOwner: boolean; onCreate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onUpdate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onDelete: (sessionId: string) => Promise<void> | void; }) {
+function nextAvailableSessionDate(sessions: { date: string }[], from = new Date()) {
+  const takenDates = new Set(sessions.map((item) => item.date))
+  const date = new Date(from.getFullYear(), from.getMonth(), from.getDate())
+  while (takenDates.has(toIsoDate(date))) date.setDate(date.getDate() + 1)
+  return toIsoDate(date)
+}
+
+export function PrivateSessionPage({ songs, sessions, isOwner, uniqueEventDates, onCreate, onUpdate, onDelete }: { songs: Song[]; sessions: { id: string; name: string; date: string; description: string; songIds: string[] }[]; isOwner: boolean; uniqueEventDates: boolean; onCreate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onUpdate: (session: { id: string; name: string; date: string; description: string; songIds: string[] }) => Promise<{ id: string; name: string; date: string; description: string; songIds: string[] }>; onDelete: (sessionId: string) => Promise<void> | void; }) {
   const [selectedId, setSelectedId] = useState(() => sessions[0]?.id ?? '')
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState('')
-  const [createDate, setCreateDate] = useState(new Date().toISOString().slice(0, 10))
+  const [createDate, setCreateDate] = useState(() => nextAvailableSessionDate(sessions))
+  const [createError, setCreateError] = useState('')
   const [sessionName, setSessionName] = useState('')
   const [sessionNameError, setSessionNameError] = useState('')
   const [isSavingSessionName, setIsSavingSessionName] = useState(false)
@@ -1216,12 +1224,21 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
 
   const createSession = async () => {
     if (!createDate) return
-    const created = await onCreate({ id: '', name: createName, date: createDate, description: '', songIds: [] })
-    setSelectedId(created.id)
-    setCreateName('')
-    setCreateDate(new Date().toISOString().slice(0, 10))
-    setCreateOpen(false)
-    navigate(`/private-session?session=${encodeURIComponent(created.id)}`, { replace: true })
+    if (uniqueEventDates && sessions.some((item) => item.date === createDate)) {
+      setCreateError('An event already exists on this date. Choose another date.')
+      return
+    }
+    setCreateError('')
+    try {
+      const created = await onCreate({ id: '', name: createName, date: createDate, description: '', songIds: [] })
+      setSelectedId(created.id)
+      setCreateName('')
+      setCreateDate(nextAvailableSessionDate([...sessions, created]))
+      setCreateOpen(false)
+      navigate(`/private-session?session=${encodeURIComponent(created.id)}`, { replace: true })
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : 'Unable to create event.')
+    }
   }
 
   const saveSessionName = async () => {
@@ -1253,7 +1270,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
   }, [session?.id, session?.name])
 
   if (!sortedSessions.length) {
-    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Events</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create Event</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button></div>}<div className="empty private-session-empty"><h2>No events available yet.</h2>{isOwner && <p>Create an event to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
+    return <div className="page"><header className="private-session-header"><div><div className="eyebrow">Scheduled worship</div><h1>Events</h1></div>{isOwner && <button className="primary-button" onClick={() => setCreateOpen((current) => !current)}>Create Event</button>}</header>{isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => { setCreateDate(event.target.value); setCreateError('') }} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button>{createError && <p className="form-error" role="alert">{createError}</p>}</div>}<div className="empty private-session-empty"><h2>No events available yet.</h2>{isOwner && <p>Create an event to plan a rehearsal, personal set, or any non-Sunday date.</p>}</div></div>
   }
 
   const available = songs.filter((song) => !session.songIds.includes(song.id) && song.title.toLowerCase().includes(query.toLowerCase()))
@@ -1276,7 +1293,7 @@ export function PrivateSessionPage({ songs, sessions, isOwner, onCreate, onUpdat
         </div>
       </header>
 
-      {isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button></div>}
+      {isOwner && createOpen && <div className="private-session-create-form"><label>Event Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Event" /></label><label>Date<input type="date" value={createDate} onChange={(event) => { setCreateDate(event.target.value); setCreateError('') }} /></label><button className="primary-button" onClick={() => void createSession()} disabled={!createDate}>Create Event</button>{createError && <p className="form-error" role="alert">{createError}</p>}</div>}
 
       <div className="private-session-layout">
         <main className="private-session-songs">
