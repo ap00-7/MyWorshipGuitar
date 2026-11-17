@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { BookOpen, CalendarDays, Home, LogIn, LogOut, Settings as SettingsIcon } from 'lucide-react'
-import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { defaultSettings, demoSongs, normalizeSong, type PrivateSession, type Setlist, type Settings, type Song } from './data'
 import { LocalRepository } from './repositories'
 import { deletePrivateSession, deleteSharedSong, deleteSunday, isUuid, loadSharedSnapshot, saveEventFlow as persistEventFlow, saveWorshipFlow as persistWorshipFlow, setEventFlowSongStartingChord, setEventSongCapo, setEventSongStartingChord, setSundaySongCapo, setSundaySongStartingChord, setWorshipFlowSongStartingChord, upsertPrivateSession, upsertSharedSong, upsertSunday } from './sharedRepository'
@@ -510,7 +510,13 @@ export default function App() {
 
   if (shouldShowGlobalLoading) return <div className="page"><p>Loading shared worship content...</p></div>
 
-  const publicNav = [{ to: '/', label: 'Home', icon: Home }, { to: '/songs', label: 'Songs', icon: BookOpen }, { to: '/sunday', label: 'Sunday', icon: CalendarDays }, { to: '/private-session', label: 'Events', icon: CalendarDays }, { to: '/settings', label: 'Settings', icon: SettingsIcon }]
+  const publicNav = [
+    { to: '/', label: 'Home', icon: Home },
+    { to: '/songs', label: 'Songs', icon: BookOpen },
+    { to: '/sunday', label: 'Sunday', icon: CalendarDays },
+    ...(isOwner ? [{ to: '/private-session', label: 'Events', icon: CalendarDays }] : []),
+    { to: '/settings', label: 'Settings', icon: SettingsIcon },
+  ]
   return (
     <div className={`app${location.pathname === '/worship-flow' ? ' app-worship-flow' : ''}${location.pathname === '/event-flow' ? ' app-event-flow' : ''}`}>
       <Sidebar items={publicNav} isOwner={isOwner} onSignOut={signOut} />
@@ -524,8 +530,8 @@ export default function App() {
           <Route path="/songs/:songId" element={<SongPage key={location.pathname + location.search} songs={songs} setlists={setlists} privateSessions={privateSessions} settings={settings} isOwner={isOwner} onSetStartingChord={updateContextStartingChord} onSetCapo={updateContextCapo} />} />
           <Route path="/sunday" element={<SundayPageV5 songs={songs} setlists={setlists} settings={settings} onCreate={createSetlist} onUpdate={updateSetlist} onDuplicate={duplicateSetlist} onDelete={removeSunday} isOwner={isOwner} />} />
           <Route path="/worship-flow" element={<WorshipFlowPage songs={songs} setlists={setlists} worshipFlows={worshipFlows} startingChords={worshipFlowStartingChords} capoOverrides={worshipFlowCapos} onStartingChordChange={(sundayId, occurrenceIndex, songId, key) => { void updateFlowStartingChord('worship', sundayId, occurrenceIndex, songId, key).catch(() => undefined) }} onStartingChordReset={(sundayId, occurrenceIndex, songId) => { void updateFlowStartingChord('worship', sundayId, occurrenceIndex, songId, null).catch(() => undefined) }} settings={settings} fontScale={worshipFlowFontScale} onFontScale={setWorshipFlowFontScale} isOwner={isOwner} onSaveFlow={updateWorshipFlow} />} />
-          <Route path="/event-flow" element={<EventFlowPage key={location.search} songs={songs} sessions={privateSessions} eventFlows={eventFlows} startingChords={eventFlowStartingChords} capoOverrides={eventFlowCapos} onStartingChordChange={(sessionId, occurrenceIndex, songId, key) => { void updateFlowStartingChord('event', sessionId, occurrenceIndex, songId, key).catch(() => undefined) }} onStartingChordReset={(sessionId, occurrenceIndex, songId) => { void updateFlowStartingChord('event', sessionId, occurrenceIndex, songId, null).catch(() => undefined) }} settings={settings} fontScale={eventFlowFontScale} onFontScale={setEventFlowFontScale} isOwner={isOwner} onSaveFlow={updateEventFlow} />} />
-          <Route path="/private-session" element={<PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} uniqueEventDates={supabaseConfigured} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else { setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); setEventFlows((current) => { const next = { ...current }; delete next[sessionId]; return next }); setEventFlowStartingChords((current) => { const next = { ...current }; delete next[sessionId]; return next }) } }} />} />
+          <Route path="/event-flow" element={isOwner ? <EventFlowPage key={location.search} songs={songs} sessions={privateSessions} eventFlows={eventFlows} startingChords={eventFlowStartingChords} capoOverrides={eventFlowCapos} onStartingChordChange={(sessionId, occurrenceIndex, songId, key) => { void updateFlowStartingChord('event', sessionId, occurrenceIndex, songId, key).catch(() => undefined) }} onStartingChordReset={(sessionId, occurrenceIndex, songId) => { void updateFlowStartingChord('event', sessionId, occurrenceIndex, songId, null).catch(() => undefined) }} settings={settings} fontScale={eventFlowFontScale} onFontScale={setEventFlowFontScale} isOwner={isOwner} onSaveFlow={updateEventFlow} /> : <Navigate to="/" replace />} />
+          <Route path="/private-session" element={isOwner ? <PrivateSessionPage songs={songs} sessions={privateSessions} isOwner={isOwner} uniqueEventDates={supabaseConfigured} onCreate={savePrivateSession} onUpdate={savePrivateSession} onDelete={async (sessionId) => { if (supabaseConfigured) { await deletePrivateSession(sessionId); await refreshShared() } else { setPrivateSessions((current) => current.filter((item) => item.id !== sessionId)); setEventFlows((current) => { const next = { ...current }; delete next[sessionId]; return next }); setEventFlowStartingChords((current) => { const next = { ...current }; delete next[sessionId]; return next }) } }} /> : <Navigate to="/" replace />} />
           <Route path="/settings" element={<SettingsPageV5 settings={settings} onSettings={setSettings} />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/owner" element={<OwnerLogin />} />

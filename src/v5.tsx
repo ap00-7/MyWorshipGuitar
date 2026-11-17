@@ -321,7 +321,8 @@ export function SongPage({ songs, setlists, privateSessions, settings, isOwner, 
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const song = songs.find((item) => item.id === songId)
-  const context = searchParams.get('context') === 'private-session' || searchParams.get('context') === 'sunday' ? searchParams.get('context') : 'songs'
+  const requestedContext = searchParams.get('context')
+  const context = requestedContext === 'sunday' ? 'sunday' : requestedContext === 'private-session' && isOwner ? 'private-session' : 'songs'
   const sundayId = searchParams.get('sunday')
   const sunday = setlists.find((item) => item.id === sundayId)
   const sessionId = searchParams.get('session')

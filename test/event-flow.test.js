@@ -135,3 +135,13 @@ test('the application subscribes to Event Flow changes through shared Realtime r
   assert.match(app, /table: 'event_flow_songs'[\s\S]*?refreshAfterRealtime/)
   assert.match(app, /table: 'private_session_songs'[\s\S]*?refreshAfterRealtime/)
 })
+
+test('Events and Event Flow navigation and routes are owner-only', () => {
+  const app = readFileSync('src/App.tsx', 'utf8')
+  const songPage = readFileSync('src/v5.tsx', 'utf8')
+
+  assert.ok(app.includes("...(isOwner ? [{ to: '/private-session', label: 'Events'"))
+  assert.ok(app.includes('<Route path="/private-session" element={isOwner ? <PrivateSessionPage'))
+  assert.ok(app.includes('<Route path="/event-flow" element={isOwner ? <EventFlowPage'))
+  assert.ok(songPage.includes("requestedContext === 'private-session' && isOwner"))
+})
