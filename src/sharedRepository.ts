@@ -36,7 +36,14 @@ type DbPrivateSession = {
   name: string
   session_date: string
   description: string
-  private_session_songs: Array<{ position: number; song_id: string; starting_chord_override: string | null; capo_override: number | null }>
+}
+
+type DbPrivateSessionSong = {
+  private_session_id: string
+  song_id: string
+  position: number
+  starting_chord_override: string | null
+  capo_override?: number | null
 }
 
 type DbWorshipFlowSong = {
@@ -94,8 +101,11 @@ function isMissingCapoOverrideColumn(error: unknown) {
 }
 
 function isMissingTable(error: unknown, tableName: string) {
-  const text = JSON.stringify(error).toLowerCase()
-  return text.includes(tableName.toLowerCase()) || text.includes('pgrst205') || text.includes('does not exist')
+  if (!error || typeof error !== 'object') return false
+  const record = error as { code?: unknown; message?: unknown; details?: unknown }
+  const code = typeof record.code === 'string' ? record.code.toLowerCase() : ''
+  const text = `${String(record.message ?? '')} ${String(record.details ?? '')}`.toLowerCase()
+  return (code === '42p01' || code === 'pgrst205') && text.includes(tableName.toLowerCase())
 }
 
 function mapDbSong(song: DbSong): Song {
@@ -157,22 +167,43 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
 
   let privateSessions: PrivateSession[] = []
   try {
-    const privateSessionsWithCapoResult = await client.from('private_sessions').select('id,name,session_date,description,private_session_songs(song_id,position,starting_chord_override,capo_override)').order('session_date', { ascending: false })
-    const privateSessionsResult = privateSessionsWithCapoResult.error && isMissingCapoOverrideColumn(privateSessionsWithCapoResult.error)
-      ? await client.from('private_sessions').select('id,name,session_date,description,private_session_songs(song_id,position,starting_chord_override)').order('session_date', { ascending: false })
-      : privateSessionsWithCapoResult
-    if (!privateSessionsResult.error) {
-      privateSessions = ((privateSessionsResult.data ?? []) as unknown as DbPrivateSession[]).map((session) => ({
-        id: session.id,
-        name: session.name,
-        date: session.session_date,
-        description: session.description,
-        songIds: (session.private_session_songs ?? []).sort((a, b) => a.position - b.position).map((item) => item.song_id),
-        startingChordOverrides: Object.fromEntries((session.private_session_songs ?? []).filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
-        capoOverrides: Object.fromEntries((session.private_session_songs ?? []).filter((item) => item.capo_override != null).map((item) => [item.song_id, item.capo_override as number])),
-      }))
-    } else if (!isMissingTable(privateSessionsResult.error, 'private_sessions')) {
-      throwIfError(privateSessionsResult.error, 'Unable to load Events.')
+    const privateSessionsResult = await client.from('private_sessions').select('id,name,session_date,description').order('session_date', { ascending: false })
+    if (privateSessionsResult.error) {
+      if (!isMissingTable(privateSessionsResult.error, 'private_sessions')) throwIfError(privateSessionsResult.error, 'Unable to load Events.')
+    } else {
+      const dbSessions = (privateSessionsResult.data ?? []) as unknown as DbPrivateSession[]
+      let dbSessionSongs: DbPrivateSessionSong[] = []
+      if (dbSessions.length) {
+        const sessionIds = dbSessions.map((session) => session.id)
+        const songsWithCapoResult = await client.from('private_session_songs')
+          .select('private_session_id,song_id,position,starting_chord_override,capo_override')
+          .in('private_session_id', sessionIds)
+          .order('position')
+        const sessionSongsResult = songsWithCapoResult.error && isMissingCapoOverrideColumn(songsWithCapoResult.error)
+          ? await client.from('private_session_songs')
+              .select('private_session_id,song_id,position,starting_chord_override')
+              .in('private_session_id', sessionIds)
+              .order('position')
+          : songsWithCapoResult
+        if (sessionSongsResult.error) {
+          if (!isMissingTable(sessionSongsResult.error, 'private_session_songs')) throwIfError(sessionSongsResult.error, 'Unable to load event songs.')
+        } else {
+          dbSessionSongs = (sessionSongsResult.data ?? []) as unknown as DbPrivateSessionSong[]
+        }
+      }
+
+      privateSessions = dbSessions.map((session) => {
+        const assignedSongs = dbSessionSongs.filter((item) => item.private_session_id === session.id).sort((a, b) => a.position - b.position)
+        return {
+          id: session.id,
+          name: session.name,
+          date: session.session_date,
+          description: session.description,
+          songIds: assignedSongs.map((item) => item.song_id),
+          startingChordOverrides: Object.fromEntries(assignedSongs.filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
+          capoOverrides: Object.fromEntries(assignedSongs.filter((item) => item.capo_override != null).map((item) => [item.song_id, item.capo_override as number])),
+        }
+      })
     }
   } catch (privateSessionError) {
     if (!isMissingTable(privateSessionError, 'private_sessions')) throw privateSessionError
