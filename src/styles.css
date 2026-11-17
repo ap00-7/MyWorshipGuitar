@@ -1938,7 +1938,12 @@ nav {
 
   .brand { margin-bottom: 16px; }
 
-  nav {
+  .sidebar nav.sidebar-nav-public {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .sidebar nav.sidebar-nav-owner {
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 6px;
   }
@@ -2057,7 +2062,15 @@ nav {
     display: none;
   }
 
-  nav {
+  .sidebar nav.sidebar-nav-public {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    margin: 0;
+    width: 100%;
+  }
+
+  .sidebar nav.sidebar-nav-owner {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
