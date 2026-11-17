@@ -7,26 +7,51 @@ export function orderedWorshipFlowIds(scheduledIds: string[], flowIds: string[])
 
 export const orderedEventFlowIds = orderedWorshipFlowIds
 
-export function getWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, sundayId: string, songId: string, defaultKey: string) {
-  return preferences[sundayId]?.[songId] ?? defaultKey
+export function getWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, flowId: string, occurrenceIndex: number, defaultKey: string) {
+  return preferences[flowId]?.[String(occurrenceIndex)] ?? defaultKey
 }
 
-export function setWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, sundayId: string, songId: string, key: string): WorshipFlowStartingChordPreferences {
+export function setWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, flowId: string, occurrenceIndex: number, key: string): WorshipFlowStartingChordPreferences {
   return {
     ...preferences,
-    [sundayId]: {
-      ...preferences[sundayId],
-      [songId]: key,
+    [flowId]: {
+      ...preferences[flowId],
+      [String(occurrenceIndex)]: key,
     },
   }
 }
 
-export function resetWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, sundayId: string, songId: string): WorshipFlowStartingChordPreferences {
-  const sundayPreferences = { ...preferences[sundayId] }
-  delete sundayPreferences[songId]
+export function resetWorshipFlowStartingChord(preferences: WorshipFlowStartingChordPreferences, flowId: string, occurrenceIndex: number): WorshipFlowStartingChordPreferences {
+  const flowPreferences = { ...preferences[flowId] }
+  delete flowPreferences[String(occurrenceIndex)]
   const next = { ...preferences }
-  if (Object.keys(sundayPreferences).length) next[sundayId] = sundayPreferences
-  else delete next[sundayId]
+  if (Object.keys(flowPreferences).length) next[flowId] = flowPreferences
+  else delete next[flowId]
+  return next
+}
+
+export function reconcileWorshipFlowStartingChords(preferences: WorshipFlowStartingChordPreferences, flowId: string, previousSongIds: string[], nextSongIds: string[], previousFlowId = flowId): WorshipFlowStartingChordPreferences {
+  const previousOccurrences = new Map<string, number[]>()
+  previousSongIds.forEach((songId, index) => {
+    const positions = previousOccurrences.get(songId) ?? []
+    positions.push(index)
+    previousOccurrences.set(songId, positions)
+  })
+
+  const nextPreferences: Record<string, string> = {}
+  const occurrenceCounts = new Map<string, number>()
+  nextSongIds.forEach((songId, index) => {
+    const occurrenceNumber = occurrenceCounts.get(songId) ?? 0
+    occurrenceCounts.set(songId, occurrenceNumber + 1)
+    const previousIndex = previousOccurrences.get(songId)?.[occurrenceNumber]
+    const startingChord = previousIndex === undefined ? undefined : preferences[previousFlowId]?.[String(previousIndex)]
+    if (startingChord) nextPreferences[String(index)] = startingChord
+  })
+
+  const next = { ...preferences }
+  if (previousFlowId !== flowId) delete next[previousFlowId]
+  if (Object.keys(nextPreferences).length) next[flowId] = nextPreferences
+  else delete next[flowId]
   return next
 }
 

@@ -1446,7 +1446,7 @@ export function SundayPageV5({ songs, setlists, settings, onCreate, onUpdate, on
   )
 }
 
-export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords, capoOverrides, onStartingChordChange, onStartingChordReset, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; startingChords: WorshipFlowStartingChordPreferences; capoOverrides: Record<string, Record<string, number>>; onStartingChordChange: (sundayId: string, songId: string, key: string) => void; onStartingChordReset: (sundayId: string, songId: string) => void; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
+export function WorshipFlowPage({ songs, setlists, worshipFlows, startingChords, capoOverrides, onStartingChordChange, onStartingChordReset, settings, fontScale, onFontScale, isOwner, onSaveFlow }: { songs: Song[]; setlists: Setlist[]; worshipFlows: Record<string, string[]>; startingChords: WorshipFlowStartingChordPreferences; capoOverrides: Record<string, Record<string, number>>; onStartingChordChange: (sundayId: string, occurrenceIndex: number, songId: string, key: string) => void; onStartingChordReset: (sundayId: string, occurrenceIndex: number, songId: string) => void; settings: Settings; fontScale: number; onFontScale: (fontScale: number) => void; isOwner: boolean; onSaveFlow: (sundayId: string, songIds: string[]) => Promise<void> }) {
   useScreenWakeLock(true)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -1572,15 +1572,15 @@ function WorshipFlowPerformance({ songs, flowId, startingChords, capoOverrides, 
   flowId: string
   startingChords: WorshipFlowStartingChordPreferences
   capoOverrides: Record<string, Record<string, number>>
-  onStartingChordChange: (flowId: string, songId: string, key: string) => void
-  onStartingChordReset: (flowId: string, songId: string) => void
+  onStartingChordChange: (flowId: string, occurrenceIndex: number, songId: string, key: string) => void
+  onStartingChordReset: (flowId: string, occurrenceIndex: number, songId: string) => void
   settings: Settings
   onChordDetail?: (chord: ChordDefinition) => void
 }) {
   return (
     <div className="worship-flow-sheet">
       {songs.map((song, songIndex) => {
-        const startingChord = getWorshipFlowStartingChord(startingChords, flowId, song.id, song.key)
+        const startingChord = getWorshipFlowStartingChord(startingChords, flowId, songIndex, song.key)
         const interval = (noteIndex(startingChord) - noteIndex(song.key) + 12) % 12
         return <article className="worship-flow-song" key={`${song.id}-${songIndex}`}>
           <div className="worship-flow-song-heading">
@@ -1589,8 +1589,8 @@ function WorshipFlowPerformance({ songs, flowId, startingChords, capoOverrides, 
               {capoOverrides[flowId]?.[song.id] !== undefined && <span className="worship-flow-capo">Capo {capoOverrides[flowId][song.id]}</span>}
             </div>
             <div className="worship-flow-starting-chord-controls">
-              <button className="worship-flow-original" type="button" onClick={() => onStartingChordReset(flowId, song.id)} aria-label={`Restore original chords for ${song.title}`}>Original</button>
-              <select className="worship-flow-starting-chord" value={startingChord} onChange={(event) => onStartingChordChange(flowId, song.id, event.target.value)} aria-label={`Starting chord for ${song.title}`}>
+              <button className="worship-flow-original" type="button" onClick={() => onStartingChordReset(flowId, songIndex, song.id)} aria-label={`Restore original chords for ${song.title}, copy ${songIndex + 1}`}>Original</button>
+              <select className="worship-flow-starting-chord" value={startingChord} onChange={(event) => onStartingChordChange(flowId, songIndex, song.id, event.target.value)} aria-label={`Starting chord for ${song.title}, copy ${songIndex + 1}`}>
                 {keyOptions.map((key) => <option key={key} value={key}>{key}</option>)}
               </select>
             </div>
@@ -1615,8 +1615,8 @@ export function EventFlowPage({ songs, sessions, eventFlows, startingChords, cap
   eventFlows: Record<string, string[]>
   startingChords: WorshipFlowStartingChordPreferences
   capoOverrides: Record<string, Record<string, number>>
-  onStartingChordChange: (sessionId: string, songId: string, key: string) => void
-  onStartingChordReset: (sessionId: string, songId: string) => void
+  onStartingChordChange: (sessionId: string, occurrenceIndex: number, songId: string, key: string) => void
+  onStartingChordReset: (sessionId: string, occurrenceIndex: number, songId: string) => void
   settings: Settings
   fontScale: number
   onFontScale: (fontScale: number) => void

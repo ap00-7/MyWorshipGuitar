@@ -3,7 +3,15 @@ import { normalizeSong } from './data'
 import { isSundayIso, sortSongsByTitle, toIsoDate } from './music'
 import { supabase } from './supabaseClient'
 
-export type SharedSnapshot = { songs: Song[]; setlists: Setlist[]; privateSessions: PrivateSession[]; worshipFlows: Record<string, string[]>; eventFlows: Record<string, string[]> }
+export type SharedSnapshot = {
+  songs: Song[]
+  setlists: Setlist[]
+  privateSessions: PrivateSession[]
+  worshipFlows: Record<string, string[]>
+  eventFlows: Record<string, string[]>
+  worshipFlowStartingChords: Record<string, Record<string, string>>
+  eventFlowStartingChords: Record<string, Record<string, string>>
+}
 
 type DbSong = {
   id: string
@@ -50,12 +58,14 @@ type DbWorshipFlowSong = {
   sunday_id: string
   song_id: string
   position: number
+  starting_chord_override?: string | null
 }
 
 type DbEventFlowSong = {
   private_session_id: string
   song_id: string
   position: number
+  starting_chord_override?: string | null
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -168,9 +178,17 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
   throwIfError(sundaysResult.error, 'Unable to load Sunday schedule.')
   throwIfError(worshipFlowResult.error, 'Unable to load Worship Flow. Apply the approved Worship Flow database migration.')
   throwIfError(eventFlowResult.error, 'Unable to load Event Flow. Apply the approved Event Flow database migration.')
+  const [worshipFlowOccurrencesWithChords, eventFlowOccurrencesWithChords] = await Promise.all([
+    client.from('worship_flow_song_occurrences').select('sunday_id,song_id,position,starting_chord_override').order('position'),
+    client.from('event_flow_song_occurrences').select('private_session_id,song_id,position,starting_chord_override').order('position'),
+  ])
   const [worshipFlowOccurrencesResult, eventFlowOccurrencesResult] = await Promise.all([
-    client.from('worship_flow_song_occurrences').select('sunday_id,song_id,position').order('position'),
-    client.from('event_flow_song_occurrences').select('private_session_id,song_id,position').order('position'),
+    worshipFlowOccurrencesWithChords.error && isMissingStartingChordOverrideColumn(worshipFlowOccurrencesWithChords.error)
+      ? client.from('worship_flow_song_occurrences').select('sunday_id,song_id,position').order('position')
+      : worshipFlowOccurrencesWithChords,
+    eventFlowOccurrencesWithChords.error && isMissingStartingChordOverrideColumn(eventFlowOccurrencesWithChords.error)
+      ? client.from('event_flow_song_occurrences').select('private_session_id,song_id,position').order('position')
+      : eventFlowOccurrencesWithChords,
   ])
   if (worshipFlowOccurrencesResult.error && !isMissingTable(worshipFlowOccurrencesResult.error, 'worship_flow_song_occurrences')) {
     throwIfError(worshipFlowOccurrencesResult.error, 'Unable to load Worship Flow song order.')
@@ -265,15 +283,43 @@ export async function loadSharedSnapshot(): Promise<SharedSnapshot> {
     startingChordOverrides: Object.fromEntries((sunday.sunday_songs ?? []).filter((item) => item.starting_chord_override).map((item) => [item.song_id, item.starting_chord_override as string])),
     capoOverrides: Object.fromEntries((sunday.sunday_songs ?? []).filter((item) => item.capo_override != null).map((item) => [item.song_id, item.capo_override as number])),
   }))
-  const worshipFlows = worshipFlowRows.reduce<Record<string, string[]>>((flows, item) => {
-    ;(flows[item.sunday_id] ??= []).push(item.song_id)
-    return flows
-  }, {})
-  const eventFlows = eventFlowRows.reduce<Record<string, string[]>>((flows, item) => {
-    ;(flows[item.private_session_id] ??= []).push(item.song_id)
-    return flows
-  }, {})
-  return { songs, setlists, privateSessions, worshipFlows, eventFlows }
+  const worshipFlows: Record<string, string[]> = {}
+  const worshipFlowStartingChords: Record<string, Record<string, string>> = {}
+  for (const item of worshipFlowRows) {
+    const occurrenceIndex = (worshipFlows[item.sunday_id] ??= []).length
+    worshipFlows[item.sunday_id].push(item.song_id)
+    if (item.starting_chord_override) (worshipFlowStartingChords[item.sunday_id] ??= {})[String(occurrenceIndex)] = item.starting_chord_override
+  }
+  const eventFlows: Record<string, string[]> = {}
+  const eventFlowStartingChords: Record<string, Record<string, string>> = {}
+  for (const item of eventFlowRows) {
+    const occurrenceIndex = (eventFlows[item.private_session_id] ??= []).length
+    eventFlows[item.private_session_id].push(item.song_id)
+    if (item.starting_chord_override) (eventFlowStartingChords[item.private_session_id] ??= {})[String(occurrenceIndex)] = item.starting_chord_override
+  }
+  return { songs, setlists, privateSessions, worshipFlows, eventFlows, worshipFlowStartingChords, eventFlowStartingChords }
+}
+
+export async function setWorshipFlowSongStartingChord(sundayId: string, position: number, songId: string, startingChord: string | null) {
+  const client = requireSupabase()
+  const { error } = await client.rpc('set_worship_flow_song_starting_chord', {
+    p_sunday_id: sundayId,
+    p_occurrence_index: position,
+    p_song_id: songId,
+    p_starting_chord_override: startingChord,
+  })
+  throwIfError(error, 'Unable to save the Worship Flow starting chord.')
+}
+
+export async function setEventFlowSongStartingChord(sessionId: string, position: number, songId: string, startingChord: string | null) {
+  const client = requireSupabase()
+  const { error } = await client.rpc('set_event_flow_song_starting_chord', {
+    p_private_session_id: sessionId,
+    p_occurrence_index: position,
+    p_song_id: songId,
+    p_starting_chord_override: startingChord,
+  })
+  throwIfError(error, 'Unable to save the Event Flow starting chord.')
 }
 
 export async function setSundaySongStartingChord(sundayId: string, songId: string, startingChord: string | null) {

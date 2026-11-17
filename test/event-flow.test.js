@@ -4,8 +4,12 @@ import { readFileSync } from 'node:fs'
 
 import {
   duplicateEventFlowSong,
+  getWorshipFlowStartingChord,
   moveEventFlowSong,
   orderedEventFlowIds,
+  reconcileWorshipFlowStartingChords,
+  resetWorshipFlowStartingChord,
+  setWorshipFlowStartingChord,
   selectEventFlowSong,
 } from '../src/worshipFlow.ts'
 import { formatTransposedChordLine, noteIndex } from '../src/music.ts'
@@ -75,6 +79,24 @@ test('Event Flow can duplicate and reorder a specific occurrence', () => {
   assert.deepEqual(moveEventFlowSong(duplicated, 'song-a', 1, 1), ['song-a', 'song-b', 'song-a'])
 })
 
+test('starting chords are independent for each Flow copy', () => {
+  const firstCopyChanged = setWorshipFlowStartingChord({}, 'event-1', 0, 'D')
+  const secondCopyChanged = setWorshipFlowStartingChord(firstCopyChanged, 'event-1', 1, 'E')
+
+  assert.equal(getWorshipFlowStartingChord(secondCopyChanged, 'event-1', 0, 'A'), 'D')
+  assert.equal(getWorshipFlowStartingChord(secondCopyChanged, 'event-1', 1, 'A'), 'E')
+  assert.equal(getWorshipFlowStartingChord(resetWorshipFlowStartingChord(secondCopyChanged, 'event-1', 1), 'event-1', 0, 'A'), 'D')
+  assert.equal(getWorshipFlowStartingChord(resetWorshipFlowStartingChord(secondCopyChanged, 'event-1', 1), 'event-1', 1, 'A'), 'A')
+})
+
+test('Flow starting chords follow their songs when copies are inserted or reordered', () => {
+  const preferences = { event1: { '1': 'D' } }
+  const next = reconcileWorshipFlowStartingChords(preferences, 'event1', ['song-a', 'song-b'], ['song-a', 'song-a', 'song-b'])
+
+  assert.equal(getWorshipFlowStartingChord(next, 'event1', 1, 'A'), 'A')
+  assert.equal(getWorshipFlowStartingChord(next, 'event1', 2, 'A'), 'D')
+})
+
 test('event schedules remain unique while the new migration moves repeats into flows', () => {
   const migration = readFileSync('supabase/migrations/20261117112000_flow_repeats.sql', 'utf8')
   const schema = readFileSync('supabase/schema.sql', 'utf8')
@@ -86,6 +108,17 @@ test('event schedules remain unique while the new migration moves repeats into f
   assert.match(migration, /create table if not exists public\.event_flow_song_occurrences/)
   assert.doesNotMatch(schema, /private_session_song_occurrences/)
   assert.match(schema, /primary key \(private_session_id, song_id\)/)
+})
+
+test('Flow copy starting chords persist per occurrence', () => {
+  const migration = readFileSync('supabase/migrations/20261117114000_flow_occurrence_chords.sql', 'utf8')
+  const styles = readFileSync('src/styles.css', 'utf8')
+
+  assert.match(migration, /add column if not exists starting_chord_override text/)
+  assert.match(migration, /row_number\(\) over \(partition by song_id order by position\)/)
+  assert.match(migration, /set_worship_flow_song_starting_chord/)
+  assert.match(migration, /set_event_flow_song_starting_chord/)
+  assert.doesNotMatch(styles, /text-decoration:\s*underline dotted/)
 })
 test('database persistence restricts writes to owners and assigned songs', () => {
   const migration = readFileSync('supabase/migrations/20261016_event_flow.sql', 'utf8')
