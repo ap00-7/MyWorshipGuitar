@@ -195,6 +195,35 @@ test('detected chord text preserves slash chords and timing markers without gues
   assert.equal(normalizeDetectedChordText('E / / / B / C#m / /'), 'E / / / B / C#m / /')
 })
 
+test('image chord import keeps chord rows and excludes lyrics while preserving section labels and slash chords', () => {
+  const detectedText = `[Intro]
+F/G G
+Ebmaj7 Dm7
+F/G G
+Ebmaj7 Dm7
+
+[Verse 1]
+F G F G Looking out, across the night-time;
+F G F G The city winks a sleepless eye.
+F Em7 Dm7 G
+Sweet se-ducing sighs.
+
+[Bridge]
+F♯m B♭
+
+[Chorus 1]
+F G C C/B Am G Why? why? Tell them that its human nature.`
+  const sections = parseImportedChordText(detectedText)
+
+  assert.deepEqual(sections, [
+    { name: 'Intro', chordText: 'F/G G\nEbmaj7 Dm7\nF/G G\nEbmaj7 Dm7' },
+    { name: 'Verse 1', chordText: 'F G F G\nF G F G\nF Em7 Dm7 G' },
+    { name: 'Bridge', chordText: 'F#m Bb' },
+    { name: 'Chorus 1', chordText: 'F G C C/B Am G' },
+  ])
+  assert.deepEqual(parseImportedChordText('Amazing grace, how sweet the sound.'), [])
+})
+
 test('song titles sort alphabetically ignoring case and surrounding whitespace', () => {
   const songs = [
     { title: '  oceans  ' },
