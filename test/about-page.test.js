@@ -23,7 +23,7 @@ test('About page is read-only and documents the shipped app features', () => {
   assert.notEqual(start, -1)
   assert.notEqual(end, -1)
   assert.doesNotMatch(aboutPage, /isOwner|onSettings|onSave|<button|<input|<form|danger-button/)
-  for (const feature of ['Songs Library', 'Chord Library', 'Sunday Schedule', 'Worship Flow', 'Events', 'Event Flow', 'Guitar 1', 'Guitar 2', 'Supabase', 'viewer']) {
+  for (const feature of ['Songs Library', 'Song Editor', 'Sunday Schedule', 'Worship Flow', 'Events', 'Event Flow', 'Guitar 1', 'Guitar 2', 'chord-chart image', 'lyrics', 'fingering', 'Supabase', 'viewers']) {
     assert.ok(aboutPage.includes(feature), `About page should document ${feature}`)
   }
   assert.match(aboutPage, /to="\/settings">[\s\S]*?Back to Settings/)

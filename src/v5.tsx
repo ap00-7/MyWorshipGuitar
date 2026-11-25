@@ -1232,31 +1232,32 @@ export function AboutPage() {
         <Link className="secondary-button about-back-link" to="/settings"><ChevronLeft size={16} aria-hidden="true" />Back to Settings</Link>
       </header>
 
-      <p className="about-intro">Worship Guitar is a guitar chord reference and performance companion for worship services and other events. It brings shared song planning, chord tools, and compact performance views together in one responsive app.</p>
+      <p className="about-intro">Worship Guitar brings a shared song library, chord-sheet tools, and service planning together in a responsive app for worship services, rehearsals, and other events.</p>
 
       <div className="about-sections">
         <section className="about-section">
-          <h2>Plan and perform</h2>
+          <h2>Songs and service planning</h2>
           <ul>
-            <li><strong>Songs Library:</strong> Browse shared songs; the owner can add, edit, and manage them.</li>
-            <li><strong>Sunday Schedule:</strong> Organize and order songs for each Sunday.</li>
-            <li><strong>Worship Flow:</strong> Select and reorder songs already assigned to a Sunday, then use the compact performance view.</li>
-            <li><strong>Events:</strong> The owner can create and manage events and their assigned songs.</li>
-            <li><strong>Event Flow:</strong> Select and reorder songs assigned to an individual event for its performance view.</li>
+            <li><strong>Songs Library:</strong> Search shared songs by title, starting chord, or chord progression. The owner can add, edit, duplicate, and delete songs.</li>
+            <li><strong>Song Editor:</strong> Arrange chord lines into labelled sections, set the starting chord and capo, and add notes or a YouTube reference. Upload a chord-chart image to detect chord rows and section headings; lyrics are filtered out, and the preview can be reviewed and edited before import.</li>
+            <li><strong>Sunday Schedule:</strong> Add songs to service dates, reorder them with drag and drop, and duplicate a previous Sunday schedule.</li>
+            <li><strong>Worship Flow:</strong> Choose, reorder, and duplicate songs from a Sunday schedule for a separate performance order. Set a starting chord for each copy and restore the original when needed.</li>
+            <li><strong>Events:</strong> The owner can create dated events, assign and reorder songs, and choose whether Events are visible to the public.</li>
+            <li><strong>Event Flow:</strong> Build an independent performance order for an event, duplicate songs, adjust each copy’s starting chord, and open supported chord diagrams.</li>
           </ul>
         </section>
 
         <section className="about-section">
           <h2>Chord and performance tools</h2>
-          <p>Song sheets support Guitar 1 and Guitar 2 views, chord transposition and notation preferences, Starting Chord selection, and capo-aware chord shapes. Guitar 2 chord conversion suggests capo- and key-compatible arrangements that can also be customized. Chord progressions can be transposed and simplified.</p>
-          <p>Worship Flow and Event Flow present selected songs as compact chord sheets with section labels. Their chord font size controls and responsive layouts help keep the sheets readable on different screens.</p>
+          <p>Song sheets include Guitar 1 and Guitar 2 views. Transpose chords by semitone, choose a starting chord, and set a capo. Guitar 2 can suggest a key- and capo-compatible arrangement, which the owner can customize. Chord-chart images and section labels remain available with the saved song.</p>
+          <p>Worship Flow and Event Flow show compact chord sheets with per-song starting chords and adjustable chord size. In Event Flow, supported chords can open a guitar diagram with fingering, notes, and difficulty. Performance screens are responsive and request that compatible devices keep the screen awake.</p>
         </section>
 
         <section className="about-section">
           <h2>Settings and shared access</h2>
-          <p>Settings include a light or dark theme preference. Song and performance views also provide chord notation, simplification, and font-size controls where available. These preferences are stored in your browser.</p>
-          <p>When connected to Supabase, shared songs, schedules, events, and flows synchronize through the shared database, with live refreshes for supported updates. The authenticated owner manages shared content; viewers can browse it without management controls. Database permissions enforce owner-only changes.</p>
-          <p>Without Supabase configuration, the app uses a local demo fallback. That fallback is for local UI use and does not provide secure shared authentication or owner management.</p>
+          <p>Choose a light or dark theme in Settings. Chord-size controls are available on song sheets and in both Flow performance views. These preferences are stored in your browser.</p>
+          <p>With Supabase configured, shared songs, schedules, events, and flows synchronize through the database, with live refreshes for supported updates. The authenticated owner manages shared content; viewers can browse without management controls. Database permissions enforce owner-only changes.</p>
+          <p>Without Supabase configuration, the app uses a local demo fallback for the interface. It does not provide secure shared authentication or owner management.</p>
         </section>
       </div>
     </div>
