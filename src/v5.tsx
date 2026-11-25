@@ -258,8 +258,9 @@ function SongRow({ song }: { song: Song }) {
   )
 }
 
-export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }: { songs: Song[]; onCreate: () => void; onDuplicate: (song: Song) => void; onDelete: (song: Song) => void; isOwner: boolean }) {
+export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }: { songs: Song[]; onCreate: () => void; onDuplicate: (song: Song) => void; onDelete: (song: Song) => void | Promise<void>; isOwner: boolean }) {
   const [query, setQuery] = useState('')
+  const [songToDelete, setSongToDelete] = useState<Song | null>(null)
 
   const filtered = sortSongsByTitle(songs.filter((song) => {
     const text = `${song.title} ${song.currentKey} ${song.sections.flatMap((section) => sectionChordLines(section)).join(' ')}`.toLowerCase()
@@ -299,10 +300,7 @@ export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }:
             {isOwner && <div className="v5-card-actions">
               <Link className="text-button" to={`/songs/${song.id}/edit`}>Edit</Link>
               <button aria-label="Duplicate song" className="icon-button subtle" onClick={() => void Promise.resolve(onDuplicate(song)).catch((error) => window.alert(error instanceof Error ? error.message : 'Unable to duplicate song.'))}><Copy size={15} /></button>
-              <button aria-label="Delete song" className="icon-button subtle" onClick={() => {
-                if (!window.confirm(`Delete “${song.title}”?`)) return
-                void Promise.resolve(onDelete(song)).catch((error) => window.alert(error instanceof Error ? error.message : 'Unable to delete song.'))
-              }}><Trash2 size={15} /></button>
+              <button aria-label="Delete song" className="icon-button subtle" onClick={() => setSongToDelete(song)}><Trash2 size={15} /></button>
             </div>}
           </article>
         ))}
@@ -314,6 +312,14 @@ export function SongLibrary({ songs, onCreate, onDuplicate, onDelete, isOwner }:
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={Boolean(songToDelete)}
+        title="Delete song?"
+        message={songToDelete ? `"${songToDelete.title}" will be permanently deleted from your song library.` : ''}
+        confirmLabel="Delete song"
+        onConfirm={() => songToDelete ? onDelete(songToDelete) : undefined}
+        onCancel={() => setSongToDelete(null)}
+      />
     </div>
   )
 }
@@ -668,6 +674,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   ))
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const titleFieldRef = useRef<HTMLDivElement | null>(null)
   const matchingSong = !existing && normalizeSongTitle(title)
@@ -864,14 +871,13 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
 
   const removeSong = async () => {
     if (!existing || isDeleting) return
-    if (!window.confirm(`Delete “${existing.title}”?`)) return
     setIsDeleting(true)
     try {
       await onDelete(existing)
       navigate('/songs')
     } catch (error) {
       console.error('Song delete failed', error)
-      window.alert(error instanceof Error ? error.message : 'Unable to delete song.')
+      throw error
     } finally {
       setIsDeleting(false)
     }
@@ -1053,7 +1059,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
             }}><Trash2 size={15} />Delete image</button>
           )}
           {existing && (
-            <button className="danger-button" disabled={isDeleting} onClick={() => void removeSong()}><Trash2 size={15} />{isDeleting ? 'Deleting...' : 'Delete song'}</button>
+            <button className="danger-button" disabled={isDeleting} onClick={() => setDeleteDialogOpen(true)}><Trash2 size={15} />Delete song</button>
           )}
         </div>
 
@@ -1062,7 +1068,14 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
             <img src={image.dataUrl} alt="Song chord sheet" />
           </div>
         )}
-
+        {existing && <ConfirmDialog
+          open={deleteDialogOpen}
+          title="Delete song?"
+          message={`"${existing.title}" will be permanently deleted from your song library.`}
+          confirmLabel="Delete song"
+          onConfirm={removeSong}
+          onCancel={() => setDeleteDialogOpen(false)}
+        />}
         {imageImport && (
           <div className="image-import-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) { setImageImport(null); setImportDraft(''); setImageImportError(''); setImageImportWarnings([]); } }}>
             <div className="image-import-dialog" role="dialog" aria-modal="true" aria-labelledby="image-import-title">
