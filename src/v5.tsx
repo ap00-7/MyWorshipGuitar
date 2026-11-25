@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react'
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Copy, GripVertical, Image as ImageIcon, Info, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Copy, GripVertical, Image as ImageIcon, Info, Moon, Plus, Save, Search, Sun, Trash2, Upload, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { parseImportedChordText, readChordSheetImage } from './chordImport'
 import { capoShapeKey, chooseBestGuitar2Option, chooseDisplayedSunday, findSongTitleMatches, formatSundayDateParts, formatSundayTitle, formatTransposedChordLine, generateCompatibleGuitar2Options, guitar2ProgressionAtCapo, isIsoDate, isSundayIso, keyOptions, nextUnusedSundayIso, normalizeKey, normalizeSongTitle, noteIndex, parseChordProgression, shiftKey, simplifyChord, sortSongsByTitle, soundingKey, startingChordOptions, suggestGuitar2Arrangement, suggestGuitar2Progression, toIsoDate, transposeChord, transposeProgressionText, type Notation } from './music'
@@ -12,6 +12,8 @@ import type { ChordDefinition } from './chordDefinitions'
 import { useSongReordering } from './songReordering'
 
 const editorKey = () => crypto.randomUUID()
+const sectionTypes = ['Verse', 'Chorus', 'Bridge', 'Pre-Chorus', 'Intro'] as const
+const isSectionType = (name: string) => sectionTypes.some((sectionType) => sectionType === name)
 
 function useScreenWakeLock(enabled: boolean) {
   useEffect(() => {
@@ -643,11 +645,11 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   const { songId } = useParams()
   const navigate = useNavigate()
   const existing = songs.find((song) => song.id === songId)
-  const blankSection = (): Section => ({ id: editorKey(), name: 'Verse 1', chordText: 'C G Am F\nC G C', guitar2ChordText: '' })
+  const blankSection = (): Section => ({ id: editorKey(), name: '', chordText: '', guitar2ChordText: '' })
 
   const [title, setTitle] = useState(existing?.title || '')
   const [youtubeUrl, setYoutubeUrl] = useState(existing?.youtubeUrl || '')
-  const [key, setKey] = useState(existing?.key || 'C')
+  const [key, setKey] = useState(existing?.key || '')
   const [capo, setCapo] = useState(existing?.capo || 0)
   const [guitar2Capo, setGuitar2Capo] = useState(existing?.guitar2Capo || 0)
   const [guitar2Customized, setGuitar2Customized] = useState(existing?.guitar2Customized || false)
@@ -661,6 +663,9 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
   const [imageImportProgress, setImageImportProgress] = useState('Ready to read')
   const [guitar, setGuitar] = useState<1 | 2>(1)
   const [sections, setSections] = useState<Section[]>(existing?.sections?.length ? existing.sections : [blankSection()])
+  const [customSectionIds, setCustomSectionIds] = useState<Set<string>>(() => new Set(
+    (existing?.sections ?? []).filter((section) => section.name.trim() && !isSectionType(section.name)).map((section) => section.id),
+  ))
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
@@ -690,28 +695,44 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     setNotes(existing.notes)
     setImage(existing.chordImage)
     setSections(existing.sections.length ? existing.sections : [blankSection()])
+    setCustomSectionIds(new Set(existing.sections.filter((section) => section.name.trim() && !isSectionType(section.name)).map((section) => section.id)))
   }, [existing?.id])
 
   const addSection = () => {
-    setSections((current) => [...current, { id: editorKey(), name: `Section ${current.length + 1}`, chordText: '', guitar2ChordText: '' }])
+    setSections((current) => [...current, blankSection()])
   }
 
   const removeSection = (sectionId: string) => {
     setSections((current) => current.filter((section) => section.id !== sectionId))
-  }
-
-  const moveSection = (sectionId: string, target: 'top' | 'up' | 'down' | 'bottom') => {
-    setSections((current) => {
-      const index = current.findIndex((section) => section.id === sectionId)
-      if (index < 0) return current
-      const targetIndex = target === 'top' ? 0 : target === 'up' ? index - 1 : target === 'down' ? index + 1 : current.length - 1
-      if (targetIndex < 0 || targetIndex >= current.length || targetIndex === index) return current
-      const next = [...current]
-      const [section] = next.splice(index, 1)
-      next.splice(targetIndex, 0, section)
+    setCustomSectionIds((current) => {
+      const next = new Set(current)
+      next.delete(sectionId)
       return next
     })
   }
+
+  const duplicateSection = (sectionId: string) => {
+    const source = sections.find((section) => section.id === sectionId)
+    if (!source) return
+    const duplicate = { ...source, id: editorKey() }
+    setSections((current) => {
+      const index = current.findIndex((section) => section.id === sectionId)
+      return index < 0 ? current : [...current.slice(0, index + 1), duplicate, ...current.slice(index + 1)]
+    })
+    if (customSectionIds.has(sectionId)) {
+      setCustomSectionIds((current) => new Set([...current, duplicate.id]))
+    }
+  }
+
+  const sectionReordering = useSongReordering(sections.map((section) => section.id), true, (sectionIds) => {
+    setSections((current) => {
+      const sectionById = new Map(current.map((section) => [section.id, section]))
+      return sectionIds.flatMap((id) => {
+        const section = sectionById.get(id)
+        return section ? [section] : []
+      })
+    })
+  })
 
   const save = async () => {
     if (isSaving) return
@@ -720,24 +741,30 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
       window.alert('Song title is required.')
       return
     }
+    if (!key) {
+      window.alert('Select a starting chord.')
+      return
+    }
+    if (sections.some((section) => (section.chordText.trim() || section.guitar2ChordText?.trim()) && !section.name.trim())) {
+      window.alert('Choose a section label or enter a custom title for each section with chords.')
+      return
+    }
     const normalizedYoutubeUrl = normalizeYouTubeUrl(youtubeUrl)
     if (normalizedYoutubeUrl === null) {
       window.alert('Enter a valid YouTube URL.')
       return
     }
 
-    const normalizedSections = sections
-      .filter((section) => section.name.trim() || section.chordText.trim() || section.guitar2ChordText?.trim())
-      .map((section) => {
-        const guitar1 = section.chordText.trim()
-        const entered = (section.guitar2ChordText ?? '').trim()
-        return {
-          ...section,
-          name: section.name.trim() || 'Section',
-          chordText: guitar1,
-          guitar2ChordText: guitar2Customized ? entered : '',
-        }
-      })
+    const normalizedSections = sections.map((section) => {
+      const guitar1 = section.chordText.trim()
+      const entered = (section.guitar2ChordText ?? '').trim()
+      return {
+        ...section,
+        name: section.name.trim(),
+        chordText: guitar1,
+        guitar2ChordText: guitar2Customized ? entered : '',
+      }
+    })
 
     const song: Song = {
       id: existing?.id || '',
@@ -827,6 +854,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
     }))
 
     setSections(nextSections)
+    setCustomSectionIds(new Set(nextSections.filter((section) => section.name.trim() && !isSectionType(section.name)).map((section) => section.id)))
     setImageImport(null)
     setImportDraft('')
     setImageImportError('')
@@ -916,6 +944,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
           <label>
             Starting Chord
             <select value={key} onChange={(event) => setKey(event.target.value)}>
+            <option value="">Select a starting chord</option>
               {startingChordOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
@@ -933,27 +962,54 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
           </label>
         </div>
 
-        <div className="guitar-switch editor-guitar-switch">
+        {existing && <div className="guitar-switch editor-guitar-switch">
           <button type="button" className={guitar === 1 ? 'active' : ''} onClick={() => setGuitar(1)}>Guitar 1</button>
           <button type="button" className={guitar === 2 ? 'active' : ''} onClick={() => setGuitar(2)}>Guitar 2</button>
-        </div>
+        </div>}
 
         <label>
           Notes
           <textarea className="textarea-editor" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Performance notes, transitions, or reminders." />
         </label>
 
-        <div className="editor-sections">
+        <div className="editor-sections" onClickCapture={sectionReordering.onClickCapture}>
           {sections.map((section, index) => (
-            <div className="section-card" key={section.id}>
+            <div className={`section-card ${sectionReordering.getItemClassName(index)}`} data-reorder-song-index={index} key={section.id}>
               <div className="section-card-header">
-                <input value={section.name} onChange={(event) => updateSection(section.id, 'name', event.target.value)} placeholder="Verse 1" />
-                {sections.length > 1 && <div className="section-reorder-controls">
-                  <button className="icon-button" title="Move to top" aria-label="Move section to top" disabled={index === 0} onClick={() => moveSection(section.id, 'top')}><ChevronsUp size={15} /></button>
-                  <button className="icon-button" title="Move up" aria-label="Move section up" disabled={index === 0} onClick={() => moveSection(section.id, 'up')}><ArrowUp size={15} /></button>
-                  <button className="icon-button" title="Move down" aria-label="Move section down" disabled={index === sections.length - 1} onClick={() => moveSection(section.id, 'down')}><ArrowDown size={15} /></button>
-                  <button className="icon-button" title="Move to bottom" aria-label="Move section to bottom" disabled={index === sections.length - 1} onClick={() => moveSection(section.id, 'bottom')}><ChevronsDown size={15} /></button>
-                </div>}
+                <div className="section-title-control">
+                  <select
+                    value={customSectionIds.has(section.id) ? 'Custom Title' : isSectionType(section.name) ? section.name : ''}
+                    onChange={(event) => {
+                      const sectionType = event.target.value
+                      if (sectionType === 'Custom Title') {
+                        if (!customSectionIds.has(section.id)) updateSection(section.id, 'name', '')
+                        setCustomSectionIds((current) => new Set([...current, section.id]))
+                      } else {
+                        updateSection(section.id, 'name', sectionType)
+                        setCustomSectionIds((current) => {
+                          const next = new Set(current)
+                          next.delete(section.id)
+                          return next
+                        })
+                      }
+                    }}
+                    aria-label={`Section label ${index + 1}`}
+                  >
+                    <option value="">Select section</option>
+                    {sectionTypes.map((sectionType) => <option key={sectionType} value={sectionType}>{sectionType}</option>)}
+                    <option value="Custom Title">Custom Title</option>
+                  </select>
+                  {customSectionIds.has(section.id) && <input
+                    value={section.name}
+                    onChange={(event) => updateSection(section.id, 'name', event.target.value)}
+                    placeholder="Custom title"
+                    aria-label={`Custom title for section ${index + 1}`}
+                  />}
+                </div>
+                <div className="section-reorder-controls">
+                  <button className="icon-button song-reorder-handle" type="button" {...sectionReordering.getHandleProps(index, section.id, section.name || `section ${index + 1}`)}><GripVertical size={17} /></button>
+                  <button className="icon-button" type="button" title="Duplicate section" aria-label={`Duplicate section ${index + 1}`} onClick={() => duplicateSection(section.id)}><Copy size={15} /></button>
+                </div>
                 {sections.length > 1 && (
                   <button className="icon-button" aria-label="Remove section" onClick={() => removeSection(section.id)}><Trash2 size={15} /></button>
                 )}
@@ -966,7 +1022,7 @@ export function SongEditor({ songs, onSave, onDelete }: { songs: Song[]; onSave:
                   if (guitar === 2) setGuitar2Customized(true)
                   updateSection(section.id, guitar === 1 ? 'chordText' : 'guitar2ChordText', event.target.value)
                 }}
-                placeholder={guitar === 1 ? `C G Am F\nC G C` : suggestGuitar2Progression(section.chordText || 'C G Am F\nC G C')}
+                placeholder={guitar === 1 ? 'Enter chords' : suggestGuitar2Progression(section.chordText || '')}
               />
               <small>Section {index + 1} · {guitar === 1 ? 'Guitar 1 chords' : (guitar2Customized ? 'Guitar 2 chords (custom)' : 'Guitar 2 suggested')}</small>
             </div>

@@ -36,7 +36,7 @@ const numericCapo = (value: unknown) => {
 
 export const normalizeSection = (section: Partial<Section> & { id?: string; name?: string; chordText?: string; lines?: string[]; chordLines?: string[] }): Section => ({
   id: section.id?.trim() || '',
-  name: section.name?.trim() || 'Section',
+  name: section.name?.trim() ?? '',
   chordText: section.chordText?.trim() ?? (Array.isArray(section.lines) ? section.lines.join('\n') : Array.isArray(section.chordLines) ? section.chordLines.join('\n') : ''),
   guitar2ChordText: section.guitar2ChordText?.trim() ?? '',
   lines: Array.isArray(section.lines) ? section.lines : undefined,

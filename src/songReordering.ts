@@ -91,7 +91,7 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
 
   const onPointerDown = (index: number, songId: string) => (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.pointerType === 'touch' || event.button !== 0) return
-    const root = event.currentTarget.closest<HTMLElement>('.private-session-list, .sunday-list')
+    const root = event.currentTarget.closest<HTMLElement>('.private-session-list, .sunday-list, .editor-sections')
     if (!root) return
     if (!startGesture(songId, index, event.clientX, event.clientY, root, event.pointerId)) return
 
@@ -131,7 +131,7 @@ export function useSongReordering(songIds: string[], enabled: boolean, onReorder
   const onTouchStart = (index: number, songId: string) => (event: ReactTouchEvent<HTMLButtonElement>) => {
     if (event.touches.length !== 1) return
     const touch = event.changedTouches[0]
-    const root = event.currentTarget.closest<HTMLElement>('.private-session-list, .sunday-list')
+    const root = event.currentTarget.closest<HTMLElement>('.private-session-list, .sunday-list, .editor-sections')
     if (!root) return
     if (!startGesture(songId, index, touch.clientX, touch.clientY, root, undefined, touch.identifier)) return
 
